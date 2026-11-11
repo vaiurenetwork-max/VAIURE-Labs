@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>VAIURE — Every spark is a fresh impact</title>
+    <meta name="description" content="VAIURE 唯昱尔 — Every spark is a fresh impact. The international digital publication and archive at the intersection of Artificial Intelligence, Fashion, Cinema, and Visual Culture." />
+    <meta property="og:title" content="VAIURE — Every spark is a fresh impact" />
+    <meta property="og:description" content="VAIURE 唯昱尔 — Every spark is a fresh impact. The international digital publication and archive at the intersection of Artificial Intelligence, Fashion, Cinema, and Visual Culture." />
+    <!-- Google Fonts: Luxury Fashion Editorial Serif, Architectural Display & Minimal Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,600&family=JetBrains+Mono:wght@300;400;500&family=Plus+Jakarta+Sans:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Preload VAIURE Cinematic Brand Logo Asset -->
+    <link rel="preload" href="/vaiure-logo.png" as="image" type="image/png" />
+    <script>
+      (function() {
+        // 1. Vite HMR WebSocket Nullifier for sandboxed / proxy environments
+        // Satisfies Vite client's internal transport without network failures or unhandled rejections
+        var NativeWebSocket = window.WebSocket;
+        if (NativeWebSocket) {
+          window.WebSocket = function(url, protocols) {
+            var protoStr = Array.isArray(protocols) ? protocols.join(' ') : String(protocols || '');
+            var urlStr = String(url || '');
+            var isViteHmr = protoStr.indexOf('vite-hmr') !== -1 ||
+                            protoStr.indexOf('vite-ping') !== -1 ||
+                            urlStr.indexOf('token=') !== -1 ||
+                            urlStr.indexOf('@vite') !== -1;
+
+            if (isViteHmr) {
+              var target = new EventTarget();
+              target.binaryType = 'blob';
+              target.readyState = 1; // WebSocket.OPEN
+              target.url = urlStr;
+              target.protocol = Array.isArray(protocols) ? protocols[0] : (protocols || '');
+              target.bufferedAmount = 0;
+              target.extensions = '';
+              target.send = function() {};
+              target.close = function() {
+                target.readyState = 3; // CLOSED
+              };
+              setTimeout(function() {
+                var ev = new Event('open');
+                target.dispatchEvent(ev);
+                if (typeof target.onopen === 'function') target.onopen(ev);
+              }, 0);
+              return target;
+            }
+            return new NativeWebSocket(url, protocols);
+          };
+          window.WebSocket.prototype = NativeWebSocket.prototype;
+          window.WebSocket.CONNECTING = 0;
+          window.WebSocket.OPEN = 1;
+          window.WebSocket.CLOSING = 2;
+          window.WebSocket.CLOSED = 3;
+        }
+
+        // 2. Early Capturing Unhandled Rejection & Error Suppressor
+        function isBenignWsError(err) {
+          if (!err) return false;
+          var msg = (typeof err === 'object' && err.message) ? err.message : String(err);
+          return msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1;
+        }
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event && isBenignWsError(event.reason)) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          if (event && (isBenignWsError(event.message) || isBenignWsError(event.error))) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
+          }
+        }, true);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

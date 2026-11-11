@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 1. Threads Quarantine / Original Uploads: Restricted to authenticated owner or admin
+    // Originals are never publicly readable
+    match /threads/{userId}/{threadId}/original/{imageId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'ADMIN' || request.auth.token.role == 'SUPER_ADMIN');
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'ADMIN' || request.auth.token.role == 'SUPER_ADMIN');
+    }
+
+    match /threads/{userId}/{threadId}/quarantine/{imageId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'ADMIN' || request.auth.token.role == 'SUPER_ADMIN');
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'ADMIN' || request.auth.token.role == 'SUPER_ADMIN');
+    }
+
+    // 2. Optimized Editorial Variants: Publicly readable, write/delete restricted to owner/admin
+    match /threads/{userId}/{threadId}/optimized/{imageId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'ADMIN' || request.auth.token.role == 'SUPER_ADMIN');
+    }
+
+    // 3. Fast Mobile Thumbnails: Publicly readable, write/delete restricted to owner/admin
+    match /threads/{userId}/{threadId}/thumbnails/{imageId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && (request.auth.uid == userId || request.auth.token.role == 'ADMIN' || request.auth.token.role == 'SUPER_ADMIN');
+    }
+
+    // Default media rule
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

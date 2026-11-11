@@ -1,0 +1,69 @@
+[
+  {
+    "id": "job-JOB-VAIURE-1793247232263-A1C4",
+    "job_code": "JOB-VAIURE-1793247232263-A1C4",
+    "model": "google_tts",
+    "model_name": "Google TTS",
+    "category": "Voice / TTS",
+    "prompt": "The vault has not been breached in two hundred years.",
+    "parameters": {
+      "model": "google_tts",
+      "prompt": "The vault has not been breached in two hundred years.",
+      "voice": "Kore"
+    },
+    "status": "completed",
+    "cost_generate": 1,
+    "remaining_balance_generate": 244,
+    "result_url": "/uploads/posbot_audio_JOB-VAIURE-1793247232263-A1C4.wav",
+    "error_message": null,
+    "created_at": "2026-10-29T04:13:52.263Z",
+    "updated_at": "2026-10-29T04:13:52.263Z"
+  },
+  {
+    "id": "job-JOB-VAIURE-1793247232201-810B",
+    "job_code": "JOB-VAIURE-1793247232201-810B",
+    "model": "seedance_25_15s",
+    "model_name": "Seedance 2.5 (15s)",
+    "category": "Video",
+    "prompt": "Camera tracking forward @ 24fps",
+    "parameters": {
+      "model": "seedance_25_15s",
+      "prompt": "Camera tracking forward @ 24fps",
+      "aspect_ratio": "16:9"
+    },
+    "status": "completed",
+    "cost_generate": 4,
+    "remaining_balance_generate": 245,
+    "result_url": "/assets/aistudio/lv_0_20261022183355_b0cc82db.mp4",
+    "error_message": null,
+    "created_at": "2026-10-29T04:13:52.201Z",
+    "updated_at": "2026-10-29T04:13:52.201Z"
+  },
+  {
+    "id": "job-JOB-VAIURE-1793247230758-442E",
+    "job_code": "JOB-VAIURE-1793247230758-442E",
+    "model": "flux_2_pro",
+    "model_name": "Flux 2 Pro",
+    "category": "Image",
+    "prompt": "Cinematic volcanic basalt hall with sunlight beam",
+    "parameters": {
+      "model": "flux_2_pro",
+      "prompt": "Cinematic volcanic basalt hall with sunlight beam",
+      "aspect_ratio": "16:9",
+      "image_url": "https://ais-dev-mwimdbvagpgdqljyqxrbuw-513296942322.asia-northeast1.run.app/uploads/test.webp",
+      "reference_image_urls": [
+        "https://ais-dev-mwimdbvagpgdqljyqxrbuw-513296942322.asia-northeast1.run.app/uploads/test.webp"
+      ],
+      "image_urls": [
+        "https://ais-dev-mwimdbvagpgdqljyqxrbuw-513296942322.asia-northeast1.run.app/uploads/test.webp"
+      ]
+    },
+    "status": "completed",
+    "cost_generate": 1,
+    "remaining_balance_generate": 249,
+    "result_url": "/uploads/posbot_render_JOB-VAIURE-1793247230758-442E.webp",
+    "error_message": null,
+    "created_at": "2026-10-29T04:13:50.758Z",
+    "updated_at": "2026-10-29T04:13:50.758Z"
+  }
+]

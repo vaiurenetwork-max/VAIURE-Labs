@@ -1,0 +1,11 @@
+{
+  "name": "Remix VAIURE｜唯昱尔 A New Visual Culture",
+  "description": "AI SOCIAL MEDIA ",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

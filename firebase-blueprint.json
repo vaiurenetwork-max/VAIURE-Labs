@@ -1,0 +1,1032 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "Public user profile and account details for creators, curators, and readers",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50, "pattern": "^[a-zA-Z0-9_.-]+$" },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "bannerImage": { "type": "string", "maxLength": 500 },
+        "bio": { "type": "string", "maxLength": 500 },
+        "website": { "type": "string", "maxLength": 200 },
+        "location": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "maxLength": 50 },
+        "accountType": {
+          "type": "string",
+          "enum": ["USER", "CREATOR", "ARTIST", "FILMMAKER", "PHOTOGRAPHER", "STUDIO", "BRAND", "EDITOR", "MODERATOR", "FINANCE", "SUPPORT", "ADMIN", "SUPER_ADMIN"]
+        },
+        "verified": { "type": "boolean" },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "EMAIL_UNVERIFIED", "RESTRICTED", "SUSPENDED", "DISABLED", "DELETION_PENDING", "DELETED"]
+        },
+        "suspensionReason": { "type": "string", "maxLength": 500 },
+        "followersCount": { "type": "number" },
+        "followingCount": { "type": "number" },
+        "postsCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "lastActiveAt": { "type": "string" },
+        "deletionRequestedAt": { "type": "string" }
+      },
+      "required": ["uid", "username", "displayName", "email", "createdAt"]
+    },
+    "userSessions": {
+      "title": "Active User Session",
+      "description": "Registered device and browser login session for advanced logout control",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "deviceName": { "type": "string", "maxLength": 100 },
+        "deviceType": { "type": "string", "maxLength": 50 },
+        "browser": { "type": "string", "maxLength": 50 },
+        "operatingSystem": { "type": "string", "maxLength": 50 },
+        "approximateLocation": { "type": "string", "maxLength": 100 },
+        "ipHash": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string" },
+        "lastActiveAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" },
+        "current": { "type": "boolean" },
+        "revokedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["ACTIVE", "REVOKED", "EXPIRED"] }
+      },
+      "required": ["sessionId", "uid", "deviceName", "status", "createdAt"]
+    },
+    "userSettings": {
+      "title": "User Account & Privacy Settings",
+      "description": "Preferences, security settings, notification toggles, and privacy controls",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "twoFactorEnabled": { "type": "boolean" },
+        "profileVisibility": { "type": "string", "enum": ["PUBLIC", "CREATORS_ONLY", "PRIVATE"] },
+        "whoCanFollow": { "type": "string", "enum": ["EVERYONE", "VERIFIED_ONLY"] },
+        "whoCanMessage": { "type": "string", "enum": ["EVERYONE", "FOLLOWED_ONLY", "NO_ONE"] },
+        "whoCanComment": { "type": "string", "enum": ["EVERYONE", "FOLLOWED_ONLY", "VERIFIED_ONLY"] },
+        "whoCanMention": { "type": "string", "enum": ["EVERYONE", "FOLLOWED_ONLY", "NO_ONE"] },
+        "activityVisibility": { "type": "boolean" },
+        "onlineStatus": { "type": "boolean" },
+        "readReceipts": { "type": "boolean" },
+        "language": { "type": "string", "maxLength": 10 },
+        "currency": { "type": "string", "maxLength": 10 },
+        "timezone": { "type": "string", "maxLength": 50 },
+        "theme": { "type": "string", "enum": ["DARK", "LIGHT", "SYSTEM"] },
+        "reducedMotion": { "type": "boolean" },
+        "animationIntensity": { "type": "string", "enum": ["SUBTLE", "STANDARD", "CINEMATIC"] },
+        "interfaceDensity": { "type": "string", "enum": ["COMPACT", "COMFORTABLE", "EXPANSIVE"] },
+        "notifications": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "updatedAt"]
+    },
+    "usernames": {
+      "title": "Username Reservation",
+      "description": "Unique username registry doc mapped to user uid to prevent duplicates",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50, "pattern": "^[a-zA-Z0-9_.-]+$" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "username", "createdAt"]
+    },
+    "posts": {
+      "title": "Archival Social Post",
+      "description": "High-fashion, cinematic film, and generative art posts published by creators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "authorUid": { "type": "string", "maxLength": 128 },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "authorDisplayName": { "type": "string", "maxLength": 100 },
+        "authorPhotoURL": { "type": "string", "maxLength": 500 },
+        "authorVerified": { "type": "boolean" },
+        "authorAccountType": { "type": "string", "maxLength": 50 },
+        "title": { "type": "string", "maxLength": 200 },
+        "caption": { "type": "string", "maxLength": 2000 },
+        "category": { "type": "string", "maxLength": 50 },
+        "type": { "type": "string", "maxLength": 50 },
+        "aiDisclosure": { "type": "string", "maxLength": 50 },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "repostsCount": { "type": "number" },
+        "savesCount": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "authorUid", "authorUsername", "title", "category", "createdAt"]
+    },
+    "postLikes": {
+      "title": "Post Like",
+      "description": "User like record for an archival post",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["postId", "userId", "createdAt"]
+    },
+    "postComments": {
+      "title": "Post Comment",
+      "description": "Comment and editorial discussion on a post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "postId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "content": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" },
+        "likesCount": { "type": "number" }
+      },
+      "required": ["id", "postId", "authorId", "content", "createdAt"]
+    },
+    "userCollections": {
+      "title": "User Collection / Moodboard",
+      "description": "Curated moodboard collection created by user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "isPrivate": { "type": "boolean" },
+        "coverImage": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title"]
+    },
+    "savedPosts": {
+      "title": "Saved Post Record",
+      "description": "Marker indicating a user has saved a post to their personal vault",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "savedAt": { "type": "string" }
+      },
+      "required": ["postId", "userId", "savedAt"]
+    },
+    "follows": {
+      "title": "Social Follow",
+      "description": "Social graph relationship between creator and follower",
+      "type": "object",
+      "properties": {
+        "followerUid": { "type": "string", "maxLength": 128 },
+        "targetUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["followerUid", "targetUid", "createdAt"]
+    },
+    "conversations": {
+      "title": "Direct Dispatch Conversation",
+      "description": "Private messaging thread or collaboration negotiation between creators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "lastMessageText": { "type": "string", "maxLength": 1000 },
+        "lastMessageSenderId": { "type": "string", "maxLength": 128 },
+        "unreadCount": { "type": "number" },
+        "isCollabRequest": { "type": "boolean" },
+        "updatedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "createdAt"]
+    },
+    "chatMessages": {
+      "title": "Chat Message",
+      "description": "Message within a direct dispatch conversation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "conversationId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "recipientId": { "type": "string", "maxLength": 128 },
+        "text": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string" },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "sharedPostId": { "type": "string", "maxLength": 128 },
+        "sharedPostTitle": { "type": "string", "maxLength": 200 },
+        "isCollabRequest": { "type": "boolean" }
+      },
+      "required": ["id", "conversationId", "senderId", "text", "createdAt"]
+    },
+    "notifications": {
+      "title": "Social & System Notification",
+      "description": "Activity alerts for follows, likes, reposts, comments, wallet events, and security alerts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 50 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 100 },
+        "actorUsername": { "type": "string", "maxLength": 50 },
+        "actorAvatar": { "type": "string", "maxLength": 500 },
+        "targetPostId": { "type": "string", "maxLength": 128 },
+        "targetPostTitle": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "type", "createdAt", "read"]
+    },
+    "submissions": {
+      "title": "Editorial Open Call Submission",
+      "description": "Curatorial submission dossier submitted for archival review",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 50 },
+        "creatorName": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "location": { "type": "string", "maxLength": 100 },
+        "projectTitle": { "type": "string", "maxLength": 200 },
+        "year": { "type": "string", "maxLength": 10 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "aiTools": { "type": "string", "maxLength": 500 },
+        "link": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "ARCHIVED"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["creatorName", "email", "projectTitle", "createdAt"]
+    },
+    "wallets": {
+      "title": "Creator & Collector Wallet",
+      "description": "Multi-currency digital wallet ledger account owned by user",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "primaryCurrency": { "type": "string", "maxLength": 10 },
+        "availableBalance": { "type": "number" },
+        "pendingBalance": { "type": "number" },
+        "totalReceived": { "type": "number" },
+        "totalSpent": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVE", "RESTRICTED", "FROZEN"] },
+        "restrictionReason": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "primaryCurrency", "availableBalance", "status"]
+    },
+    "walletTransactions": {
+      "title": "Immutable Wallet Ledger Transaction",
+      "description": "Cryptographically auditable financial transaction record",
+      "type": "object",
+      "properties": {
+        "transactionId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "type": {
+          "type": "string",
+          "enum": ["TOP_UP", "PURCHASE", "REFUND", "PAYOUT", "TRANSFER", "CONVERSION", "FEE", "ADJUSTMENT"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUNDED", "DISPUTED"]
+        },
+        "currency": { "type": "string", "maxLength": 10 },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "exchangeRate": { "type": "number" },
+        "exchangeRateTimestamp": { "type": "string" },
+        "provider": { "type": "string", "maxLength": 100 },
+        "reference": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["transactionId", "uid", "type", "status", "currency", "amount", "createdAt"]
+    },
+    "topUps": {
+      "title": "Top-Up Intent",
+      "description": "Payment gateway top-up session validated by server",
+      "type": "object",
+      "properties": {
+        "topUpId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "currency": { "type": "string", "maxLength": 10 },
+        "amount": { "type": "number" },
+        "fee": { "type": "number" },
+        "totalCharge": { "type": "number" },
+        "paymentMethod": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "EXPIRED"] },
+        "createdAt": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["topUpId", "uid", "currency", "amount", "status", "createdAt"]
+    },
+    "currencyConfigurations": {
+      "title": "ISO 4217 Currency Definition",
+      "description": "Platform-wide currency parameters and display rules",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 10 },
+        "name": { "type": "string", "maxLength": 100 },
+        "symbol": { "type": "string", "maxLength": 10 },
+        "decimalPlaces": { "type": "number" },
+        "countryOrRegion": { "type": "string", "maxLength": 100 },
+        "enabled": { "type": "boolean" },
+        "displayOrder": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["code", "name", "symbol", "enabled"]
+    },
+    "exchangeRates": {
+      "title": "Server Exchange Rates Cache",
+      "description": "Validated foreign exchange rates against base currency",
+      "type": "object",
+      "properties": {
+        "baseCurrency": { "type": "string", "maxLength": 10 },
+        "provider": { "type": "string", "maxLength": 100 },
+        "fetchedAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "version": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["LIVE", "STALE", "UNAVAILABLE"] },
+        "rates": { "type": "object" }
+      },
+      "required": ["baseCurrency", "rates", "fetchedAt", "status"]
+    },
+    "adminAuditLogs": {
+      "title": "Immutable Admin Audit Record",
+      "description": "Secure record of all administrative, financial, and governance decisions",
+      "type": "object",
+      "properties": {
+        "logId": { "type": "string", "maxLength": 128 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 150 },
+        "actorRole": { "type": "string", "maxLength": 50 },
+        "action": { "type": "string", "maxLength": 100 },
+        "targetType": { "type": "string", "maxLength": 50 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "targetUid": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "maxLength": 1000 },
+        "timestamp": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "result": { "type": "string", "enum": ["SUCCESS", "DENIED", "FAILED"] },
+        "targetMetadata": { "type": "object" },
+        "metadata": { "type": "object" },
+        "integrityHash": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["logId", "actorUid", "action", "timestamp", "result"]
+    },
+    "systemSettings": {
+      "title": "Platform Global Configuration",
+      "description": "Operational controls, maintenance mode, limits, and platform fee policies",
+      "type": "object",
+      "properties": {
+        "settingId": { "type": "string", "maxLength": 50 },
+        "platformName": { "type": "string", "maxLength": 100 },
+        "maintenanceMode": { "type": "boolean" },
+        "registrationEnabled": { "type": "boolean" },
+        "uploadEnabled": { "type": "boolean" },
+        "commentsEnabled": { "type": "boolean" },
+        "messagingEnabled": { "type": "boolean" },
+        "paymentsEnabled": { "type": "boolean" },
+        "topUpsEnabled": { "type": "boolean" },
+        "walletEnabled": { "type": "boolean" },
+        "minimumTopUp": { "type": "number" },
+        "maximumTopUp": { "type": "number" },
+        "platformFeeRate": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["settingId", "updatedAt"]
+    },
+    "featureFlags": {
+      "title": "Platform Feature Flag",
+      "description": "Gradual rollout and role-based feature gating",
+      "type": "object",
+      "properties": {
+        "featureId": { "type": "string", "maxLength": 50 },
+        "enabled": { "type": "boolean" },
+        "rolloutPercentage": { "type": "number" },
+        "allowedRoles": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["featureId", "enabled", "updatedAt"]
+    },
+    "securityEvents": {
+      "title": "Security & Fraud Alert Event",
+      "description": "Real-time automated security tracking and intrusion detection record",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string", "maxLength": 128 },
+        "eventType": { "type": "string", "maxLength": 100 },
+        "severity": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+        "uid": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "INVESTIGATING", "RESOLVED", "DISMISSED"] },
+        "resolution": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["eventId", "eventType", "severity", "timestamp", "status"]
+    },
+    "supportTickets": {
+      "title": "User Support Ticket",
+      "description": "Concierge dispute, payment, account, and curatorial support request",
+      "type": "object",
+      "properties": {
+        "ticketId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 150 },
+        "category": { "type": "string", "maxLength": 50 },
+        "subject": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "WAITING_FOR_USER", "RESOLVED", "CLOSED"] },
+        "priority": { "type": "string", "enum": ["LOW", "NORMAL", "HIGH", "URGENT"] },
+        "assignedTo": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "resolvedAt": { "type": "string" }
+      },
+      "required": ["ticketId", "userId", "subject", "message", "status", "createdAt"]
+    },
+    "shorts": {
+      "title": "Short Video",
+      "description": "Short-form vertical video published on VAIURE Shorts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "videoUrl": { "type": "string", "maxLength": 500 },
+        "thumbnailUrl": { "type": "string", "maxLength": 500 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "category": { "type": "string", "maxLength": 50 },
+        "soundTitle": { "type": "string", "maxLength": 100 },
+        "soundAuthor": { "type": "string", "maxLength": 100 },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "sharesCount": { "type": "number" },
+        "savesCount": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "videoUrl", "createdAt"]
+    },
+    "shortComments": {
+      "title": "Short Video Comment",
+      "description": "User comments on a short video",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "shortId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "content": { "type": "string", "maxLength": 1000 },
+        "likesCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "shortId", "authorId", "content", "createdAt"]
+    },
+    "forumThreads": {
+      "title": "Forum Thread and Thought",
+      "description": "Threads micro-post with optimized media assets, chained thoughts, and discourse",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "authorDisplayName": { "type": "string", "maxLength": 100 },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "authorRole": { "type": "string", "maxLength": 50 },
+        "authorVerified": { "type": "boolean" },
+        "topic": { "type": "string", "maxLength": 100 },
+        "content": { "type": "string", "maxLength": 5000 },
+        "mediaUrls": { "type": "array" },
+        "imageProcessingStatus": { "type": "string", "enum": ["pending", "processing", "completed", "failed"] },
+        "optimizedImages": { "type": "array" },
+        "replyPermission": { "type": "string", "enum": ["EVERYONE", "FOLLOWERS", "MENTIONS"] },
+        "likesCount": { "type": "number" },
+        "repliesCount": { "type": "number" },
+        "repostsCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "authorUsername", "topic", "createdAt"]
+    },
+    "forumReplies": {
+      "title": "Thread Discussion Reply",
+      "description": "Nested conversational reply on a thread",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "threadId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorUsername": { "type": "string", "maxLength": 50 },
+        "authorDisplayName": { "type": "string", "maxLength": 100 },
+        "content": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "threadId", "authorId", "content", "createdAt"]
+    },
+    "collaborativeRooms": {
+      "title": "Collaborative Creative Room",
+      "description": "Multiplayer real-time AI video creation room and shared canvas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "coverImage": { "type": "string", "maxLength": 500 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "ownerUsername": { "type": "string", "maxLength": 50 },
+        "ownerDisplayName": { "type": "string", "maxLength": 100 },
+        "ownerAvatar": { "type": "string", "maxLength": 500 },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE", "INVITE_ONLY"] },
+        "projectType": { "type": "string", "enum": ["CINEMATIC", "COMMERCIAL", "EXPERIMENTAL", "FASHION", "NARRATIVE"] },
+        "maxParticipants": { "type": "number" },
+        "status": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+        "activeCollaboratorsCount": { "type": "number" },
+        "tags": { "type": "array" },
+        "inviteCode": { "type": "string", "maxLength": 20 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ownerId", "visibility", "createdAt"]
+    },
+    "canvasItems": {
+      "title": "SharedWorks Canvas Item",
+      "description": "Visual cards, prompt nodes, storyboards, and notes on collaborative canvas",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["PROMPT_CARD", "NOTE", "REFERENCE_IMAGE", "VIDEO_PREVIEW", "SCENE_GROUP", "STORYBOARD"] },
+        "title": { "type": "string", "maxLength": 100 },
+        "content": { "type": "string", "maxLength": 10000 },
+        "mediaUrl": { "type": "string", "maxLength": 500 },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "roomId", "type", "title", "authorId", "createdAt"]
+    },
+    "roomParticipants": {
+      "title": "Room Participant Presence & Role",
+      "description": "Collaborator presence, status, and role in a room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["OWNER", "ADMIN", "EDITOR", "VIEWER"] },
+        "status": { "type": "string", "enum": ["ONLINE", "IDLE", "OFFLINE"] },
+        "color": { "type": "string", "maxLength": 20 },
+        "joinedAt": { "type": "string" },
+        "lastActiveAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "role", "joinedAt"]
+    },
+    "roomActivities": {
+      "title": "Room Activity Event",
+      "description": "Chronological audit and activity event in a collaborative room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 100 },
+        "action": { "type": "string", "maxLength": 200 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "roomId", "actorId", "action", "timestamp"]
+    },
+    "livePresence": {
+      "title": "Global Creator Live Presence",
+      "description": "Active creator status, heartbeat timestamp, current atelier slide location, and client metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "username": { "type": "string", "maxLength": 50 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "avatar": { "type": "string", "maxLength": 500 },
+        "currentSlide": { "type": "number" },
+        "currentSlideName": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["ONLINE", "IDLE", "CREATING"] },
+        "lastHeartbeat": { "type": "string" },
+        "color": { "type": "string", "maxLength": 20 }
+      },
+      "required": ["uid", "username", "lastHeartbeat"]
+    },
+    "liveReactions": {
+      "title": "Ambient Spatial Pulse Reaction",
+      "description": "Transient visual pulse ripple broadcasted by creators across atelier viewports",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 100 },
+        "reaction": { "type": "string", "maxLength": 50 },
+        "label": { "type": "string", "maxLength": 50 },
+        "color": { "type": "string", "maxLength": 20 },
+        "slideIndex": { "type": "number" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "actorId", "reaction", "createdAt"]
+    },
+    "sharedScenes": {
+      "title": "Shared 3D Greybox Scene",
+      "description": "Community 3D greybox stages exported for collaborative inspection and co-direction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 150 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "duration": { "type": "number" },
+        "physicsMode": { "type": "string", "maxLength": 50 },
+        "summary": { "type": "string", "maxLength": 1000 },
+        "seedancePrompt": { "type": "string", "maxLength": 3000 },
+        "environmentPreset": { "type": "string", "maxLength": 50 },
+        "charactersCount": { "type": "number" },
+        "propsCount": { "type": "number" },
+        "sceneData": { "type": "string", "maxLength": 50000 },
+        "likesCount": { "type": "number" },
+        "remixCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "authorId", "duration", "physicsMode", "sceneData", "createdAt"]
+    },
+    "sharedPrompts": {
+      "title": "Shared VX Reconstructed Prompt Matrix",
+      "description": "Reverse-engineered Midjourney V8.2 prompt matrix with Gemini model provenance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "prompt": { "type": "string", "maxLength": 5000 },
+        "fullMidjourneyCommand": { "type": "string", "maxLength": 6000 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "authorAvatar": { "type": "string", "maxLength": 500 },
+        "modelId": { "type": "string", "maxLength": 50 },
+        "modelLabel": { "type": "string", "maxLength": 50 },
+        "mode": { "type": "string", "maxLength": 50 },
+        "confidenceScore": { "type": "number" },
+        "aspectRatio": { "type": "string", "maxLength": 20 },
+        "stylize": { "type": "number" },
+        "subjectTitle": { "type": "string", "maxLength": 200 },
+        "lightingStyle": { "type": "string", "maxLength": 200 },
+        "cameraStyle": { "type": "string", "maxLength": 200 },
+        "likesCount": { "type": "number" },
+        "remixCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "prompt", "fullMidjourneyCommand", "authorId", "modelId", "createdAt"]
+    },
+    "membershipPlans": {
+      "title": "Seedance Membership Plan",
+      "description": "5-tier subscription plans (Free, Starter, Creator, Pro, Studio)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "tier": { "type": "string", "enum": ["FREE", "STARTER", "CREATOR", "PRO", "STUDIO"] },
+        "name": { "type": "string", "maxLength": 50 },
+        "priceIDR": { "type": "number" },
+        "monthlyCredits": { "type": "number" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "tier", "name", "priceIDR", "monthlyCredits"]
+    },
+    "subscriptions": {
+      "title": "User Subscription",
+      "description": "Active user tier subscription and renewal status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "tier": { "type": "string", "enum": ["FREE", "STARTER", "CREATOR", "PRO", "STUDIO"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "PAST_DUE", "CANCELED", "TRIALING"] },
+        "monthlyCreditsRemaining": { "type": "number" },
+        "currentPeriodEnd": { "type": "string" },
+        "cancelAtPeriodEnd": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "tier", "status", "monthlyCreditsRemaining"]
+    },
+    "creditPackages": {
+      "title": "Credit Package",
+      "description": "Top-up credit packages for Seedance compute",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "name": { "type": "string", "maxLength": 50 },
+        "credits": { "type": "number" },
+        "priceIDR": { "type": "number" },
+        "validityDays": { "type": "number" }
+      },
+      "required": ["id", "name", "credits", "priceIDR"]
+    },
+    "creditWallets": {
+      "title": "Credit Wallet",
+      "description": "User credit wallet separating monthly vs purchased top-up balance",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "totalCredits": { "type": "number" },
+        "monthlyCredits": { "type": "number" },
+        "purchasedCredits": { "type": "number" },
+        "monthlyExpiryDate": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "totalCredits", "monthlyCredits", "purchasedCredits"]
+    },
+    "creditTransactions": {
+      "title": "Credit Transaction",
+      "description": "Immutable ledger record of all credit allocations, deductions, and refunds",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "balanceAfter": { "type": "number" },
+        "description": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "type", "amount", "balanceAfter", "createdAt"]
+    },
+    "generationJobs": {
+      "title": "Seedance Generation Job",
+      "description": "Asynchronous Seedance 2.5 video generation task and render state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "prompt": { "type": "string", "maxLength": 5000 },
+        "status": { "type": "string" },
+        "progress": { "type": "number" },
+        "videoUrl": { "type": "string", "maxLength": 1000 },
+        "reservedCredits": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "prompt", "status", "reservedCredits", "createdAt"]
+    },
+    "communityVideos": {
+      "title": "Community AI Video",
+      "description": "Public video showcase entries published by creators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "creatorName": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "prompt": { "type": "string", "maxLength": 5000 },
+        "videoUrl": { "type": "string", "maxLength": 1000 },
+        "likesCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "prompt", "videoUrl", "createdAt"]
+    },
+    "apiStock": {
+      "title": "BytePlus API Stock",
+      "description": "Prepaid BytePlus API balance and safety alert thresholds",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "currentBalanceUSD": { "type": "number" },
+        "alertThresholdUSD": { "type": "number" },
+        "lastCheckedAt": { "type": "string" }
+      },
+      "required": ["id", "currentBalanceUSD", "alertThresholdUSD"]
+    },
+    "financialAnalytics": {
+      "title": "Financial Analytics",
+      "description": "Platform aggregate financial reconciliation and gross margins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "mrrIDR": { "type": "number" },
+        "topUpRevenueIDR": { "type": "number" },
+        "grossProfitIDR": { "type": "number" },
+        "grossMarginPercent": { "type": "number" },
+        "usdToIdrRate": { "type": "number" }
+      },
+      "required": ["id", "mrrIDR", "grossProfitIDR", "usdToIdrRate"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Public profile and account status documents indexed by user uid"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "userSessions",
+      "description": "Authenticated session registry for active devices"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "userSettings",
+      "description": "Private user preferences, security toggles, and notification settings"
+    },
+    "/usernames/{username}": {
+      "schema": "usernames",
+      "description": "Unique username documents to guarantee zero username collisions"
+    },
+    "/posts/{postId}": {
+      "schema": "posts",
+      "description": "Curated editorial and community social posts"
+    },
+    "/posts/{postId}/likes/{userId}": {
+      "schema": "postLikes",
+      "description": "User likes on a specific post"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "postComments",
+      "description": "Comments and replies on a specific post"
+    },
+    "/users/{userId}/collections/{collectionId}": {
+      "schema": "userCollections",
+      "description": "Public or private moodboard collections organized by user"
+    },
+    "/users/{userId}/savedPosts/{postId}": {
+      "schema": "savedPosts",
+      "description": "Saved post records belonging to a user"
+    },
+    "/users/{userId}/followers/{followerUid}": {
+      "schema": "follows",
+      "description": "Follower documents pointing to the user"
+    },
+    "/users/{userId}/following/{targetUid}": {
+      "schema": "follows",
+      "description": "Following documents initiated by the user"
+    },
+    "/conversations/{conversationId}": {
+      "schema": "conversations",
+      "description": "Direct message threads between users"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": "chatMessages",
+      "description": "Individual messages in a direct message thread"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": "notifications",
+      "description": "Personalized notifications for a user"
+    },
+    "/submissions/{submissionId}": {
+      "schema": "submissions",
+      "description": "Editorial submissions submitted by creators"
+    },
+    "/wallets/{userId}": {
+      "schema": "wallets",
+      "description": "Multi-currency digital wallet ledger accounts"
+    },
+    "/walletTransactions/{transactionId}": {
+      "schema": "walletTransactions",
+      "description": "Immutable ledger records of financial movements"
+    },
+    "/topUps/{topUpId}": {
+      "schema": "topUps",
+      "description": "Top-up intents and payment authorization records"
+    },
+    "/currencyConfigurations/{currencyCode}": {
+      "schema": "currencyConfigurations",
+      "description": "Supported ISO 4217 currency specifications"
+    },
+    "/exchangeRates/{baseCurrency}": {
+      "schema": "exchangeRates",
+      "description": "Server-side normalized currency exchange rates cache"
+    },
+    "/adminAuditLogs/{logId}": {
+      "schema": "adminAuditLogs",
+      "description": "Tamper-proof administrative governance records"
+    },
+    "/systemSettings/{settingId}": {
+      "schema": "systemSettings",
+      "description": "Global operational and platform settings"
+    },
+    "/featureFlags/{featureId}": {
+      "schema": "featureFlags",
+      "description": "System feature toggles and gradual rollout configurations"
+    },
+    "/securityEvents/{eventId}": {
+      "schema": "securityEvents",
+      "description": "Security alarms and abnormal account activity records"
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": "supportTickets",
+      "description": "Concierge customer support inquiries and disputes"
+    },
+    "/shorts/{shortId}": {
+      "schema": "shorts",
+      "description": "Short-form vertical video documents"
+    },
+    "/shorts/{shortId}/comments/{commentId}": {
+      "schema": "shortComments",
+      "description": "Comments on short-form videos"
+    },
+    "/forumThreads/{threadId}": {
+      "schema": "forumThreads",
+      "description": "Threads dispatches with backend-optimized imagery"
+    },
+    "/forumThreads/{threadId}/replies/{replyId}": {
+      "schema": "forumReplies",
+      "description": "Thread discussion replies"
+    },
+    "/shareLinks/{linkId}": {
+      "schema": "systemSettings",
+      "description": "Attribution share links"
+    },
+    "/threads/{threadId}": {
+      "schema": "forumThreads",
+      "description": "Thread copies and dispatches"
+    },
+    "/collaborativeRooms/{roomId}": {
+      "schema": "collaborativeRooms",
+      "description": "Creative room metadata, settings, and owner permissions"
+    },
+    "/collaborativeRooms/{roomId}/canvasItems/{itemId}": {
+      "schema": "canvasItems",
+      "description": "Shared visual cards, prompts, storyboards, and notes on canvas"
+    },
+    "/collaborativeRooms/{roomId}/participants/{participantId}": {
+      "schema": "roomParticipants",
+      "description": "Collaborator presence, role, and activity state in room"
+    },
+    "/collaborativeRooms/{roomId}/activities/{activityId}": {
+      "schema": "roomActivities",
+      "description": "Real-time activity audit log of room actions"
+    },
+    "/collaborativeRooms/{roomId}/cursors/{cursorId}": {
+      "schema": "roomParticipants",
+      "description": "Live transient collaborator cursor coordinates on canvas"
+    },
+    "/livePresence/{presenceId}": {
+      "schema": "livePresence",
+      "description": "Active creator real-time heartbeat and atelier location"
+    },
+    "/liveReactions/{reactionId}": {
+      "schema": "liveReactions",
+      "description": "Transient creative ambient reaction pulses"
+    },
+    "/sharedScenes/{sceneId}": {
+      "schema": "sharedScenes",
+      "description": "Community 3D Greybox scenes published for co-direction and inspection"
+    },
+    "/sharedPrompts/{promptId}": {
+      "schema": "sharedPrompts",
+      "description": "Reverse-engineered Midjourney prompt matrix entries"
+    },
+    "/membershipPlans/{planId}": {
+      "schema": "membershipPlans",
+      "description": "Seedance 2.5 subscription tier definitions"
+    },
+    "/subscriptions/{subId}": {
+      "schema": "subscriptions",
+      "description": "Active user subscription status and monthly credit quotas"
+    },
+    "/creditPackages/{packageId}": {
+      "schema": "creditPackages",
+      "description": "Top-up credit packages"
+    },
+    "/creditWallets/{userId}": {
+      "schema": "creditWallets",
+      "description": "User credit balances"
+    },
+    "/creditTransactions/{transactionId}": {
+      "schema": "creditTransactions",
+      "description": "Immutable credit transaction ledger entries"
+    },
+    "/generationJobs/{jobId}": {
+      "schema": "generationJobs",
+      "description": "Seedance 2.5 asynchronous video generation tasks"
+    },
+    "/communityVideos/{videoId}": {
+      "schema": "communityVideos",
+      "description": "Public community video showcase dispatches"
+    },
+    "/apiStock/{stockId}": {
+      "schema": "apiStock",
+      "description": "Prepaid BytePlus API stock balance"
+    },
+    "/financialAnalytics/{docId}": {
+      "schema": "financialAnalytics",
+      "description": "Executive financial metrics and gross margin analytics"
+    }
+  }
+}

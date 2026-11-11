@@ -1,0 +1,477 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Hardened Primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email in ['rachvan420@gmail.com', 'vaiurenetwork@gmail.com', 'efayour@gmail.com'] ||
+        (request.auth.token.keys().hasAny(['role']) && request.auth.token.role in ['ADMIN', 'SUPER_ADMIN']) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN'] ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', '') in ['ADMIN', 'SUPER_ADMIN']
+        ))
+      );
+    }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 50
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100
+        && data.email is string && data.email.size() <= 150;
+    }
+
+    function isValidUsername(data) {
+      return data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 50;
+    }
+
+    function isValidPost(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.authorUid is string && data.authorUid.size() > 0 && data.authorUid.size() <= 128
+        && data.authorUsername is string && data.authorUsername.size() > 0 && data.authorUsername.size() <= 50
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 50;
+    }
+
+    function isValidComment(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.postId is string && data.postId.size() > 0 && data.postId.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 2000;
+    }
+
+    function isValidCollection(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 100;
+    }
+
+    function isValidMessage(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.conversationId is string && data.conversationId.size() > 0 && data.conversationId.size() <= 128
+        && data.senderId is string && data.senderId.size() > 0 && data.senderId.size() <= 128
+        && data.text is string && data.text.size() <= 2000;
+    }
+
+    function isValidAuditLog(data) {
+      return data.logId is string && data.logId.size() > 0 && data.logId.size() <= 128
+        && data.actorUid is string && data.actorUid.size() > 0 && data.actorUid.size() <= 128
+        && data.action is string && data.action.size() > 0 && data.action.size() <= 100
+        && data.timestamp is string;
+    }
+
+    function isValidShort(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.videoUrl is string && data.videoUrl.size() > 0 && data.videoUrl.size() <= 500;
+    }
+
+    function isValidShortComment(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.shortId is string && data.shortId.size() > 0 && data.shortId.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 1000;
+    }
+
+    // 2. Users Collection
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidUser(incoming());
+      // Ordinary owners can update normal profile fields; status & role changes require admin or server
+      allow update: if (isOwner(userId) && isValidUser(incoming()) && incoming().uid == existing().uid
+        && (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'accountType', 'status']) || isAdmin()))
+        || (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['followersCount', 'followingCount', 'postsCount', 'onlineStatus', 'lastActiveAt', 'updatedAt']))
+        || isAdmin();
+      allow delete: if isAdmin();
+
+      // Active User Sessions
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User Uploads Media Log
+      match /uploads/{uploadId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // User Settings & Privacy Preferences
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // Collections subcollection
+      match /collections/{collectionId} {
+        allow read: if isOwner(userId) || (resource != null && resource.data.isPrivate == false);
+        allow create: if isOwner(userId) && isValidCollection(incoming());
+        allow update: if isOwner(userId) && isValidCollection(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Saved posts subcollection
+      match /savedPosts/{postId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Followers / Following subcollections
+      match /followers/{followerUid} {
+        allow read: if true;
+        allow create, delete: if isOwner(followerUid) || isAdmin();
+      }
+
+      match /following/{targetUid} {
+        allow read: if true;
+        allow create, delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isOwner(userId) || isAdmin();
+        allow create: if isSignedIn();
+      }
+    }
+
+    // 3. Unique Username Reservation
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidUsername(incoming());
+      allow update, delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // 4. Archival Social Posts
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidPost(incoming());
+      allow update: if isSignedIn() && (
+        (existing().authorUid == request.auth.uid && isValidPost(incoming()) && incoming().authorUid == existing().authorUid) ||
+        // Counter updates from community actions
+        incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'repostsCount', 'savesCount', 'viewsCount', 'updatedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (existing().authorUid == request.auth.uid || isAdmin());
+
+      // Likes subcollection
+      match /likes/{userId} {
+        allow read: if true;
+        allow create, delete: if isOwner(userId);
+      }
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isValidComment(incoming()) && incoming().authorId == request.auth.uid;
+        allow update: if isSignedIn() && (
+          (existing().authorId == request.auth.uid && isValidComment(incoming())) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['likesCount'])
+        );
+        allow delete: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 5. Direct Message Conversations & Threads
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // 5.5 Forum Threads & Creator Thoughts
+    match /forumThreads/{threadId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+
+      match /replies/{replyId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 6. Curatorial Open Call Submissions
+    match /submissions/{submissionId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // 6.5 Shorts - Short-Form Vertical Social Video Platform
+    match /shorts/{shortId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidShort(incoming());
+      allow update: if isSignedIn() && (
+        (existing().authorId == request.auth.uid && isValidShort(incoming()) && incoming().authorId == existing().authorId) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'sharesCount', 'savesCount', 'viewsCount', 'updatedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && isValidShortComment(incoming()) && incoming().authorId == request.auth.uid;
+        allow update: if isSignedIn() && (
+          (existing().authorId == request.auth.uid && isValidShortComment(incoming())) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['likesCount'])
+        );
+        allow delete: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 7. Wallets: Users can read their own wallet, writes are protected
+    match /wallets/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isSignedIn() && (
+        isOwner(userId) ||
+        isAdmin() ||
+        // Auto-provisioning wallet for recipient receiving a transfer or grant
+        (incoming().uid == userId && incoming().availableBalance >= 0)
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        // Owner updating their wallet (debit, convert, or top up)
+        isOwner(userId) ||
+        // Recipient wallet receiving transfer funds
+        (incoming().diff(existing()).affectedKeys().hasOnly(['availableBalance', 'totalReceived', 'updatedAt']) &&
+         incoming().availableBalance >= existing().availableBalance)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 8. Wallet Transactions: Users can read and record their transactions
+    match /walletTransactions/{transactionId} {
+      allow read: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        (resource.data.keys().hasAny(['recipientUid']) && resource.data.recipientUid == request.auth.uid) ||
+        (resource.data.keys().hasAny(['senderUid']) && resource.data.senderUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        incoming().uid == request.auth.uid ||
+        (incoming().keys().hasAny(['recipientUid']) && incoming().recipientUid == request.auth.uid) ||
+        (incoming().keys().hasAny(['senderUid']) && incoming().senderUid == request.auth.uid) ||
+        isAdmin()
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // 9. Top-Up Intents: Users can create and manage their top-up records
+    match /topUps/{topUpId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (incoming().uid == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (isOwner(resource.data.uid) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 10. Currency Configurations & Exchange Rates (Public read, admin/server write)
+    match /currencyConfigurations/{currencyCode} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /exchangeRates/{baseCurrency} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 11. Admin Audit Logs (Admin only, tamper-proof, append-only, non-repudiable)
+    match /adminAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidAuditLog(incoming()) && incoming().logId == logId;
+      allow update, delete: if false;
+    }
+
+    // 12. System Settings & Feature Flags (Public read, admin write)
+    match /systemSettings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /featureFlags/{featureId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 13. Security Events
+    match /securityEvents/{eventId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // 14. Support Tickets
+    match /supportTickets/{ticketId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 15. System Admins Registry
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // 16. Newsletter Subscribers
+    match /newsletterSubscribers/{subId} {
+      allow read: if isAdmin();
+      allow create, update: if incoming().email is string && incoming().email.size() > 3;
+      allow delete: if isAdmin();
+    }
+
+    // 17. Connection Test Probe
+    match /test/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 18. Share & Attribution Links
+    match /shareLinks/{linkId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    // 19. Threads (Alias for Creator Thoughts / Dispatches)
+    match /threads/{threadId} {
+      allow read: if true;
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
+    // 20. Collaborative Rooms & SharedWorks Canvas
+    match /collaborativeRooms/{roomId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || isAdmin();
+
+      match /canvasItems/{itemId} {
+        allow read, write: if true;
+      }
+
+      match /participants/{participantId} {
+        allow read, write: if true;
+      }
+
+      match /activities/{activityId} {
+        allow read, write: if true;
+      }
+
+      match /cursors/{cursorId} {
+        allow read, write: if true;
+      }
+    }
+
+    // 21. Live Multiplayer Presence & Spatial Ambient Reactions
+    match /livePresence/{presenceId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isSignedIn() || isAdmin();
+    }
+
+    match /liveReactions/{reactionId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    // 22. Shared 3D Scenes (Slide 5 Fu Labs Co-Op)
+    match /sharedScenes/{sceneId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if (isSignedIn() && resource.data.authorId == request.auth.uid) || isAdmin();
+    }
+
+    // 23. Shared Prompt Matrix (Slide 6 VX Co-Op)
+    match /sharedPrompts/{promptId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if (isSignedIn() && resource.data.authorId == request.auth.uid) || isAdmin();
+    }
+
+    // 24. Seedance 2.5 Membership Plans & Pricing
+    match /membershipPlans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 25. Seedance User Subscriptions
+    match /subscriptions/{subId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 26. Seedance Credit Packages
+    match /creditPackages/{packageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 27. Seedance Credit Wallets
+    match /creditWallets/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 28. Seedance Credit Transactions (Immutable Ledger)
+    match /creditTransactions/{transactionId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // 29. Seedance Generation Jobs
+    match /generationJobs/{jobId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 30. Seedance Community Videos
+    match /communityVideos/{videoId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      allow delete: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    // 31. BytePlus API Stock Balance & Financial Analytics
+    match /apiStock/{stockId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /financialAnalytics/{docId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
