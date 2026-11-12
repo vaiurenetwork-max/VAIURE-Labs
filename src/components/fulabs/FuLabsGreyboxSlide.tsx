@@ -1580,7 +1580,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       />
 
       {/* TOP STUDIO HEADER BAR */}
-      <header className="h-12 shrink-0 border-b border-white/10 bg-[#12151a] px-3 flex items-center justify-between gap-2 z-20">
+      <header className="h-[calc(3rem+env(safe-area-inset-top))] pt-[max(0rem,env(safe-area-inset-top))] shrink-0 border-b border-white/10 bg-[#12151a] px-3 flex items-center justify-between gap-2 z-30">
         <div className="flex items-center gap-2.5 min-w-0">
           {onOpenMenu && (
             <button

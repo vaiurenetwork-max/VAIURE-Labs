@@ -164,10 +164,10 @@ export default function App() {
   } = useSlideNavigation({
     initialSlide: 0,
     totalSlides: 7,
-    swipeThreshold: 60,
-    transitionDurationMs: 200,
+    swipeThreshold: 75,
+    transitionDurationMs: 240,
     isModalOpen: isAnyModalOpen,
-    enableSwipe: false, // Prevent accidental auto-sliding & false clicks
+    enableSwipe: true, // Smooth horizontal touch gestures with strict horizontal angle & interactive exclusions
     enableKeyboard: false, // Prevent accidental arrow-key sliding
   });
 
@@ -211,7 +211,7 @@ export default function App() {
     1: '01 / THREADS',
     2: '02 / ARCHIVE',
     3: '03 / CINEMA',
-    4: '04 / STUDIO',
+    4: '04 / SEEDANCE LAB',
     5: '05 / FU LABS',
     6: '06 / VX',
   };

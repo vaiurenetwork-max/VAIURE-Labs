@@ -679,8 +679,8 @@ export function createPosBotRouter(): Router {
     }
   });
 
-  // 5. GET /api/ai/jobs/:jobCode
-  router.get('/jobs/:jobCode', async (req: Request, res: Response) => {
+  // 5. GET /api/ai/jobs/:jobCode and /api/ai/status/:jobCode
+  router.get(['/jobs/:jobCode', '/status/:jobCode'], async (req: Request, res: Response) => {
     const check = validateJobCode(req.params.jobCode);
     if (!check.valid || !check.sanitized) {
       return res.status(400).json({

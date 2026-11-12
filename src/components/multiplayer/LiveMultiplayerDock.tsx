@@ -84,11 +84,31 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
   };
 
   const isBottomNavSlide = currentSlide === 1 || currentSlide === 2;
+  const dockContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Auto-close multiplayer drawer when tapping outside
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      if (dockContainerRef.current && !dockContainerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [isOpen]);
 
   return (
     <div
+      ref={dockContainerRef}
       className={`fixed ${
-        isBottomNavSlide ? 'bottom-[68px] sm:bottom-4' : 'bottom-3 sm:bottom-4'
+        isBottomNavSlide
+          ? 'bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.5rem))] sm:bottom-4'
+          : 'bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4'
       } right-3 sm:right-4 z-40 font-sans select-none pointer-events-auto transition-all duration-300`}
     >
       {/* Expanded Multiplayer Drawer / Modal */}
@@ -286,7 +306,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0d0f14]/90 hover:bg-[#161a22] border border-white/20 hover:border-white/40 backdrop-blur-xl shadow-2xl text-white transition-all cursor-pointer group active:scale-95"
+        className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0d0f14]/90 hover:bg-[#161a22] border border-white/20 hover:border-white/40 backdrop-blur-xl shadow-2xl text-white transition-all cursor-pointer group active:scale-95 min-h-[44px]"
         title="Toggle Live Atelier Multiplayer Presence"
       >
         <span className="relative flex h-2 w-2">

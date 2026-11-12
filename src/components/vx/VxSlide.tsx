@@ -201,7 +201,7 @@ export const VxSlide: React.FC<VxSlideProps> = ({
       {/* =========================================================================
           TOP CONTROL BAR & HEADER
          ========================================================================= */}
-      <header className="px-4 py-2.5 bg-[#0a0c0f]/95 border-b border-white/[0.08] backdrop-blur-xl flex items-center justify-between shrink-0 z-30">
+      <header className="px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 bg-[#0a0c0f]/95 border-b border-white/[0.08] backdrop-blur-xl flex items-center justify-between shrink-0 z-30">
         {/* Brand & Slide Indicator */}
         <div className="flex items-center gap-3">
           <button

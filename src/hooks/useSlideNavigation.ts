@@ -55,6 +55,10 @@ function isInteractiveElement(target: EventTarget | null): boolean {
     '[data-video-player]',
     '[data-media-player]',
     '[data-timeline]',
+    '[data-seedance-workspace]',
+    '.seedance-workspace',
+    'pre',
+    'code',
     '.modal',
     '[data-modal]',
   ].join(', ');
@@ -290,8 +294,8 @@ export function useSlideNavigation({
       const absY = Math.abs(diffY);
 
       if (g.direction === 'undetermined') {
-        if (absX >= 14 || absY >= 14) {
-          if (absX >= 14 && absX >= absY * 1.5) {
+        if (absX >= 18 || absY >= 14) {
+          if (absX >= 18 && absX >= absY * 2.2) {
             g.direction = 'horizontal';
             setIsDragging(true);
             try {

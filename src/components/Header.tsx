@@ -113,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className={`sticky top-0 left-0 right-0 z-40 transition-colors duration-300 select-none ${
+      className={`sticky top-0 left-0 right-0 z-30 pt-[max(0rem,env(safe-area-inset-top))] transition-colors duration-300 select-none ${
         isScrolled
           ? 'bg-[#050507]/95 backdrop-blur-md border-b border-white/[0.08] shadow-sm'
           : 'bg-[#050507]/80 backdrop-blur-sm border-b border-white/[0.04]'

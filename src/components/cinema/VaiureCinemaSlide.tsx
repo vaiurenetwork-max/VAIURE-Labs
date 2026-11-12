@@ -255,7 +255,7 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
       {/* ======================================================== */}
       {/* 2. TOP EDITORIAL HEADER (CLEAN & SIMPLE)                  */}
       {/* ======================================================== */}
-      <header className="relative z-30 w-full px-4 sm:px-6 h-11 sm:h-12 flex items-center justify-between text-xs font-mono tracking-wider select-none bg-gradient-to-b from-black/85 to-transparent">
+      <header className="relative z-30 w-full px-4 sm:px-6 pt-[max(0rem,env(safe-area-inset-top))] h-[calc(2.75rem+env(safe-area-inset-top))] sm:h-[calc(3rem+env(safe-area-inset-top))] flex items-center justify-between text-xs font-mono tracking-wider select-none bg-gradient-to-b from-black/85 to-transparent">
         {/* Left: Brand Name VAIURE｜唯昱尔 + Slide Switcher */}
         <div className="flex items-center gap-3">
           <button

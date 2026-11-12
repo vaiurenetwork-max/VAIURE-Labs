@@ -301,18 +301,18 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
                 onSelectSlide(4);
                 onClose();
               }}
-              title="Slide 04: VAIURE Labs (AI Image & Video Studio)"
+              title="Slide 04: VAIURE — SEEDANCE LAB (Seedance 2.5 Production Workspace)"
               className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 currentSlide === 4
                   ? 'border-white/90 bg-white text-black font-semibold shadow-sm'
                   : 'border-white/[0.08] bg-black/30 text-white/70 hover:border-white/20 hover:text-white hover:bg-white/[0.03]'
               }`}
             >
-              <Sparkles className="w-3 h-3 mb-1 opacity-80 text-emerald-400" />
+              <Film className="w-3 h-3 mb-1 opacity-90 text-white" />
               <div className="text-[10px] font-sans font-medium truncate leading-tight">
-                {t('labsSlideName') || 'LABS'}
+                SEEDANCE LAB
               </div>
-              <div className="text-[8px] font-mono opacity-50 mt-0.5">04 / LABS</div>
+              <div className="text-[8px] font-mono opacity-50 mt-0.5">04 / SEEDANCE LAB</div>
             </button>
 
             <button

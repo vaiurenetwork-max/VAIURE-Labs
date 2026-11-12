@@ -244,7 +244,7 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
   return (
     <div className="w-full h-full bg-[#000000] text-white flex flex-col justify-between selection:bg-white/20 select-text overflow-hidden">
       {/* Top Fixed App Bar */}
-      <header className="shrink-0 z-40 bg-black/95 backdrop-blur-md border-b border-neutral-900 px-4 sm:px-6 h-11 sm:h-12 select-none">
+      <header className="shrink-0 z-30 bg-black/95 backdrop-blur-md border-b border-neutral-900 px-4 sm:px-6 pt-[max(0rem,env(safe-area-inset-top))] h-[calc(2.75rem+env(safe-area-inset-top))] sm:h-[calc(3rem+env(safe-area-inset-top))] select-none">
         <div className="w-full max-w-[1440px] mx-auto h-full flex items-center justify-between">
           {/* Left: Brand Name VAIURE｜唯昱尔 */}
           <div className="flex items-center">
