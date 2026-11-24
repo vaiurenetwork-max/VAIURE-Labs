@@ -17,6 +17,8 @@ import {
   generateCopyShareLink,
 } from './copyService';
 import { db, doc, getDoc, updateDoc, increment } from '../lib/firebase';
+import { requireFirebaseAuth } from './firebaseAuthMiddleware';
+import { aiLimiter, isSafeIdentifier, sanitizeErrorMessage } from './securityMiddleware';
 
 export const copyRouter = Router();
 
@@ -59,7 +61,7 @@ copyRouter.get('/health', (_req: Request, res: Response) => {
  * POST /api/copy/generate
  * Generate editorial copy, headlines, manifesto, and metadata
  */
-copyRouter.post('/generate', async (req: Request, res: Response) => {
+copyRouter.post('/generate', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { topic, tone, category, visualPrompt, artistName, aiToolsUsed, targetLanguage, length } = req.body;
     const result = await generateEditorialCopy({
@@ -75,7 +77,7 @@ copyRouter.post('/generate', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     console.error('Copy generate error:', err);
-    res.status(500).json({ success: false, error: err.message || 'Failed to generate editorial copy.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to generate editorial copy.') });
   }
 });
 
@@ -83,11 +85,11 @@ copyRouter.post('/generate', async (req: Request, res: Response) => {
  * POST /api/copy/stream
  * Real-time SSE streaming generation for dynamic typing interfaces
  */
-copyRouter.post('/stream', async (req: Request, res: Response) => {
+copyRouter.post('/stream', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   const { prompt, tone = 'luxury-editorial', category = 'COUTURE' } = req.body;
 
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Prompt is required for streaming copy.' });
+  if (!prompt || typeof prompt !== 'string' || prompt.length > 20000) {
+    return res.status(400).json({ error: 'Valid prompt is required for streaming copy.' });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -126,7 +128,7 @@ copyRouter.post('/stream', async (req: Request, res: Response) => {
     res.end();
   } catch (err: any) {
     console.warn('Streaming error:', err?.message || err);
-    res.write(`data: ${JSON.stringify({ error: err.message, done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: sanitizeErrorMessage(err, 'Streaming interrupted.'), done: true })}\n\n`);
     res.end();
   }
 });
@@ -135,16 +137,16 @@ copyRouter.post('/stream', async (req: Request, res: Response) => {
  * POST /api/copy/polish
  * Polish, refine, and elevate raw creator drafts
  */
-copyRouter.post('/polish', async (req: Request, res: Response) => {
+copyRouter.post('/polish', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { draftText, tone, targetLength, language } = req.body;
-    if (!draftText) {
+    if (!draftText || typeof draftText !== 'string') {
       return res.status(400).json({ error: 'draftText is required' });
     }
     const result = await polishDraftCopy({ draftText, tone, targetLength, language });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to polish copy.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to polish copy.') });
   }
 });
 
@@ -152,13 +154,13 @@ copyRouter.post('/polish', async (req: Request, res: Response) => {
  * POST /api/copy/cinema
  * Generate cinema logline, dossier, and visual treatment
  */
-copyRouter.post('/cinema', async (req: Request, res: Response) => {
+copyRouter.post('/cinema', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { title, genre, visualStyle, synopsisPrompt, directorVision } = req.body;
     const result = await generateCinemaCopy({ title, genre, visualStyle, synopsisPrompt, directorVision });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to generate cinema copy.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to generate cinema copy.') });
   }
 });
 
@@ -166,7 +168,7 @@ copyRouter.post('/cinema', async (req: Request, res: Response) => {
  * POST /api/copy/translate
  * Multilingual localization of editorial copy preserving prestige tone
  */
-copyRouter.post('/translate', async (req: Request, res: Response) => {
+copyRouter.post('/translate', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { text, targetLanguage } = req.body;
     if (!text || !targetLanguage) {
@@ -175,52 +177,72 @@ copyRouter.post('/translate', async (req: Request, res: Response) => {
     const result = await translateEditorialCopy({ text, targetLanguage });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to translate copy.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to translate copy.') });
   }
 });
 
 /**
  * POST /api/copy/post/:postId/duplicate
- * Duplicate / clone a post into a new work
+ * Duplicate / clone a post into a new work owned by verified caller
  */
-copyRouter.post('/post/:postId/duplicate', async (req: Request, res: Response) => {
+copyRouter.post('/post/:postId/duplicate', requireFirebaseAuth, async (req: Request, res: Response) => {
   try {
+    const user = req.verifiedUser!;
     const { postId } = req.params;
-    const { newAuthorUid, customTitle } = req.body;
-    const result = await duplicatePost(postId, newAuthorUid, customTitle);
+    if (!isSafeIdentifier(postId)) {
+      return res.status(400).json({ error: 'Invalid post identifier.' });
+    }
+    const { newAuthorUid, customTitle } = req.body || {};
+    const authoritativeUid = user.isAdmin && typeof newAuthorUid === 'string' && isSafeIdentifier(newAuthorUid)
+      ? newAuthorUid
+      : user.uid;
+    const result = await duplicatePost(postId, authoritativeUid, customTitle);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to duplicate post.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to duplicate post.') });
   }
 });
 
 /**
  * POST /api/copy/thread/:threadId/duplicate
- * Duplicate / clone a thread
+ * Duplicate / clone a thread owned by verified caller
  */
-copyRouter.post('/thread/:threadId/duplicate', async (req: Request, res: Response) => {
+copyRouter.post('/thread/:threadId/duplicate', requireFirebaseAuth, async (req: Request, res: Response) => {
   try {
+    const user = req.verifiedUser!;
     const { threadId } = req.params;
-    const { newAuthorUid } = req.body;
-    const result = await duplicateThread(threadId, newAuthorUid);
+    if (!isSafeIdentifier(threadId)) {
+      return res.status(400).json({ error: 'Invalid thread identifier.' });
+    }
+    const { newAuthorUid } = req.body || {};
+    const authoritativeUid = user.isAdmin && typeof newAuthorUid === 'string' && isSafeIdentifier(newAuthorUid)
+      ? newAuthorUid
+      : user.uid;
+    const result = await duplicateThread(threadId, authoritativeUid);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to duplicate thread.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to duplicate thread.') });
   }
 });
 
 /**
  * POST /api/copy/export/:uid
- * Export a portable JSON copy of user archive
+ * Export a portable JSON copy of user archive (self or admin only)
  */
-copyRouter.post('/export/:uid', async (req: Request, res: Response) => {
+copyRouter.post('/export/:uid', requireFirebaseAuth, async (req: Request, res: Response) => {
   try {
+    const user = req.verifiedUser!;
     const { uid } = req.params;
-    if (!uid) return res.status(400).json({ error: 'uid is required' });
+    if (!isSafeIdentifier(uid)) {
+      return res.status(400).json({ error: 'Invalid user identifier.' });
+    }
+    if (uid !== user.uid && !user.isAdmin) {
+      return res.status(403).json({ error: 'Cannot export another user’s archive.' });
+    }
     const result = await exportUserArchiveCopy(uid);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to export archive copy.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to export archive copy.') });
   }
 });
 
@@ -228,7 +250,7 @@ copyRouter.post('/export/:uid', async (req: Request, res: Response) => {
  * POST /api/copy/link
  * Create a tracked copy link
  */
-copyRouter.post('/link', async (req: Request, res: Response) => {
+copyRouter.post('/link', requireFirebaseAuth, async (req: Request, res: Response) => {
   try {
     const { type, id, title, description } = req.body;
     if (!type || !id) {
@@ -237,7 +259,7 @@ copyRouter.post('/link', async (req: Request, res: Response) => {
     const result = await generateCopyShareLink(type, id, title, description);
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message || 'Failed to generate copy link.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to generate copy link.') });
   }
 });
 
@@ -248,6 +270,9 @@ copyRouter.post('/link', async (req: Request, res: Response) => {
 copyRouter.get('/link/:code', async (req: Request, res: Response) => {
   try {
     const { code } = req.params;
+    if (!isSafeIdentifier(code)) {
+      return res.status(400).json({ error: 'Invalid share link code.' });
+    }
     const linkRef = doc(db, 'shareLinks', `link_${code}`);
     const snap = await getDoc(linkRef);
 
@@ -263,6 +288,6 @@ copyRouter.get('/link/:code', async (req: Request, res: Response) => {
       data,
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to resolve share link.') });
   }
 });

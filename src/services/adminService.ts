@@ -16,6 +16,7 @@ import {
   limit,
   onSnapshot,
 } from '../lib/firebase';
+import { getAuthHeaders } from '../lib/authHeaders';
 import {
   AdminAuditLog,
   SystemSettings,
@@ -51,7 +52,12 @@ export async function checkAdminPrivileges(
   email?: string | null
 ): Promise<{ isAdmin: boolean; role: UserRole }> {
   // 1. Primary admin account bootstrap check
-  if (email && email.toLowerCase() === 'rachvan420@gmail.com') {
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  if (
+    normalizedEmail === 'rachvan420@gmail.com' ||
+    normalizedEmail === 'efayour@gmail.com' ||
+    normalizedEmail === 'vaiurenetwork@gmail.com'
+  ) {
     return { isAdmin: true, role: 'SUPER_ADMIN' };
   }
 
@@ -87,7 +93,7 @@ export async function triggerAdminBootstrap(
 ): Promise<{ success: boolean; message: string; role?: string }> {
   const res = await fetch('/api/admin/bootstrap', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ uid, email }),
   });
 
@@ -118,7 +124,7 @@ export async function updateSystemSettings(
 ): Promise<SystemSettings> {
   const res = await fetch('/api/admin/settings/update', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ actorUid, settings }),
   });
 
@@ -142,7 +148,7 @@ export async function executeAdminUserAction(payload: {
 }): Promise<{ success: boolean }> {
   const res = await fetch('/api/admin/users/action', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -167,7 +173,7 @@ export async function executeAdminWalletAction(payload: {
 }): Promise<{ success: boolean }> {
   const res = await fetch('/api/admin/wallets/action', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
 
@@ -219,7 +225,9 @@ export async function fetchAdminAuditLogs(filters?: {
     if (filters?.actorUid) params.set('actorUid', filters.actorUid);
     if (filters?.result) params.set('result', filters.result);
 
-    const res = await fetch(`/api/admin/audit-logs?${params.toString()}`);
+    const res = await fetch(`/api/admin/audit-logs?${params.toString()}`, {
+      headers: await getAuthHeaders({}, false),
+    });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data.logs)) {
@@ -268,7 +276,7 @@ export async function verifyAuditLogsBatch(logs?: AdminAuditLog[]): Promise<{
   try {
     const res = await fetch('/api/admin/audit-logs/verify', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ logs }),
     });
     if (res.ok) {
@@ -325,7 +333,7 @@ export async function createSupportTicket(ticket: {
 }): Promise<SupportTicket> {
   const res = await fetch('/api/support/ticket/create', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(ticket),
   });
 
@@ -368,7 +376,9 @@ export function subscribeToSupportTickets(
  */
 export async function fetchSystemHealth(): Promise<Record<string, { status: string; latencyMs?: number; notes?: string }>> {
   try {
-    const res = await fetch('/api/admin/system-health');
+    const res = await fetch('/api/admin/system-health', {
+      headers: await getAuthHeaders({}, false),
+    });
     if (res.ok) {
       return await res.json();
     }

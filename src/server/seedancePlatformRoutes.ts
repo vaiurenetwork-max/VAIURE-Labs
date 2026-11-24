@@ -1,12 +1,8 @@
 /**
- * VAIURE Labs — Seedance 2.5 Express API Routes
- * Endpoints for:
- * - Membership & Subscription management (5 tiers: Free, Starter, Creator, Pro, Studio)
- * - Credit Wallet & Immutable Ledger
- * - Credit Top-Up Store (Mini, Creator, Advanced, Production)
- * - Seedance 2.5 Video Generation API with atomic credit reserve & auto-refund
- * - Community Showcase & Public Creator Gallery
- * - Protected Administrator Analytics & BytePlus API Stock Management
+ * VAIURE Labs — Seedance 2.5 Platform Express API Routes (/api/labs/*)
+ * Enforces verified Firebase ID token auth on all private/financial mutations,
+ * never fakes paid payment completions, calculates dynamic costs server-side,
+ * prevents duplicate deductions via idempotency keys, and auto-refunds failures.
  */
 
 import { Router, Request, Response } from 'express';
@@ -14,8 +10,13 @@ import crypto from 'crypto';
 import {
   seedancePlatformState,
   calculateSeedanceCost,
-  RETAIL_PRICE_PER_CREDIT_IDR,
+  normalizeTierId,
 } from './seedanceEngine';
+import { seedancePlatformStore } from './seedancePlatformStore';
+import {
+  optionalFirebaseAuth,
+  requireFirebaseAuth,
+} from './firebaseAuthMiddleware';
 import {
   MembershipTier,
   SeedanceResolution,
@@ -23,238 +24,436 @@ import {
   SeedanceGenerationJob,
   CommunityVideoPost,
 } from '../types/seedancePlatform';
+import { byteDanceClient, getByteDanceConfigStatus } from './bytedanceClient';
+import { seedanceCuratedStore } from './seedanceCuratedStore';
+import {
+  aiLimiter,
+  financialLimiter,
+  resolveSafePublicOrigin,
+  sanitizeErrorMessage,
+  validatePublicHttpUrl,
+  validateReturnUrl,
+} from './securityMiddleware';
 
 export const seedancePlatformRouter = Router();
 
-// Middleware: Extract user context from headers or auth token
-function getRequestUser(req: Request): { id: string; email: string; role: string } {
-  const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string) || 'creator-default';
-  const userEmail = (req.headers['x-user-email'] as string) || 'creator@vaiure.com';
-  const userRole = (req.headers['x-user-role'] as string) || 'CREATOR';
-  return { id: userId, email: userEmail, role: userRole };
+function getStripeSecretKey(): string {
+  const k = (process.env.STRIPE_SECRET_KEY || '').trim();
+  if (!k || k.startsWith('YOUR_') || k.startsWith('sk_test_placeholder')) return '';
+  return k;
+}
+
+function getMidtransServerKey(): string {
+  const k = (process.env.MIDTRANS_SERVER_KEY || '').trim();
+  if (!k || k.startsWith('YOUR_')) return '';
+  return k;
+}
+
+function isRealPaymentConfigured(): { configured: boolean; provider: string | null } {
+  if (getStripeSecretKey()) return { configured: true, provider: 'stripe' };
+  if (getMidtransServerKey()) return { configured: true, provider: 'midtrans' };
+  return { configured: false, provider: null };
+}
+
+function syncVerifiedUser(req: Request) {
+  const user = req.verifiedUser!;
+  return seedancePlatformStore.upsertUserRecord({
+    uid: user.uid,
+    email: user.email,
+    displayName: user.name,
+    isAdmin: user.isAdmin,
+  });
 }
 
 // ============================================================================
 // 1. MEMBERSHIP & SUBSCRIPTION SYSTEM
 // ============================================================================
 
-/**
- * GET /api/labs/membership/plans
- * Returns all active membership plans (Free, Starter, Creator, Pro, Studio)
- */
 seedancePlatformRouter.get('/membership/plans', (_req: Request, res: Response) => {
-  try {
-    const plans = seedancePlatformState.getPlans();
-    res.json({ ok: true, plans });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+  const plans = seedancePlatformStore.getPlans(false);
+  const paymentConfig = isRealPaymentConfigured();
+  res.json({
+    ok: true,
+    plans,
+    paymentProviderConfigured: paymentConfig.configured,
+    paymentProvider: paymentConfig.provider,
+  });
 });
 
-/**
- * GET /api/labs/membership/status
- * Returns current user subscription and active tier
- */
-seedancePlatformRouter.get('/membership/status', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    const subscription = seedancePlatformState.getUserSubscription(user.id);
-    const wallet = seedancePlatformState.getOrCreateWallet(user.id);
-    res.json({
-      ok: true,
-      subscription,
-      wallet,
-      tier: subscription.planTier,
-      renewalDate: subscription.renewalDate,
-      remainingMonthlyCredits: subscription.remainingMonthlyCredits,
-    });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+seedancePlatformRouter.get('/cost-config', (_req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    costConfig: seedancePlatformStore.getCostConfig(),
+  });
 });
 
-/**
- * POST /api/labs/membership/subscribe
- * Upgrades, downgrades, or renews a membership subscription
- */
-seedancePlatformRouter.post('/membership/subscribe', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    const { tier } = req.body as { tier: MembershipTier };
+seedancePlatformRouter.get('/membership/status', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  syncVerifiedUser(req);
+  const subscription = seedancePlatformStore.getUserSubscription(user.uid, user.email);
+  const wallet = seedancePlatformStore.getOrCreateWallet(user.uid, user.email);
+  const paymentConfig = isRealPaymentConfigured();
 
-    if (!tier || !['FREE', 'STARTER', 'CREATOR', 'PRO', 'STUDIO'].includes(tier)) {
-      return res.status(400).json({ ok: false, error: 'Valid membership tier is required.' });
+  res.json({
+    ok: true,
+    subscription,
+    wallet,
+    tier: subscription.planTier,
+    renewalDate: subscription.renewalDate,
+    expiresAt: subscription.expiresAt,
+    autoRenew: subscription.autoRenew,
+    remainingMonthlyCredits: subscription.remainingMonthlyCredits,
+    paymentProviderConfigured: paymentConfig.configured,
+    paymentProvider: paymentConfig.provider,
+  });
+});
+
+seedancePlatformRouter.post('/membership/subscribe', requireFirebaseAuth, financialLimiter, async (req: Request, res: Response) => {
+  try {
+    const user = req.verifiedUser!;
+    syncVerifiedUser(req);
+    const { tier, returnUrl } = req.body as { tier?: MembershipTier; returnUrl?: string };
+
+    if (!tier) {
+      return res.status(400).json({ ok: false, error: 'Subscription tier is required.' });
     }
 
-    const result = seedancePlatformState.updateUserSubscription(user.id, tier, user.email);
-    res.json({
+    const normTier = normalizeTierId(tier);
+    const plans = seedancePlatformStore.getPlans(false);
+    const plan = plans.find((p) => p.tier === normTier);
+    if (!plan) {
+      return res.status(404).json({ ok: false, error: `Subscription plan "${tier}" not found or inactive.` });
+    }
+
+    // Free tier or zero-cost plan activates immediately in database without external payment
+    if (normTier === 'FREE' || plan.priceIdr <= 0) {
+      const result = seedancePlatformStore.activateSubscriptionTier({
+        userId: user.uid,
+        userEmail: user.email,
+        tier: normTier,
+        billingStatus: 'FREE',
+        paymentProvider: 'PLATFORM_FREE',
+        note: `User switched to ${plan.name} tier`,
+      });
+      return res.json({
+        ok: true,
+        activated: true,
+        subscription: result.subscription,
+        wallet: result.wallet,
+        message: `${plan.name} tier is now active.`,
+      });
+    }
+
+    // Paid tiers require verified real payment gateway credentials
+    const stripeKey = getStripeSecretKey();
+    if (!stripeKey) {
+      return res.status(503).json({
+        ok: false,
+        paymentProviderConfigured: false,
+        code: 'PAYMENT_PROVIDER_UNCONFIGURED',
+        error:
+          'Paid subscription checkout is not configured on the server (missing STRIPE_SECRET_KEY or MIDTRANS_SERVER_KEY). Upgrade via real payment checkout once provider credentials are added, or request an administrator tier assignment.',
+      });
+    }
+
+    // Real Stripe Checkout Session creation (strict Open Redirect & Host Header guard)
+    const validatedReturn = validateReturnUrl(returnUrl || req.headers.origin, req, '/');
+    let origin = resolveSafePublicOrigin(req);
+    try {
+      origin = new URL(validatedReturn).origin;
+    } catch {
+      origin = resolveSafePublicOrigin(req);
+    }
+    const bodyParams = new URLSearchParams();
+    bodyParams.set('mode', 'payment');
+    bodyParams.set('success_url', `${origin}?stripe_session_id={CHECKOUT_SESSION_ID}&tier=${normTier}`);
+    bodyParams.set('cancel_url', `${origin}?checkout=cancelled`);
+    bodyParams.set('customer_email', user.email || '');
+    bodyParams.set('client_reference_id', `${user.uid}:${normTier}`);
+    bodyParams.set('line_items[0][price_data][currency]', 'idr');
+    bodyParams.set('line_items[0][price_data][product_data][name]', `VAIURE Seedance Lab — ${plan.name} Plan`);
+    bodyParams.set('line_items[0][price_data][unit_amount]', String(Math.round(plan.priceIdr * 100)));
+    bodyParams.set('line_items[0][quantity]', '1');
+    bodyParams.set('metadata[userId]', user.uid);
+    bodyParams.set('metadata[tier]', normTier);
+    bodyParams.set('metadata[kind]', 'subscription');
+
+    const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: bodyParams.toString(),
+    });
+    const stripeData = (await stripeRes.json()) as any;
+    if (!stripeRes.ok || !stripeData?.url) {
+      return res.status(502).json({
+        ok: false,
+        error: stripeData?.error?.message || 'Failed to initiate Stripe checkout session.',
+      });
+    }
+
+    return res.json({
       ok: true,
-      subscription: result.subscription,
-      wallet: result.wallet,
-      message: `Successfully updated membership to ${tier} tier. Credits allocated to wallet.`,
+      activated: false,
+      requiresCheckout: true,
+      checkoutUrl: stripeData.url,
+      sessionId: stripeData.id,
+      message: 'Redirecting to verified Stripe checkout.',
     });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+    res.status(500).json({ ok: false, error: sanitizeErrorMessage(err, 'Subscription checkout failed.') });
   }
 });
 
-/**
- * POST /api/labs/membership/cancel
- * Cancels recurring subscription without erasing completed projects
- */
-seedancePlatformRouter.post('/membership/cancel', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    const subscription = seedancePlatformState.cancelSubscription(user.id);
-    res.json({
-      ok: true,
-      subscription,
-      message: 'Subscription renewal cancelled. Access preserved until end of period. Completed projects retained.',
-    });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+seedancePlatformRouter.post('/membership/auto-renew', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  const { autoRenew } = req.body as { autoRenew?: boolean };
+  if (typeof autoRenew !== 'boolean') {
+    return res.status(400).json({ ok: false, error: 'autoRenew boolean is required.' });
   }
+  const subscription = seedancePlatformStore.toggleAutoRenew(user.uid, autoRenew);
+  res.json({
+    ok: true,
+    subscription,
+    message: autoRenew
+      ? 'Automatic subscription renewal enabled.'
+      : 'Automatic renewal disabled. Benefits stay active until period end.',
+  });
+});
+
+seedancePlatformRouter.post('/membership/cancel', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  const subscription = seedancePlatformStore.cancelSubscription(user.uid);
+  res.json({
+    ok: true,
+    subscription,
+    message:
+      'Subscription renewal cancelled. Remaining credits remain usable until period expiry.',
+  });
 });
 
 // ============================================================================
-// 2. CREDIT WALLET & LEDGER SYSTEM
+// 2. CREDIT WALLET & DYNAMIC COST ESTIMATION
 // ============================================================================
 
-/**
- * GET /api/labs/wallet/balance
- * Returns available credits with separation between monthly subscription and purchased top-ups
- */
-seedancePlatformRouter.get('/wallet/balance', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    const wallet = seedancePlatformState.getOrCreateWallet(user.id);
-    res.json({ ok: true, wallet });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+seedancePlatformRouter.get('/wallet/balance', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  syncVerifiedUser(req);
+  const wallet = seedancePlatformStore.getOrCreateWallet(user.uid, user.email);
+  res.json({ ok: true, wallet });
 });
 
-/**
- * GET /api/labs/wallet/transactions
- * Returns immutable transaction ledger for the user
- */
-seedancePlatformRouter.get('/wallet/transactions', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    const transactions = seedancePlatformState.getTransactions(user.id);
-    res.json({ ok: true, transactions });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+seedancePlatformRouter.get('/wallet/transactions', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  const transactions = seedancePlatformStore.getTransactions(user.uid);
+  res.json({ ok: true, transactions });
 });
 
-/**
- * POST /api/labs/wallet/estimate
- * Dynamically estimates credit deduction and margin for generation parameters
- */
 seedancePlatformRouter.post('/wallet/estimate', (req: Request, res: Response) => {
   try {
-    const { resolution = '720p', duration = 15, referenceImagesCount = 0 } = req.body as {
-      resolution: SeedanceResolution;
-      duration: SeedanceDuration;
+    const {
+      model = 'seedance_25_15s',
+      resolution = '720p',
+      duration = 15,
+      referenceImagesCount = 0,
+      physicsPriority = true,
+      quantity = 1,
+    } = req.body as {
+      model?: string;
+      resolution?: SeedanceResolution;
+      duration?: SeedanceDuration | number;
       referenceImagesCount?: number;
+      physicsPriority?: boolean;
+      quantity?: number;
     };
 
-    const cost = calculateSeedanceCost(resolution, duration, referenceImagesCount);
+    const cost = calculateSeedanceCost(
+      resolution,
+      duration,
+      referenceImagesCount,
+      undefined,
+      model,
+      physicsPriority,
+      quantity
+    );
     res.json({ ok: true, cost });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+    res.status(500).json({ ok: false, error: sanitizeErrorMessage(err, 'Cost estimation failed.') });
   }
 });
 
 // ============================================================================
-// 3. CREDIT TOP-UP STORE & PAYMENTS
+// 3. CREDIT TOP-UP STORE & VERIFIED PAYMENTS
 // ============================================================================
 
-/**
- * GET /api/labs/store/packages
- * Returns available top-up credit packages (Mini, Creator, Advanced, Production)
- */
 seedancePlatformRouter.get('/store/packages', (_req: Request, res: Response) => {
-  try {
-    const packages = seedancePlatformState.getPackages();
-    res.json({ ok: true, packages });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+  const packages = seedancePlatformStore.getPackages();
+  const paymentConfig = isRealPaymentConfigured();
+  res.json({
+    ok: true,
+    packages,
+    paymentProviderConfigured: paymentConfig.configured,
+    paymentProvider: paymentConfig.provider,
+  });
 });
 
-/**
- * POST /api/labs/store/checkout
- * Initiates verified credit purchase with QRIS, Virtual Account, or Card
- */
-seedancePlatformRouter.post('/store/checkout', (req: Request, res: Response) => {
+seedancePlatformRouter.post('/store/checkout', requireFirebaseAuth, financialLimiter, async (req: Request, res: Response) => {
   try {
-    const user = getRequestUser(req);
-    const { packageId, paymentMethod = 'QRIS' } = req.body as {
-      packageId: string;
-      paymentMethod?: string;
-    };
+    const user = req.verifiedUser!;
+    const { packageId, returnUrl } = req.body as { packageId?: string; returnUrl?: string };
 
-    const packages = seedancePlatformState.getPackages();
-    const pkg = packages.find((p) => p.id === packageId);
+    const pkg = seedancePlatformStore.getPackages().find((p) => p.id === packageId);
     if (!pkg) {
-      return res.status(404).json({ ok: false, error: 'Package not found.' });
+      return res.status(404).json({ ok: false, error: 'Credit package not found.' });
     }
 
-    const orderId = `order-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const stripeKey = getStripeSecretKey();
+    if (!stripeKey) {
+      return res.status(503).json({
+        ok: false,
+        paymentProviderConfigured: false,
+        code: 'PAYMENT_PROVIDER_UNCONFIGURED',
+        error:
+          'Credit purchase checkout is unavailable because STRIPE_SECRET_KEY or MIDTRANS_SERVER_KEY is not configured on the server.',
+      });
+    }
+
+    const validatedReturn = validateReturnUrl(returnUrl || req.headers.origin, req, '/');
+    let origin = resolveSafePublicOrigin(req);
+    try {
+      origin = new URL(validatedReturn).origin;
+    } catch {
+      origin = resolveSafePublicOrigin(req);
+    }
+    const bodyParams = new URLSearchParams();
+    bodyParams.set('mode', 'payment');
+    bodyParams.set('success_url', `${origin}?stripe_session_id={CHECKOUT_SESSION_ID}&pkg=${pkg.id}`);
+    bodyParams.set('cancel_url', `${origin}?checkout=cancelled`);
+    bodyParams.set('customer_email', user.email || '');
+    bodyParams.set('line_items[0][price_data][currency]', 'idr');
+    bodyParams.set('line_items[0][price_data][product_data][name]', `VAIURE Credits — ${pkg.name} (+${pkg.credits})`);
+    bodyParams.set('line_items[0][price_data][unit_amount]', String(Math.round(pkg.priceIdr * 100)));
+    bodyParams.set('line_items[0][quantity]', '1');
+    bodyParams.set('metadata[userId]', user.uid);
+    bodyParams.set('metadata[packageId]', pkg.id);
+    bodyParams.set('metadata[kind]', 'topup');
+
+    const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stripeKey}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: bodyParams.toString(),
+    });
+    const stripeData = (await stripeRes.json()) as any;
+    if (!stripeRes.ok || !stripeData?.url) {
+      return res.status(502).json({
+        ok: false,
+        error: stripeData?.error?.message || 'Failed to initiate Stripe checkout.',
+      });
+    }
+
     res.json({
       ok: true,
-      orderId,
+      sessionId: stripeData.id,
+      checkoutUrl: stripeData.url,
       package: pkg,
-      amountIdr: pkg.priceIdr,
-      paymentMethod,
-      qrCodeData: paymentMethod === 'QRIS' ? `00020101021226${orderId}5204581253033605802ID` : undefined,
-      vaNumber: paymentMethod.includes('VA') || paymentMethod.includes('BANK') ? `8800${Math.floor(100000000 + Math.random() * 900000000)}` : undefined,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 min payment window
     });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+    res.status(500).json({ ok: false, error: sanitizeErrorMessage(err, 'Store checkout failed.') });
   }
 });
 
-/**
- * POST /api/labs/payments/verify
- * Verified server-side webhook/confirmation that adds credits atomically
- */
-seedancePlatformRouter.post('/payments/verify', (req: Request, res: Response) => {
+seedancePlatformRouter.post('/payments/verify', requireFirebaseAuth, financialLimiter, async (req: Request, res: Response) => {
   try {
-    const user = getRequestUser(req);
-    const { packageId, paymentMethod = 'QRIS', orderId } = req.body as {
-      packageId: string;
-      paymentMethod?: string;
-      orderId?: string;
-    };
+    const user = req.verifiedUser!;
+    const { sessionId } = req.body as { sessionId?: string };
+    const stripeKey = getStripeSecretKey();
 
-    const result = seedancePlatformState.addTopUpCredits(user.id, packageId, paymentMethod);
-    res.json({
-      ok: true,
-      orderId,
-      wallet: result.wallet,
-      transaction: result.transaction,
-      message: `Payment verified. Added ${result.transaction.amount} credits with 90-day validity.`,
-    });
+    if (!stripeKey) {
+      return res.status(503).json({
+        ok: false,
+        paymentProviderConfigured: false,
+        error: 'Payment verification requires STRIPE_SECRET_KEY configured on server.',
+      });
+    }
+    if (!sessionId) {
+      return res.status(400).json({ ok: false, error: 'Stripe sessionId is required for verification.' });
+    }
+
+    const sessionRes = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`,
+      { headers: { Authorization: `Bearer ${stripeKey}` } }
+    );
+    const session = (await sessionRes.json()) as any;
+    if (!sessionRes.ok || session.payment_status !== 'paid') {
+      return res.status(402).json({
+        ok: false,
+        error: 'Payment session is not settled or could not be verified with Stripe.',
+      });
+    }
+    if (session.metadata?.userId !== user.uid) {
+      return res.status(403).json({ ok: false, error: 'Payment session belongs to a different account.' });
+    }
+
+    if (session.metadata?.kind === 'subscription' && session.metadata?.tier) {
+      const activated = seedancePlatformStore.activateSubscriptionTier({
+        userId: user.uid,
+        userEmail: user.email,
+        tier: session.metadata.tier,
+        billingStatus: 'PAID',
+        paymentProvider: 'stripe',
+        paymentRef: session.id,
+      });
+      return res.json({
+        ok: true,
+        ...activated,
+        message: `Verified Stripe payment. Activated ${activated.subscription.planName} tier.`,
+      });
+    }
+
+    if (session.metadata?.kind === 'topup' && session.metadata?.packageId) {
+      const credited = seedancePlatformStore.addTopUpCreditsVerified({
+        userId: user.uid,
+        userEmail: user.email,
+        packageId: session.metadata.packageId,
+        paymentMethod: 'STRIPE',
+        paymentRef: session.id,
+      });
+      return res.json({
+        ok: true,
+        ...credited,
+        message: `Verified Stripe payment. Credited ${credited.transaction.amount} credits.`,
+      });
+    }
+
+    return res.status(400).json({ ok: false, error: 'Unrecognized payment session metadata.' });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+    res.status(500).json({ ok: false, error: sanitizeErrorMessage(err, 'Payment verification failed.') });
   }
 });
 
 // ============================================================================
-// 4. SEEDANCE 2.5 VIDEO GENERATION ENGINE
+// 4. SEEDANCE 2.5 VIDEO GENERATION ENGINE (ATOMIC DEDUCTION & AUTO-REFUND)
 // ============================================================================
 
-/**
- * POST /api/labs/seedance/generate
- * Main Seedance 2.5 generation endpoint with atomic credit reservation and execution
- */
-seedancePlatformRouter.post('/seedance/generate', async (req: Request, res: Response) => {
+function isAllowedMediaReference(val: unknown): boolean {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('/uploads/') && !trimmed.includes('..')) return true;
+  if (/^data:image\/(?:jpeg|jpg|png|webp|gif);base64,/i.test(trimmed)) return true;
+  return validatePublicHttpUrl(trimmed).valid;
+}
+
+seedancePlatformRouter.post('/seedance/generate', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const user = getRequestUser(req);
+    const user = req.verifiedUser!;
+    syncVerifiedUser(req);
+
     const {
       prompt,
       negativePrompt = '',
@@ -264,9 +463,12 @@ seedancePlatformRouter.post('/seedance/generate', async (req: Request, res: Resp
       aspectRatio = '16:9',
       firstFrameImageUrl,
       referenceImages = [],
+      physicsPriority = true,
+      quantity = 1,
       vehicleLock,
       isPublic = false,
       projectId = 'project-default',
+      idempotencyKey,
     } = req.body as {
       prompt: string;
       negativePrompt?: string;
@@ -276,50 +478,116 @@ seedancePlatformRouter.post('/seedance/generate', async (req: Request, res: Resp
       aspectRatio?: '16:9' | '9:16' | '1:1';
       firstFrameImageUrl?: string;
       referenceImages?: string[];
+      physicsPriority?: boolean;
+      quantity?: number;
       vehicleLock?: any;
       isPublic?: boolean;
       projectId?: string;
+      idempotencyKey?: string;
     };
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ ok: false, error: 'Prompt is required for Seedance video generation.' });
     }
+    if (prompt.length > 250000) {
+      return res.status(400).json({ ok: false, error: 'Prompt exceeds maximum allowed length.' });
+    }
+    if (firstFrameImageUrl && !isAllowedMediaReference(firstFrameImageUrl)) {
+      return res.status(400).json({ ok: false, error: 'Invalid or disallowed firstFrameImageUrl.' });
+    }
+    if (!Array.isArray(referenceImages) || referenceImages.length > 30 || referenceImages.some((r) => !isAllowedMediaReference(r))) {
+      return res.status(400).json({ ok: false, error: 'Invalid or disallowed reference image URL.' });
+    }
 
-    // 1. Membership plan capabilities check
-    const subscription = seedancePlatformState.getUserSubscription(user.id);
-    const plan = seedancePlatformState.getPlans().find((p) => p.tier === subscription.planTier);
+    const reqIdemKey =
+      idempotencyKey ||
+      (req.headers['x-idempotency-key'] as string | undefined);
+
+    if (reqIdemKey) {
+      const existing = seedancePlatformStore.getIdempotencyRecord(user.uid, reqIdemKey);
+      if (existing) {
+        const existingJob = seedancePlatformStore.getJob(existing.jobCode);
+        const wallet = seedancePlatformStore.getOrCreateWallet(user.uid, user.email);
+        if (existingJob) {
+          return res.json({
+            ok: true,
+            deduplicated: true,
+            jobId: existing.jobCode,
+            job: existingJob,
+            wallet,
+            message: 'Idempotent retry returned existing generation job.',
+          });
+        }
+      }
+    }
+
+    // 1. Plan capability checks
+    const subscription = seedancePlatformStore.getUserSubscription(user.uid, user.email);
+    const plan = seedancePlatformStore.getPlans(true).find((p) => p.tier === subscription.planTier);
+    const normRes = String(resolution).toLowerCase() as SeedanceResolution;
 
     if (plan) {
-      if (resolution === '1080p' && plan.maxResolution !== '1080p') {
+      if (normRes === '1080p' && plan.maxResolution !== '1080p') {
         return res.status(403).json({
           ok: false,
-          error: `1080p Cinema resolution requires Pro or Studio tier. Current tier: ${subscription.planTier}.`,
+          error: `1080p Cinema resolution requires Premium or Enterprise tier. Current tier: ${plan.name}.`,
         });
       }
-      if (resolution === '720p' && plan.maxResolution === '480p') {
+      if (normRes === '720p' && plan.maxResolution === '480p') {
         return res.status(403).json({
           ok: false,
-          error: `720p HD resolution requires Creator, Pro, or Studio tier. Current tier: ${subscription.planTier}.`,
+          error: `720p HD resolution requires Basic or higher tier. Current tier: ${plan.name}.`,
         });
       }
-      if (referenceImages.length > 0 && !plan.allowReferenceImages) {
+      if (referenceImages.length > plan.maxReferenceImages) {
         return res.status(403).json({
           ok: false,
-          error: `Reference image conditioning requires Creator, Pro, or Studio tier.`,
+          error: `${plan.name} tier supports up to ${plan.maxReferenceImages} reference images (received ${referenceImages.length}).`,
         });
       }
     }
 
-    // 2. Dynamic credit cost calculation
-    const costCalc = calculateSeedanceCost(resolution, duration, referenceImages.length);
+    const modelKey =
+      mode === 'ref-video' || referenceImages.length > 0
+        ? duration >= 30
+          ? 'seedance_25_30s_r2v'
+          : 'seedance_25_15s_r2v'
+        : duration >= 30
+        ? 'seedance_25_30s'
+        : 'seedance_25_15s';
+
+    // 2. Dynamic credit calculation
+    const costCalc = calculateSeedanceCost(
+      normRes,
+      duration,
+      referenceImages.length,
+      undefined,
+      modelKey,
+      physicsPriority,
+      quantity
+    );
     const requiredCredits = costCalc.totalCreditDeduction;
 
-    // 3. Atomic credit deduction
-    const deductResult = seedancePlatformState.deductCredits(
-      user.id,
-      requiredCredits,
-      `Seedance 2.5 (${resolution} · ${duration}s · ${mode})`
-    );
+    // 3. Verify upstream ByteDance key before deducting
+    const bdConfig = getByteDanceConfigStatus();
+    if (!bdConfig.configured) {
+      return res.status(503).json({
+        ok: false,
+        error:
+          'ByteDance ModelArk API key is not configured. Set BYTEDANCE_API_KEY or ARK_API_KEY in server environment secrets.',
+      });
+    }
+
+    // 4. Atomic credit deduction BEFORE upstream submission
+    const pendingTaskRef = `pending-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    const deductResult = seedancePlatformStore.deductCreditsAtomic({
+      userId: user.uid,
+      userEmail: user.email,
+      amount: requiredCredits,
+      description: `Seedance 2.5 (${normRes} · ${duration}s · ${mode})`,
+      jobId: pendingTaskRef,
+      idempotencyKey: reqIdemKey,
+    });
 
     if (!deductResult.success) {
       return res.status(402).json({
@@ -330,36 +598,70 @@ seedancePlatformRouter.post('/seedance/generate', async (req: Request, res: Resp
       });
     }
 
-    // 4. Create generation job
-    const jobId = `job-seedance-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
+    // 5. Submit upstream ByteDance task
+    const upstream = await byteDanceClient.submitGenerate({
+      model: modelKey,
+      prompt: negativePrompt ? `${prompt} --no ${negativePrompt}` : prompt,
+      aspect_ratio: aspectRatio,
+      resolution: normRes,
+      duration,
+      image_url: firstFrameImageUrl || referenceImages[0],
+      reference_image_urls: referenceImages,
+    });
+
+    if (!upstream.ok || !upstream.data) {
+      const refunded = seedancePlatformStore.refundCreditsIdempotent({
+        userId: user.uid,
+        amount: requiredCredits,
+        reason: upstream.error || 'ByteDance ModelArk submission rejected',
+        jobId: pendingTaskRef,
+      });
+      return res.status(upstream.status || 502).json({
+        ok: false,
+        error: upstream.error || 'ByteDance ModelArk generation failed. Credits refunded.',
+        wallet: refunded.wallet,
+      });
+    }
+
+    const jobId = upstream.data.job_code;
     const newJob: SeedanceGenerationJob = {
       id: jobId,
-      userId: user.id,
+      userId: user.uid,
       userEmail: user.email,
       projectId,
+      model: modelKey,
       mode,
       prompt,
       negativePrompt,
       duration,
-      resolution,
+      resolution: normRes,
       aspectRatio,
       firstFrameImageUrl,
       referenceImages,
+      physicsPriority,
       vehicleLock,
       status: 'RUNNING',
-      progressPercent: 10,
-      statusMessage: 'Transmitting multi-shot camera parameters to Seedance 2.5 engine...',
+      progressPercent: 15,
+      statusMessage: `Dispatched to ByteDance ModelArk (${upstream.data.upstream_model}) · Task ${jobId}`,
       estimatedCredits: requiredCredits,
       actualCreditsDeducted: requiredCredits,
+      idempotencyKey: reqIdemKey,
       isPublic,
       createdAt: new Date().toISOString(),
     };
 
-    seedancePlatformState.createJob(newJob);
+    seedancePlatformStore.createJob(newJob);
+    if (reqIdemKey) {
+      seedancePlatformStore.saveIdempotencyRecord({
+        key: reqIdemKey,
+        userId: user.uid,
+        jobCode: jobId,
+        creditsDeducted: requiredCredits,
+        createdAt: new Date().toISOString(),
+      });
+    }
 
-    // 5. Asynchronous job simulation / upstream BytePlus dispatch
-    // Simulates realistic progressive temporal rendering @ 24fps
-    simulateSeedanceGenerationJob(jobId, newJob, user.id, requiredCredits);
+    pollByteDanceSeedanceJob(jobId, user.uid, requiredCredits);
 
     res.json({
       ok: true,
@@ -367,68 +669,43 @@ seedancePlatformRouter.post('/seedance/generate', async (req: Request, res: Resp
       job: newJob,
       wallet: deductResult.wallet,
       costCalculation: costCalc,
-      message: 'Seedance 2.5 generation initiated. Credits safely reserved.',
+      message: 'ByteDance Seedance generation task initiated.',
     });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+    res.status(500).json({ ok: false, error: sanitizeErrorMessage(err, 'Video generation request failed.') });
   }
 });
 
-/**
- * GET /api/labs/seedance/jobs/:jobId
- * Polls status of a specific generation job
- */
-seedancePlatformRouter.get('/seedance/jobs/:jobId', (req: Request, res: Response) => {
-  try {
-    const { jobId } = req.params;
-    const job = seedancePlatformState.getJob(jobId);
-    if (!job) {
-      return res.status(404).json({ ok: false, error: 'Generation job not found.' });
-    }
-    res.json({ ok: true, job });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+seedancePlatformRouter.get('/seedance/jobs/:jobId', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  const job = seedancePlatformStore.getJob(req.params.jobId);
+  if (!job) {
+    return res.status(404).json({ ok: false, error: 'Generation job not found.' });
   }
+  if (job.userId !== user.uid && !user.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Access denied to this job.' });
+  }
+  res.json({ ok: true, job });
 });
 
-/**
- * GET /api/labs/seedance/history
- * Returns all generation jobs belonging to the current user
- */
-seedancePlatformRouter.get('/seedance/history', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    const jobs = seedancePlatformState.getUserJobs(user.id);
-    res.json({ ok: true, jobs });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+seedancePlatformRouter.get('/seedance/history', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  const jobs = seedancePlatformStore.getUserJobs(user.uid);
+  res.json({ ok: true, jobs });
 });
 
 // ============================================================================
-// 5. COMMUNITY SHOWCASE & PUBLIC CREATOR SHARING
+// 5. COMMUNITY SHOWCASE
 // ============================================================================
 
-/**
- * GET /api/labs/community/showcase
- * Returns public community AI films and featured creator works
- */
 seedancePlatformRouter.get('/community/showcase', (_req: Request, res: Response) => {
-  try {
-    const videos = seedancePlatformState.getCommunityVideos();
-    res.json({ ok: true, videos });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+  const videos = seedancePlatformState.getCommunityVideos();
+  res.json({ ok: true, videos });
 });
 
-/**
- * POST /api/labs/community/publish
- * Explicitly publishes a finished generation to the public community showcase
- */
-seedancePlatformRouter.post('/community/publish', (req: Request, res: Response) => {
+seedancePlatformRouter.post('/community/publish', requireFirebaseAuth, (req: Request, res: Response) => {
   try {
-    const user = getRequestUser(req);
+    const user = req.verifiedUser!;
     const {
       title,
       description = '',
@@ -444,25 +721,29 @@ seedancePlatformRouter.post('/community/publish', (req: Request, res: Response) 
     if (!title || !videoUrl) {
       return res.status(400).json({ ok: false, error: 'Title and videoUrl are required to publish.' });
     }
+    const isSafeAsset = (u: string) => (u.startsWith('/uploads/') && !u.includes('..')) || validatePublicHttpUrl(u).valid;
+    if (!isSafeAsset(videoUrl) || (thumbnailUrl && !isSafeAsset(thumbnailUrl))) {
+      return res.status(400).json({ ok: false, error: 'Invalid media URL supplied for publishing.' });
+    }
 
-    const sub = seedancePlatformState.getUserSubscription(user.id);
+    const sub = seedancePlatformStore.getUserSubscription(user.uid, user.email);
     const newPost: CommunityVideoPost = {
       id: `film-${Date.now()}`,
-      userId: user.id,
+      userId: user.uid,
       authorUsername: user.email.split('@')[0] || 'creator',
-      authorDisplayName: user.email.split('@')[0].toUpperCase() || 'Creator',
-      authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      authorDisplayName: user.name || user.email.split('@')[0].toUpperCase() || 'Creator',
+      authorAvatar: user.picture || '',
       authorTier: sub.planTier,
-      title,
-      description,
+      title: String(title).trim().slice(0, 140),
+      description: String(description || '').trim().slice(0, 2000),
       videoUrl,
-      thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80',
+      thumbnailUrl: thumbnailUrl || '',
       duration,
       resolution,
       aspectRatio,
-      seedancePrompt,
-      tags,
-      likesCount: 1,
+      seedancePrompt: String(seedancePrompt || '').slice(0, 10000),
+      tags: Array.isArray(tags) ? tags.map(String).slice(0, 12) : ['Seedance2.5'],
+      likesCount: 0,
       viewsCount: 1,
       isFeatured: false,
       isPublic: true,
@@ -470,159 +751,169 @@ seedancePlatformRouter.post('/community/publish', (req: Request, res: Response) 
     };
 
     seedancePlatformState.publishToCommunity(newPost);
-    res.json({ ok: true, video: newPost, message: 'Film published to VAIURE community showcase.' });
+    res.json({ ok: true, video: newPost, message: 'Film published to VAIURE showcase.' });
   } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+    res.status(500).json({ ok: false, error: sanitizeErrorMessage(err, 'Failed to publish film.') });
   }
 });
 
-/**
- * POST /api/labs/community/videos/:id/like
- * Toggles like on a public community film
- */
-seedancePlatformRouter.post('/community/videos/:id/like', (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const likesCount = seedancePlatformState.likeCommunityVideo(id);
-    res.json({ ok: true, likesCount });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
-  }
+seedancePlatformRouter.post('/community/videos/:id/like', requireFirebaseAuth, (req: Request, res: Response) => {
+  const likesCount = seedancePlatformState.likeCommunityVideo(req.params.id);
+  res.json({ ok: true, likesCount });
 });
 
 // ============================================================================
-// 6. ADMINISTRATOR DASHBOARD & API STOCK MANAGEMENT
+// 6. LEGACY-COMPATIBLE ADMIN ENDPOINTS (NOW PROTECTED BY VERIFIED TOKEN)
 // ============================================================================
 
-/**
- * GET /api/labs/admin/analytics
- * Returns true calculated financial metrics from real stored records
- */
-seedancePlatformRouter.get('/admin/analytics', (req: Request, res: Response) => {
-  try {
-    const user = getRequestUser(req);
-    // Security verification for admin access
-    const isAllowed =
-      user.role === 'ADMIN' ||
-      user.role === 'SUPER_ADMIN' ||
-      ['rachvan420@gmail.com', 'vaiurenetwork@gmail.com', 'efayour@gmail.com'].includes(user.email.toLowerCase());
-
-    if (!isAllowed) {
-      return res.status(403).json({ ok: false, error: 'Administrator clearance required.' });
-    }
-
-    const analytics = seedancePlatformState.getFinancialAnalytics();
-    res.json({ ok: true, analytics });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+seedancePlatformRouter.get('/admin/analytics', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  if (!user.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Administrator clearance required.' });
   }
+  const analytics = seedancePlatformStore.getFinancialAnalytics();
+  res.json({ ok: true, analytics });
 });
 
-/**
- * GET /api/labs/admin/stock
- * Returns BytePlus API stock balance and consumption
- */
-seedancePlatformRouter.get('/admin/stock', (req: Request, res: Response) => {
-  try {
-    const stock = seedancePlatformState.getApiStock();
-    res.json({ ok: true, stock });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+seedancePlatformRouter.get('/admin/stock', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  if (!user.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Administrator clearance required.' });
   }
+  res.json({ ok: true, stock: seedancePlatformStore.getApiStock() });
 });
 
-/**
- * POST /api/labs/admin/stock/purchase
- * Records a new BytePlus package token purchase into the stock ledger
- */
-seedancePlatformRouter.post('/admin/stock/purchase', (req: Request, res: Response) => {
-  try {
-    const { tokens, expenditureUsd, packageName } = req.body;
-    if (!tokens || !expenditureUsd) {
-      return res.status(400).json({ ok: false, error: 'tokens and expenditureUsd are required.' });
-    }
-    const updatedStock = seedancePlatformState.recordApiStockPurchase(
-      Number(tokens),
-      Number(expenditureUsd),
-      packageName || 'BytePlus Seedance Top-Up'
-    );
-    res.json({ ok: true, stock: updatedStock, message: 'API Stock purchase recorded successfully.' });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+seedancePlatformRouter.post('/admin/stock/purchase', requireFirebaseAuth, (req: Request, res: Response) => {
+  const user = req.verifiedUser!;
+  if (!user.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Administrator clearance required.' });
   }
+  const { tokens, expenditureUsd, packageName } = req.body;
+  if (!tokens || !expenditureUsd) {
+    return res.status(400).json({ ok: false, error: 'tokens and expenditureUsd are required.' });
+  }
+  const updatedStock = seedancePlatformStore.recordApiStockPurchase(
+    Number(tokens),
+    Number(expenditureUsd),
+    packageName || 'BytePlus Seedance Top-Up',
+    { uid: user.uid, email: user.email }
+  );
+  res.json({ ok: true, stock: updatedStock, message: 'API Stock purchase recorded.' });
 });
 
-/**
- * POST /api/labs/admin/adjust-credits
- * Adjusts user credits with mandatory administrative audit record
- */
-seedancePlatformRouter.post('/admin/adjust-credits', (req: Request, res: Response) => {
-  try {
-    const adminUser = getRequestUser(req);
-    const { targetUserId, creditAdjustment, reason } = req.body;
-
-    if (!targetUserId || typeof creditAdjustment !== 'number' || !reason) {
-      return res.status(400).json({ ok: false, error: 'targetUserId, creditAdjustment, and reason are required.' });
-    }
-
-    const wallet = seedancePlatformState.getOrCreateWallet(targetUserId);
-    if (creditAdjustment >= 0) {
-      wallet.purchasedTopUpCredits += creditAdjustment;
-    } else {
-      const deduction = Math.abs(creditAdjustment);
-      wallet.purchasedTopUpCredits = Math.max(0, wallet.purchasedTopUpCredits - deduction);
-    }
-    wallet.totalAvailable = wallet.monthlySubscriptionCredits + wallet.purchasedTopUpCredits;
-    wallet.updatedAt = new Date().toISOString();
-
-    res.json({
-      ok: true,
-      wallet,
-      message: `Adjusted credits by ${creditAdjustment} for ${targetUserId}. Audit record logged by ${adminUser.email}.`,
-    });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: err?.message });
+seedancePlatformRouter.post('/admin/adjust-credits', requireFirebaseAuth, (req: Request, res: Response) => {
+  const adminUser = req.verifiedUser!;
+  if (!adminUser.isAdmin) {
+    return res.status(403).json({ ok: false, error: 'Administrator clearance required.' });
   }
+  const { targetUserId, creditAdjustment, reason } = req.body;
+  if (!targetUserId || typeof creditAdjustment !== 'number' || !reason) {
+    return res.status(400).json({ ok: false, error: 'targetUserId, creditAdjustment, and reason are required.' });
+  }
+  const result = seedancePlatformStore.adminAdjustCredits({
+    targetUserId,
+    creditAdjustment,
+    reason,
+    actor: { uid: adminUser.uid, email: adminUser.email },
+  });
+  res.json({
+    ok: true,
+    wallet: result.wallet,
+    message: `Adjusted credits by ${creditAdjustment} for ${targetUserId}.`,
+  });
 });
 
 // ============================================================================
-// HELPER: Asynchronous Seedance Temporal Generation Simulation
+// HELPER: Real ByteDance ModelArk Task Polling with Idempotent Auto-Refund
 // ============================================================================
 
-function simulateSeedanceGenerationJob(
-  jobId: string,
-  job: SeedanceGenerationJob,
+function pollByteDanceSeedanceJob(
+  taskId: string,
   userId: string,
   reservedCredits: number
 ) {
-  // Step 1: 3s in -> Seedance 2.5 Multi-Shot Camera Sync
-  setTimeout(() => {
-    seedancePlatformState.updateJob(jobId, {
-      progressPercent: 35,
-      statusMessage: 'Locking character geometry & optical rigs across 24fps timeline...',
-    });
-  }, 3000);
+  let attempts = 0;
+  const maxAttempts = 60;
 
-  // Step 2: 7s in -> Neural Diffusion & Light Transport
-  setTimeout(() => {
-    seedancePlatformState.updateJob(jobId, {
-      progressPercent: 70,
-      statusMessage: 'Synthesizing temporal continuity & high-resolution motion vectors...',
-    });
-  }, 7000);
+  const timer = setInterval(async () => {
+    attempts++;
+    try {
+      const statusRes = await byteDanceClient.getTaskStatus(taskId);
+      if (statusRes.ok && statusRes.data) {
+        if (statusRes.data.status === 'completed' && statusRes.data.result_url) {
+          clearInterval(timer);
+          seedancePlatformStore.updateJob(taskId, {
+            status: 'COMPLETED',
+            progressPercent: 100,
+            statusMessage: 'ByteDance Seedance video synthesis completed.',
+            videoUrl: statusRes.data.result_url,
+            thumbnailUrl: statusRes.data.last_frame_url || undefined,
+            completedAt: new Date().toISOString(),
+          });
+          const jobRecord = seedancePlatformStore.getJob(taskId);
+          seedanceCuratedStore.ingestCompletedGeneration({
+            ownerId: userId,
+            sourceJobId: taskId,
+            generationGroupId: `sd-${taskId}`,
+            sourcePipeline: 'seedance_video',
+            projectId: jobRecord?.projectId,
+            mediaType: 'VIDEO',
+            outputUrls: [statusRes.data.result_url],
+            thumbnailUrl: statusRes.data.last_frame_url || undefined,
+            aiModel: jobRecord?.model || 'Seedance 2.5',
+            modelCategory: 'Video',
+            aspectRatio: jobRecord?.aspectRatio || '16:9',
+            resolution: (jobRecord?.resolution || '720p').toUpperCase(),
+            durationSeconds: jobRecord?.duration || 15,
+            prompt: jobRecord?.prompt || '',
+            negativePrompt: jobRecord?.negativePrompt,
+            parameters: {
+              mode: jobRecord?.mode,
+              physicsPriority: jobRecord?.physicsPriority,
+              duration: jobRecord?.duration,
+              resolution: jobRecord?.resolution,
+              aspectRatio: jobRecord?.aspectRatio,
+            },
+            referenceImageCount: jobRecord?.referenceImages?.length || 0,
+            generatedAt: new Date().toISOString(),
+          });
+          return;
+        }
 
-  // Step 3: 11s in -> Completion or Finalization
-  setTimeout(() => {
-    const finalVideoUrl = '/assets/aistudio/lv_0_20261022183355_b0cc82db.mp4';
-    const finalThumbUrl = 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=800&q=80';
+        if (statusRes.data.status === 'failed' || statusRes.data.status === 'cancelled') {
+          clearInterval(timer);
+          seedancePlatformStore.refundCreditsIdempotent({
+            userId,
+            amount: reservedCredits,
+            reason:
+              statusRes.data.error_message ||
+              `ByteDance task ${taskId} ${statusRes.data.status}`,
+            jobId: taskId,
+          });
+          seedancePlatformStore.updateJob(taskId, {
+            status: 'REFUNDED',
+            progressPercent: 0,
+            statusMessage:
+              statusRes.data.error_message ||
+              `Task ${statusRes.data.status}; ${reservedCredits} credits refunded.`,
+          });
+          return;
+        }
 
-    seedancePlatformState.updateJob(jobId, {
-      status: 'COMPLETED',
-      progressPercent: 100,
-      statusMessage: 'Seedance 2.5 Cinema sequence completed successfully.',
-      videoUrl: finalVideoUrl,
-      thumbnailUrl: finalThumbUrl,
-      completedAt: new Date().toISOString(),
-    });
-  }, 11000);
+        seedancePlatformStore.updateJob(taskId, {
+          progressPercent: statusRes.data.progress || Math.min(90, 15 + attempts * 3),
+          statusMessage: `ByteDance ModelArk rendering (${statusRes.data.status})...`,
+        });
+      }
+    } catch {
+      // Transient poll error; continue until maxAttempts
+    }
+
+    if (attempts >= maxAttempts) {
+      clearInterval(timer);
+    }
+  }, 5000);
 }
+
+// Keep unused import referenced cleanly
+void optionalFirebaseAuth;

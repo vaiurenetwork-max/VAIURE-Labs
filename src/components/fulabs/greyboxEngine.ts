@@ -4,9 +4,116 @@
  * - 26 Procedural Low-Poly 3D Asset Library Models (Vehicles, Aircraft, Infrastructure, Interiors, Nature)
  * - 10 Architectural Environment Generators + Deterministic Weather Volumes
  * - 3D Motion Trajectory & Camera Frustum Path Helpers
+ * - Zero-GC vector evaluation & Cinema Atmosphere / Shading Modes
  */
 
 import * as THREE from 'three';
+
+// Pre-allocated math scratchpads for zero-GC per-frame 3D evaluation
+const _tmpCamPos = new THREE.Vector3();
+const _tmpLookTarget = new THREE.Vector3();
+const _tmpCharPos = new THREE.Vector3();
+const _tmpOffset = new THREE.Vector3();
+const _tmpForward = new THREE.Vector3();
+const _axisY = new THREE.Vector3(0, 1, 0);
+
+export type ViewportRenderMode = 'greybox' | 'clay' | 'depth' | 'normals';
+
+export type AtmosphereMoodPreset =
+  | 'studio_day'
+  | 'golden_hour'
+  | 'noir_night'
+  | 'overcast_mist';
+
+export interface AtmosphereMoodSpec {
+  id: AtmosphereMoodPreset;
+  label: string;
+  backgroundHex: string;
+  fogDensity: number;
+  sunAzimuthDeg: number;
+  sunElevationDeg: number;
+  keyColor: number;
+  keyIntensity: number;
+  hemiSky: number;
+  hemiGround: number;
+  hemiIntensity: number;
+  rimColor: number;
+  rimIntensity: number;
+  exposure: number;
+}
+
+export const ATMOSPHERE_MOOD_META: AtmosphereMoodSpec[] = [
+  {
+    id: 'studio_day',
+    label: 'Obsidian Studio',
+    backgroundHex: '#181b21',
+    fogDensity: 0.011,
+    sunAzimuthDeg: 42,
+    sunElevationDeg: 52,
+    keyColor: 0xf7f8fc,
+    keyIntensity: 1.7,
+    hemiSky: 0xdce2ec,
+    hemiGround: 0x353a42,
+    hemiIntensity: 0.7,
+    rimColor: 0xc2d4f0,
+    rimIntensity: 0.85,
+    exposure: 1.05,
+  },
+  {
+    id: 'golden_hour',
+    label: 'Golden Hour',
+    backgroundHex: '#211c18',
+    fogDensity: 0.012,
+    sunAzimuthDeg: 68,
+    sunElevationDeg: 22,
+    keyColor: 0xffd2a1,
+    keyIntensity: 2.0,
+    hemiSky: 0xf3d7bc,
+    hemiGround: 0x2e2621,
+    hemiIntensity: 0.62,
+    rimColor: 0x9eb8dc,
+    rimIntensity: 0.9,
+    exposure: 1.08,
+  },
+  {
+    id: 'noir_night',
+    label: 'Noir Midnight',
+    backgroundHex: '#0c0f15',
+    fogDensity: 0.016,
+    sunAzimuthDeg: -35,
+    sunElevationDeg: 38,
+    keyColor: 0xb9cce8,
+    keyIntensity: 1.35,
+    hemiSky: 0x6f84a3,
+    hemiGround: 0x161920,
+    hemiIntensity: 0.42,
+    rimColor: 0xe6eefc,
+    rimIntensity: 1.25,
+    exposure: 0.96,
+  },
+  {
+    id: 'overcast_mist',
+    label: 'Overcast Mist',
+    backgroundHex: '#272b30',
+    fogDensity: 0.02,
+    sunAzimuthDeg: 15,
+    sunElevationDeg: 68,
+    keyColor: 0xe2e7ee,
+    keyIntensity: 1.15,
+    hemiSky: 0xd8dee6,
+    hemiGround: 0x454a52,
+    hemiIntensity: 0.9,
+    rimColor: 0xc9d2de,
+    rimIntensity: 0.6,
+    exposure: 1.02,
+  },
+];
+
+export function getAtmosphereMoodSpec(preset?: AtmosphereMoodPreset): AtmosphereMoodSpec {
+  return (
+    ATMOSPHERE_MOOD_META.find((m) => m.id === preset) || ATMOSPHERE_MOOD_META[0]
+  );
+}
 
 export type GreyboxEnvironmentPreset =
   | 'urban_streets'
@@ -335,6 +442,7 @@ export interface EnvironmentSettingsConfig {
   sunElevationDeg: number;
   backgroundHex: string;
   weatherParticles?: WeatherParticleMode;
+  atmosphereMood?: AtmosphereMoodPreset;
 }
 
 export interface ArticulatedHumanRig {
@@ -555,6 +663,61 @@ export function focalLengthToVerticalFov(focalLengthMm: number): number {
   return THREE.MathUtils.radToDeg(fovRad);
 }
 
+let cachedContactShadowTex: THREE.CanvasTexture | null = null;
+function getContactShadowTexture(): THREE.CanvasTexture {
+  if (cachedContactShadowTex) return cachedContactShadowTex;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createRadialGradient(size / 2, size / 2, 4, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, 'rgba(0,0,0,0.58)');
+    grad.addColorStop(0.5, 'rgba(0,0,0,0.22)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  cachedContactShadowTex = tex;
+  return tex;
+}
+
+let cachedFloorGrainTex: THREE.CanvasTexture | null = null;
+export function getProceduralFloorTexture(maxAnisotropy = 4): THREE.CanvasTexture {
+  if (cachedFloorGrainTex) return cachedFloorGrainTex;
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#3d4248';
+    ctx.fillRect(0, 0, size, size);
+    // Deterministic studio concrete grain
+    for (let i = 0; i < 1800; i++) {
+      const px = (i * 73) % size;
+      const py = (i * 137) % size;
+      const shade = i % 2 === 0 ? 'rgba(255,255,255,0.028)' : 'rgba(0,0,0,0.045)';
+      ctx.fillStyle = shade;
+      ctx.fillRect(px, py, 2, 2);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, size - 1, size - 1);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(32, 32);
+  tex.anisotropy = maxAnisotropy;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  cachedFloorGrainTex = tex;
+  return tex;
+}
+
 export function createGreyboxMaterial(
   colorHex: string,
   roughness = 0.82,
@@ -683,6 +846,26 @@ export function createProceduralHumanRig(
   blockMesh.receiveShadow = true;
   attachEdgeLines(blockMesh, showEdges);
   torso.add(blockMesh);
+
+  // Minimal Forward Gaze Bar (+Z facing direction indicator for framing & blocking)
+  const visorMat = createGreyboxMaterial('#20242c', 0.45, 0.25);
+  const gazeBar = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.04), visorMat);
+  gazeBar.position.set(0, 0.66, 0.175);
+  torso.add(gazeBar);
+
+  // Soft Grounded Contact Shadow Disc
+  const contactDisc = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.15, 1.15),
+    new THREE.MeshBasicMaterial({
+      map: getContactShadowTexture(),
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.72,
+    })
+  );
+  contactDisc.rotation.x = -Math.PI / 2;
+  contactDisc.position.set(0, 0.012, 0);
+  root.add(contactDisc);
 
   // Empty transform nodes preserved for camera POV / rig interface compatibility (zero geometry)
   const headGroup = new THREE.Group();
@@ -1423,7 +1606,13 @@ export function buildGreyboxEnvironment(settings: EnvironmentSettingsConfig): {
   const root = new THREE.Group();
   root.name = `env_${settings.preset}`;
 
-  const groundMat = createGreyboxMaterial('#3b4046', 0.92, 0.02);
+  const groundTex = getProceduralFloorTexture(4);
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color('#42474e'),
+    map: groundTex,
+    roughness: 0.9,
+    metalness: 0.04,
+  });
   const roadMat = createGreyboxMaterial('#282c31', 0.9, 0.04);
   const sidewalkMat = createGreyboxMaterial('#6e747c', 0.85, 0.04);
   const bldgLightMat = createGreyboxMaterial('#b8bec6', 0.8, 0.06);
@@ -1435,7 +1624,7 @@ export function buildGreyboxEnvironment(settings: EnvironmentSettingsConfig): {
   const scaleY = settings.buildingScaleY || 1.0;
   const streetW = settings.streetWidth || 10;
 
-  const groundPlane = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), groundMat);
+  const groundPlane = new THREE.Mesh(new THREE.PlaneGeometry(180, 180), groundMat);
   groundPlane.rotation.x = -Math.PI / 2;
   groundPlane.position.y = -0.02;
   groundPlane.receiveShadow = true;
@@ -1443,10 +1632,14 @@ export function buildGreyboxEnvironment(settings: EnvironmentSettingsConfig): {
   root.add(groundPlane);
 
   if (settings.showGrid) {
-    const grid = new THREE.GridHelper(120, 120, 0x7c8591, 0x494f57);
-    grid.position.y = 0.005;
-    (grid.material as THREE.Material).transparent = true;
-    (grid.material as THREE.Material).opacity = 0.42;
+    const grid = new THREE.GridHelper(120, 120, 0x86909c, 0x4b525b);
+    grid.position.y = 0.008;
+    const gMat = grid.material as THREE.Material;
+    gMat.transparent = true;
+    gMat.opacity = 0.36;
+    gMat.polygonOffset = true;
+    gMat.polygonOffsetFactor = -1;
+    gMat.polygonOffsetUnits = -1;
     root.add(grid);
   }
 
@@ -1867,14 +2060,15 @@ export function buildGreyboxEnvironment(settings: EnvironmentSettingsConfig): {
 }
 
 /**
- * Deterministically evaluate the Cinematic Camera at timeline timestamp `t`
+ * Deterministically evaluate the Cinematic Camera at timeline timestamp `t` (Zero-GC allocation)
  */
 export function evaluateCinematicCameraAtTime(
   camera: THREE.PerspectiveCamera,
   camConfig: CameraKeyframeConfig,
   characters: Map<string, ArticulatedHumanRig>,
   t: number,
-  totalDuration: number
+  totalDuration: number,
+  smoothAlpha = 1.0
 ): void {
   const duration = Math.max(0.01, totalDuration);
   const u = Math.max(0, Math.min(1, (t * camConfig.movementSpeed) / duration));
@@ -1882,22 +2076,22 @@ export function evaluateCinematicCameraAtTime(
 
   const targetFov = focalLengthToVerticalFov(camConfig.focalLengthMm);
   if (Math.abs(camera.fov - targetFov) > 0.01) {
-    camera.fov = targetFov;
+    camera.fov = smoothAlpha < 0.99 ? THREE.MathUtils.lerp(camera.fov, targetFov, smoothAlpha) : targetFov;
     camera.updateProjectionMatrix();
   }
 
   const primaryRig = characters.get(camConfig.targetCharacterId) || characters.values().next().value;
   const secondaryRig = characters.get(camConfig.secondaryCharacterId);
 
-  const charPos = new THREE.Vector3(0, 0, 0);
+  _tmpCharPos.set(0, 0, 0);
   let charYaw = 0;
   if (primaryRig) {
-    charPos.copy(primaryRig.root.position);
+    _tmpCharPos.copy(primaryRig.root.position);
     charYaw = primaryRig.root.rotation.y;
   }
 
-  const camPos = new THREE.Vector3();
-  const lookTarget = new THREE.Vector3();
+  const camPos = _tmpCamPos;
+  const lookTarget = _tmpLookTarget;
 
   switch (camConfig.mode) {
     case 'dolly': {
@@ -1916,10 +2110,10 @@ export function evaluateCinematicCameraAtTime(
     }
 
     case 'tracking': {
-      const sideOffset = new THREE.Vector3(3.2, 1.55 + camConfig.cameraHeightOffset, 1.8);
-      sideOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw);
-      camPos.copy(charPos).add(sideOffset);
-      lookTarget.copy(charPos).add(new THREE.Vector3(0, 1.35, 0));
+      _tmpOffset.set(3.2, 1.55 + camConfig.cameraHeightOffset, 1.8);
+      _tmpOffset.applyAxisAngle(_axisY, charYaw);
+      camPos.copy(_tmpCharPos).add(_tmpOffset);
+      lookTarget.set(_tmpCharPos.x, _tmpCharPos.y + 1.35, _tmpCharPos.z);
       break;
     }
 
@@ -1931,7 +2125,7 @@ export function evaluateCinematicCameraAtTime(
         THREE.MathUtils.lerp(startY, endY, smoothU),
         THREE.MathUtils.lerp(camConfig.startPos[2], camConfig.endPos[2], smoothU)
       );
-      lookTarget.copy(charPos).add(new THREE.Vector3(0, 1.4, 0));
+      lookTarget.set(_tmpCharPos.x, _tmpCharPos.y + 1.4, _tmpCharPos.z);
       break;
     }
 
@@ -1943,20 +2137,21 @@ export function evaluateCinematicCameraAtTime(
       );
       const angleRad = THREE.MathUtils.degToRad(angleDeg);
       const radius = Math.max(1.5, camConfig.orbitRadius);
-      const center = primaryRig
-        ? charPos.clone().add(new THREE.Vector3(0, 1.3, 0))
-        : new THREE.Vector3(
-            camConfig.startTarget[0],
-            camConfig.startTarget[1],
-            camConfig.startTarget[2]
-          );
+      if (primaryRig) {
+        lookTarget.set(_tmpCharPos.x, _tmpCharPos.y + 1.3, _tmpCharPos.z);
+      } else {
+        lookTarget.set(
+          camConfig.startTarget[0],
+          camConfig.startTarget[1],
+          camConfig.startTarget[2]
+        );
+      }
 
       camPos.set(
-        center.x + Math.sin(angleRad) * radius,
-        center.y + 0.8 + camConfig.cameraHeightOffset,
-        center.z + Math.cos(angleRad) * radius
+        lookTarget.x + Math.sin(angleRad) * radius,
+        lookTarget.y + 0.8 + camConfig.cameraHeightOffset,
+        lookTarget.z + Math.cos(angleRad) * radius
       );
-      lookTarget.copy(center);
       break;
     }
 
@@ -1971,60 +2166,67 @@ export function evaluateCinematicCameraAtTime(
     }
 
     case 'third_person': {
-      const behindOffset = new THREE.Vector3(0, 2.1 + camConfig.cameraHeightOffset, -3.6);
-      behindOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw);
-      camPos.copy(charPos).add(behindOffset);
+      _tmpOffset.set(0, 2.1 + camConfig.cameraHeightOffset, -3.6);
+      _tmpOffset.applyAxisAngle(_axisY, charYaw);
+      camPos.copy(_tmpCharPos).add(_tmpOffset);
 
-      const forwardLook = new THREE.Vector3(0, 1.5, 4.0);
-      forwardLook.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw);
-      lookTarget.copy(charPos).add(forwardLook);
+      _tmpForward.set(0, 1.5, 4.0);
+      _tmpForward.applyAxisAngle(_axisY, charYaw);
+      lookTarget.copy(_tmpCharPos).add(_tmpForward);
       break;
     }
 
     case 'first_person_pov': {
-      const eyeOffset = new THREE.Vector3(0, 1.68 + camConfig.cameraHeightOffset, 0.22);
-      eyeOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw);
-      camPos.copy(charPos).add(eyeOffset);
+      _tmpOffset.set(0, 1.68 + camConfig.cameraHeightOffset, 0.22);
+      _tmpOffset.applyAxisAngle(_axisY, charYaw);
+      camPos.copy(_tmpCharPos).add(_tmpOffset);
 
       const headYaw = primaryRig ? primaryRig.headGroup.rotation.y : 0;
       const headPitch = primaryRig ? primaryRig.headGroup.rotation.x : 0;
-      const gazeDir = new THREE.Vector3(0, -Math.sin(headPitch) * 3, 8.0);
-      gazeDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw + headYaw);
-      lookTarget.copy(camPos).add(gazeDir);
+      _tmpForward.set(0, -Math.sin(headPitch) * 3, 8.0);
+      _tmpForward.applyAxisAngle(_axisY, charYaw + headYaw);
+      lookTarget.copy(camPos).add(_tmpForward);
       break;
     }
 
     case 'over_the_shoulder': {
-      const otsOffset = new THREE.Vector3(-0.48, 1.62 + camConfig.cameraHeightOffset, -1.15);
-      otsOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw);
-      camPos.copy(charPos).add(otsOffset);
+      _tmpOffset.set(-0.48, 1.62 + camConfig.cameraHeightOffset, -1.15);
+      _tmpOffset.applyAxisAngle(_axisY, charYaw);
+      camPos.copy(_tmpCharPos).add(_tmpOffset);
 
       if (secondaryRig && secondaryRig !== primaryRig) {
-        lookTarget.copy(secondaryRig.root.position).add(new THREE.Vector3(0, 1.45, 0));
+        lookTarget.set(
+          secondaryRig.root.position.x,
+          secondaryRig.root.position.y + 1.45,
+          secondaryRig.root.position.z
+        );
       } else {
-        const forwardTarget = new THREE.Vector3(0.15, 1.45, 5.0);
-        forwardTarget.applyAxisAngle(new THREE.Vector3(0, 1, 0), charYaw);
-        lookTarget.copy(charPos).add(forwardTarget);
+        _tmpForward.set(0.15, 1.45, 5.0);
+        _tmpForward.applyAxisAngle(_axisY, charYaw);
+        lookTarget.copy(_tmpCharPos).add(_tmpForward);
       }
       break;
     }
 
     case 'handheld_sim': {
-      const basePos = new THREE.Vector3(
-        THREE.MathUtils.lerp(camConfig.startPos[0], camConfig.endPos[0], smoothU),
-        THREE.MathUtils.lerp(camConfig.startPos[1], camConfig.endPos[1], smoothU) +
-          camConfig.cameraHeightOffset,
-        THREE.MathUtils.lerp(camConfig.startPos[2], camConfig.endPos[2], smoothU)
-      );
       const amp = Math.max(0.02, camConfig.handheldIntensity) * 0.14;
       const swayX = Math.sin(t * 2.3) * amp + Math.cos(t * 5.1) * (amp * 0.35);
       const swayY = Math.cos(t * 3.1) * (amp * 0.85) + Math.sin(t * 6.4) * (amp * 0.25);
-      camPos.copy(basePos).add(new THREE.Vector3(swayX, swayY, 0));
+
+      camPos.set(
+        THREE.MathUtils.lerp(camConfig.startPos[0], camConfig.endPos[0], smoothU) + swayX,
+        THREE.MathUtils.lerp(camConfig.startPos[1], camConfig.endPos[1], smoothU) +
+          camConfig.cameraHeightOffset +
+          swayY,
+        THREE.MathUtils.lerp(camConfig.startPos[2], camConfig.endPos[2], smoothU)
+      );
 
       if (primaryRig) {
-        lookTarget
-          .copy(charPos)
-          .add(new THREE.Vector3(swayX * 0.6, 1.42 + swayY * 0.6, 0));
+        lookTarget.set(
+          _tmpCharPos.x + swayX * 0.6,
+          _tmpCharPos.y + 1.42 + swayY * 0.6,
+          _tmpCharPos.z
+        );
       } else {
         lookTarget.set(
           THREE.MathUtils.lerp(camConfig.startTarget[0], camConfig.endTarget[0], smoothU),
@@ -2036,7 +2238,11 @@ export function evaluateCinematicCameraAtTime(
     }
   }
 
-  camera.position.copy(camPos);
+  if (smoothAlpha < 0.99 && camera.position.lengthSq() > 0.001) {
+    camera.position.lerp(camPos, smoothAlpha);
+  } else {
+    camera.position.copy(camPos);
+  }
   camera.lookAt(lookTarget);
 
   if (camConfig.mode === 'handheld_sim') {

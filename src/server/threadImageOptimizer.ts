@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import sharp, { Metadata } from 'sharp';
-import { storage, storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from '../lib/firebase';
+import { storage, storageRef, uploadBytesResumable, getDownloadURL } from '../lib/firebase';
+import { isSafeIdentifier, resolveSafeSubpath } from './securityMiddleware';
 
 export interface OptimizedImageResult {
   id: string;
@@ -96,12 +97,19 @@ export async function optimizeThreadImage(
   originalFilename: string,
   options?: OptimizationOptions
 ): Promise<OptimizedImageResult> {
+  if (!isSafeIdentifier(userId) || !isSafeIdentifier(threadId)) {
+    throw new Error('Invalid userId or threadId identifier.');
+  }
+
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
   const safeBaseName = path.basename(originalFilename, path.extname(originalFilename)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
 
   // 1. Quarantine: Save raw original to private temporary quarantine location
-  const userQuarantineDir = path.join(THREADS_QUARANTINE_DIR, userId, threadId);
+  const userQuarantineDir = resolveSafeSubpath(THREADS_QUARANTINE_DIR, userId, threadId);
+  if (!userQuarantineDir) {
+    throw new Error('Invalid quarantine directory path.');
+  }
   if (!fs.existsSync(userQuarantineDir)) {
     fs.mkdirSync(userQuarantineDir, { recursive: true });
   }
@@ -182,8 +190,11 @@ export async function optimizeThreadImage(
     const finalHeight = finalMeta.height || originalHeight;
 
     // 5. Save optimized files to persistent local storage directory
-    const userOptimizedDir = path.join(THREADS_OPTIMIZED_DIR, userId, threadId);
-    const userThumbnailDir = path.join(THREADS_THUMBNAILS_DIR, userId, threadId);
+    const userOptimizedDir = resolveSafeSubpath(THREADS_OPTIMIZED_DIR, userId, threadId);
+    const userThumbnailDir = resolveSafeSubpath(THREADS_THUMBNAILS_DIR, userId, threadId);
+    if (!userOptimizedDir || !userThumbnailDir) {
+      throw new Error('Invalid target directory path.');
+    }
     if (!fs.existsSync(userOptimizedDir)) fs.mkdirSync(userOptimizedDir, { recursive: true });
     if (!fs.existsSync(userThumbnailDir)) fs.mkdirSync(userThumbnailDir, { recursive: true });
 
@@ -295,18 +306,22 @@ export async function optimizeThreadImage(
  */
 export async function cleanupThreadMedia(userId: string, threadId: string): Promise<void> {
   try {
-    const userOptDir = path.join(THREADS_OPTIMIZED_DIR, userId, threadId);
-    if (fs.existsSync(userOptDir)) {
+    if (!isSafeIdentifier(userId) || !isSafeIdentifier(threadId)) {
+      return;
+    }
+
+    const userOptDir = resolveSafeSubpath(THREADS_OPTIMIZED_DIR, userId, threadId);
+    if (userOptDir && fs.existsSync(userOptDir)) {
       await fs.promises.rm(userOptDir, { recursive: true, force: true });
     }
 
-    const userThumbDir = path.join(THREADS_THUMBNAILS_DIR, userId, threadId);
-    if (fs.existsSync(userThumbDir)) {
+    const userThumbDir = resolveSafeSubpath(THREADS_THUMBNAILS_DIR, userId, threadId);
+    if (userThumbDir && fs.existsSync(userThumbDir)) {
       await fs.promises.rm(userThumbDir, { recursive: true, force: true });
     }
 
-    const userQuarantineDir = path.join(THREADS_QUARANTINE_DIR, userId, threadId);
-    if (fs.existsSync(userQuarantineDir)) {
+    const userQuarantineDir = resolveSafeSubpath(THREADS_QUARANTINE_DIR, userId, threadId);
+    if (userQuarantineDir && fs.existsSync(userQuarantineDir)) {
       await fs.promises.rm(userQuarantineDir, { recursive: true, force: true });
     }
   } catch (err) {

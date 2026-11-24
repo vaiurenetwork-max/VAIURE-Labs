@@ -68,27 +68,27 @@ export const VxVisualIntelligencePanel: React.FC<VxVisualIntelligencePanelProps>
   return (
     <div className="flex flex-col h-full bg-[#0d0f12] border border-white/[0.08] rounded-xl overflow-hidden shadow-2xl">
       {/* Panel Header */}
-      <div className="px-4 py-3 border-b border-white/[0.08] bg-black/40 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400/90 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-          <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-white/90 font-semibold">
-            PANEL B · VISUAL INTELLIGENCE & DECOMPOSITION
-          </span>
-        </div>
+      <div className="px-4 py-3 border-b border-white/[0.08] bg-black/40 flex items-center justify-between shrink-0 gap-2">
+        <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-white/90 font-semibold truncate">
+          PANEL B · VISUAL INTELLIGENCE
+        </span>
 
         {analysis ? (
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[9px] uppercase tracking-wider">
-              8/8 CATEGORIES DECODED
+          <div className="flex items-center gap-2 shrink-0 tabular-nums">
+            <span className="text-emerald-300 font-mono text-[9px] uppercase tracking-wider">
+              8/8 DECODED
             </span>
             {confidence && (
-              <span className="px-2 py-0.5 rounded bg-white/10 border border-white/20 text-white font-mono text-[9px]">
-                {confidence.overallScore}% FIDELITY
-              </span>
+              <>
+                <span className="text-white/25" aria-hidden="true">·</span>
+                <span className="text-white font-mono text-[9px]">
+                  {confidence.overallScore}% FIDELITY
+                </span>
+              </>
             )}
           </div>
         ) : (
-          <span className="text-[10px] font-mono text-white/40">
+          <span className="text-[10px] font-mono text-white/40 shrink-0">
             {isAnalyzing ? 'MULTIMODAL REASONING...' : 'AWAITING IMAGE INPUT'}
           </span>
         )}

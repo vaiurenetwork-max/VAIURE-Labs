@@ -5,7 +5,9 @@
  */
 
 import {
+  auth,
   db,
+  onAuthStateChanged,
   collection,
   doc,
   setDoc,
@@ -15,8 +17,6 @@ import {
   query,
   orderBy,
   limit,
-  handleFirestoreError,
-  OperationType,
 } from '../lib/firebase';
 import {
   LiveCreatorPresence,
@@ -314,15 +314,18 @@ export async function updateCreatorPresence(
   activeSlide: AtelierSlideId,
   status: 'ONLINE' | 'CREATING' | 'IDLE' = 'ONLINE'
 ): Promise<void> {
-  const uid = user?.id || 'guest-' + getStored('vaiure_guest_uid', Math.random().toString(36).substring(2, 9));
-  if (!user?.id) {
-    setStored('vaiure_guest_uid', uid.replace('guest-', ''));
+  const signedInUser = auth.currentUser;
+  if (!signedInUser) {
+    // Guest sessions stay local until authenticated
+    return;
   }
 
-  const presenceData: LiveCreatorPresence = {
+  const uid = signedInUser.uid;
+  const presenceData: LiveCreatorPresence & { userId: string } = {
     uid,
-    username: user?.username || 'GuestArtist',
-    displayName: user?.displayName || 'Guest Artist',
+    userId: uid,
+    username: user?.username || 'Creator',
+    displayName: user?.displayName || user?.username || 'Creator',
     avatar:
       user?.avatar ||
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
@@ -338,7 +341,6 @@ export async function updateCreatorPresence(
     const presenceRef = doc(db, PRESENCE_COLLECTION, uid);
     await setDoc(presenceRef, presenceData, { merge: true });
   } catch (err) {
-    // Graceful silent fallback
     console.debug('Presence heartbeat fallback to local session:', err);
   }
 }
@@ -353,49 +355,64 @@ export function subscribeToOnlineCreators(
   const initialCache = getStored<LiveCreatorPresence[]>(STORAGE_PRESENCE_KEY, SEED_ONLINE_CREATORS);
   onUpdate(initialCache);
 
-  try {
-    const q = query(collection(db, PRESENCE_COLLECTION), limit(40));
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const fetched: LiveCreatorPresence[] = [];
-        const now = Date.now();
+  let unsubSnapshot: (() => void) | null = null;
+  let disposed = false;
 
-        snapshot.forEach((docSnap) => {
-          const item = docSnap.data() as LiveCreatorPresence;
-          // Filter out stale heartbeats older than 90 seconds
-          const heartbeatAge = item.lastHeartbeat ? now - new Date(item.lastHeartbeat).getTime() : 0;
-          if (heartbeatAge < 90000) {
-            fetched.push({
-              ...item,
-              uid: docSnap.id,
-              isCurrentUser: item.uid === currentUserId,
-            });
-          }
-        });
+  const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    if (disposed) return;
+    if (unsubSnapshot) {
+      unsubSnapshot();
+      unsubSnapshot = null;
+    }
+    if (!firebaseUser) {
+      onUpdate(initialCache);
+      return;
+    }
 
-        // Always merge with curated active artists so the platform never appears dormant
-        const seenIds = new Set(fetched.map((f) => f.uid));
-        const combined = [
-          ...fetched,
-          ...SEED_ONLINE_CREATORS.filter((s) => !seenIds.has(s.uid) && s.uid !== currentUserId),
-        ];
+    try {
+      const q = query(collection(db, PRESENCE_COLLECTION), limit(40));
+      unsubSnapshot = onSnapshot(
+        q,
+        (snapshot) => {
+          const fetched: LiveCreatorPresence[] = [];
+          const now = Date.now();
 
-        setStored(STORAGE_PRESENCE_KEY, combined);
-        onUpdate(combined);
-      },
-      (error) => {
-        console.warn('Presence snapshot warning, using cached creators:', error.message);
-        handleFirestoreError(error, OperationType.GET, PRESENCE_COLLECTION);
-        onUpdate(initialCache);
-      }
-    );
+          snapshot.forEach((docSnap) => {
+            const item = docSnap.data() as LiveCreatorPresence;
+            const heartbeatAge = item.lastHeartbeat ? now - new Date(item.lastHeartbeat).getTime() : 0;
+            if (heartbeatAge < 90000) {
+              fetched.push({
+                ...item,
+                uid: docSnap.id,
+                isCurrentUser: item.uid === currentUserId || docSnap.id === firebaseUser.uid,
+              });
+            }
+          });
 
-    return unsubscribe;
-  } catch {
-    onUpdate(initialCache);
-    return () => {};
-  }
+          const seenIds = new Set(fetched.map((f) => f.uid));
+          const combined = [
+            ...fetched,
+            ...SEED_ONLINE_CREATORS.filter((s) => !seenIds.has(s.uid) && s.uid !== currentUserId),
+          ];
+
+          setStored(STORAGE_PRESENCE_KEY, combined);
+          onUpdate(combined);
+        },
+        (error) => {
+          console.warn('Presence snapshot warning, using cached creators:', error.message);
+          onUpdate(initialCache);
+        }
+      );
+    } catch {
+      onUpdate(initialCache);
+    }
+  });
+
+  return () => {
+    disposed = true;
+    unsubAuth();
+    if (unsubSnapshot) unsubSnapshot();
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -447,9 +464,17 @@ export async function broadcastAmbientReaction(params: {
   // Immediate local dispatch
   reactionSubscribers.forEach((cb) => cb(reactionData));
 
+  const signedInUser = auth.currentUser;
+  if (!signedInUser) {
+    return;
+  }
+
   try {
     const reactionRef = doc(db, REACTIONS_COLLECTION, newId);
-    await setDoc(reactionRef, reactionData);
+    await setDoc(reactionRef, {
+      ...reactionData,
+      userId: signedInUser.uid,
+    });
   } catch (err) {
     console.debug('Ambient pulse local broadcast active:', err);
   }
@@ -470,37 +495,47 @@ export function subscribeToAmbientReactions(
   };
   reactionSubscribers.add(localWrapper);
 
-  try {
-    const q = query(collection(db, REACTIONS_COLLECTION), orderBy('createdAt', 'desc'), limit(15));
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data() as AmbientReaction;
-            const age = Date.now() - new Date(data.createdAt).getTime();
-            // Only trigger for reactions within the last 10 seconds
-            if (age < 10000 && (targetSlide === 'all' || data.slideIndex === targetSlide)) {
-              onReaction({ ...data, id: change.doc.id });
-            }
-          }
-        });
-      },
-      (error) => {
-        console.debug('Reactions stream warning:', error.message);
-        handleFirestoreError(error, OperationType.GET, REACTIONS_COLLECTION);
-      }
-    );
+  let unsubSnapshot: (() => void) | null = null;
+  let disposed = false;
 
-    return () => {
-      reactionSubscribers.delete(localWrapper);
-      unsubscribe();
-    };
-  } catch {
-    return () => {
-      reactionSubscribers.delete(localWrapper);
-    };
-  }
+  const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    if (disposed) return;
+    if (unsubSnapshot) {
+      unsubSnapshot();
+      unsubSnapshot = null;
+    }
+    if (!firebaseUser) return;
+
+    try {
+      const q = query(collection(db, REACTIONS_COLLECTION), orderBy('createdAt', 'desc'), limit(15));
+      unsubSnapshot = onSnapshot(
+        q,
+        (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const data = change.doc.data() as AmbientReaction;
+              const age = Date.now() - new Date(data.createdAt).getTime();
+              if (age < 10000 && (targetSlide === 'all' || data.slideIndex === targetSlide)) {
+                onReaction({ ...data, id: change.doc.id });
+              }
+            }
+          });
+        },
+        (error) => {
+          console.debug('Reactions stream warning:', error.message);
+        }
+      );
+    } catch {
+      // ignore local-only fallback
+    }
+  });
+
+  return () => {
+    disposed = true;
+    reactionSubscribers.delete(localWrapper);
+    unsubAuth();
+    if (unsubSnapshot) unsubSnapshot();
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -568,7 +603,6 @@ export function subscribeToShared3DScenes(
       },
       (error) => {
         console.warn('Shared scenes snapshot fallback:', error.message);
-        handleFirestoreError(error, OperationType.GET, SHARED_SCENES_COLLECTION);
         onUpdate(cached);
       }
     );
@@ -662,7 +696,6 @@ export function subscribeToSharedVxPrompts(
       },
       (error) => {
         console.warn('Shared prompts snapshot fallback:', error.message);
-        handleFirestoreError(error, OperationType.GET, SHARED_PROMPTS_COLLECTION);
         onUpdate(cached);
       }
     );

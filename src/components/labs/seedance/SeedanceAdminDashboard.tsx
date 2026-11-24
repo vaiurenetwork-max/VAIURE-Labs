@@ -82,7 +82,10 @@ export const SeedanceAdminDashboard: React.FC<SeedanceAdminDashboardProps> = ({
   const handleUpdateExchangeRate = async () => {
     setIsUpdatingRate(true);
     try {
-      await seedancePlatformService.updateExchangeRate(usdToIdrRate);
+      const { platformAdminService } = await import('../../../services/seedanceWorkspaceService');
+      await platformAdminService.updateCostConfig({
+        unitValueIdr: Math.max(100, Math.round(usdToIdrRate / 25)),
+      });
       await loadData();
     } catch (err) {
       console.error('Failed to update exchange rate:', err);
@@ -102,7 +105,7 @@ export const SeedanceAdminDashboard: React.FC<SeedanceAdminDashboardProps> = ({
         adjustReason.trim()
       );
       setAdjustStatus(
-        `Successfully adjusted ${adjustAmount > 0 ? '+' : ''}${adjustAmount} credits for ${targetUserId}. New Balance: ${res.balance.totalCredits} cr.`
+        `Successfully adjusted ${adjustAmount > 0 ? '+' : ''}${adjustAmount} credits for ${targetUserId}. New Balance: ${res.wallet.totalCredits} cr.`
       );
       await loadData();
     } catch (err: any) {

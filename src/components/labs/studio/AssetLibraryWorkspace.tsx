@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { StudioProject, StudioAsset, StudioAssetType } from '../../../types/studio';
 import { uploadAndOptimizeThreadImage } from '../../../services/forumService';
+import { getAuthHeaders } from '../../../lib/authHeaders';
 
 interface AssetLibraryWorkspaceProps {
   project: StudioProject;
@@ -90,7 +91,7 @@ export const AssetLibraryWorkspace: React.FC<AssetLibraryWorkspaceProps> = ({
 
           const res = await fetch('/api/upload/base64', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await getAuthHeaders(),
             body: JSON.stringify({
               dataUrl,
               filename: file.name,

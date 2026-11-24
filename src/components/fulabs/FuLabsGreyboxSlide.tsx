@@ -10,10 +10,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { getAuthHeaders } from '../../lib/authHeaders';
 import {
   Play,
   Pause,
-  RotateCcw,
   Video,
   Download,
   Plus,
@@ -23,11 +23,9 @@ import {
   Building2,
   Box,
   Layers,
-  Eye,
   SkipBack,
   SkipForward,
   Menu,
-  Sliders,
   Check,
   Film,
   Sparkles,
@@ -38,8 +36,17 @@ import {
   Upload,
   FileJson,
   Compass,
-  CloudRain,
-  RefreshCw,
+  Undo2,
+  Redo2,
+  Maximize2,
+  Minimize2,
+  Grid,
+  ChevronLeft,
+  ChevronRight,
+  Sun,
+  Image as ImageIcon,
+  Magnet,
+  Loader2,
 } from 'lucide-react';
 import {
   GreyboxEnvironmentPreset,
@@ -50,6 +57,10 @@ import {
   WeatherParticleMode,
   ScenePhysicsMode,
   ScenePhysicsConfig,
+  ViewportRenderMode,
+  AtmosphereMoodPreset,
+  ATMOSPHERE_MOOD_META,
+  getAtmosphereMoodSpec,
   GreyboxCharacterConfig,
   GreyboxPropConfig,
   CameraKeyframeConfig,
@@ -57,7 +68,6 @@ import {
   ArticulatedHumanRig,
   ENVIRONMENT_PRESET_META,
   CHARACTER_ACTION_META,
-  CHARACTER_HELD_PROP_META,
   PROP_LIBRARY_CATALOG,
   CAMERA_MODE_META,
   SCENE_PHYSICS_PRESET_META,
@@ -93,6 +103,18 @@ type InspectorTab =
   | 'export';
 
 type ViewportToolMode = 'select' | 'drag_start' | 'drag_end';
+type CompositionGuideMode = 'none' | 'thirds' | 'anamorphic' | 'crosshair';
+type OrbitCameraPreset = 'quarter' | 'top' | 'side' | 'low';
+
+interface SceneHistorySnapshot {
+  sceneTitle: string;
+  duration: number;
+  physicsConfig: ScenePhysicsConfig;
+  envSettings: EnvironmentSettingsConfig;
+  characters: GreyboxCharacterConfig[];
+  propsList: GreyboxPropConfig[];
+  cameraConfig: CameraKeyframeConfig;
+}
 
 type FreeGeminiModelId =
   | 'gemini-3'
@@ -104,6 +126,7 @@ type FreeGeminiModelId =
   | 'gemini-2.5-flash';
 
 const SCENE_DURATION_OPTIONS = [5, 10, 15, 20, 25, 30] as const;
+const PLAYBACK_SPEED_OPTIONS = [0.5, 1, 1.5, 2] as const;
 
 const FREE_GEMINI_MODELS: {
   id: FreeGeminiModelId;
@@ -554,13 +577,29 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [viewportMode, setViewportMode] = useState<'cinematic' | 'free_orbit'>('cinematic');
   const [viewportTool, setViewportTool] = useState<ViewportToolMode>('select');
+  const [renderMode, setRenderMode] = useState<ViewportRenderMode>('greybox');
+  const [compositionGuide, setCompositionGuide] = useState<CompositionGuideMode>('thirds');
+  const [snapToGrid, setSnapToGrid] = useState<boolean>(true);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [isZenMode, setIsZenMode] = useState<boolean>(false);
   const [showTrajectories, setShowTrajectories] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<InspectorTab>('ai_architect');
   const [isCoOpModalOpen, setIsCoOpModalOpen] = useState<boolean>(false);
+  const [contextLost, setContextLost] = useState<boolean>(false);
+  const [studioNotice, setStudioNotice] = useState<string | null>(null);
 
-  const [envSettings, setEnvSettings] = useState<EnvironmentSettingsConfig>(
-    defaultTemplate.environment
-  );
+  // Undo / Redo Scene Stack
+  const undoStackRef = useRef<SceneHistorySnapshot[]>([]);
+  const redoStackRef = useRef<SceneHistorySnapshot[]>([]);
+  const [historyCounts, setHistoryCounts] = useState<{ undo: number; redo: number }>({
+    undo: 0,
+    redo: 0,
+  });
+
+  const [envSettings, setEnvSettings] = useState<EnvironmentSettingsConfig>({
+    ...defaultTemplate.environment,
+    atmosphereMood: 'studio_day',
+  });
   const [characters, setCharacters] = useState<GreyboxCharacterConfig[]>(
     defaultTemplate.characters.map((c) => ({ ...c, endTime: 10 }))
   );
@@ -599,8 +638,12 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   const [recordedFileSizeMb, setRecordedFileSizeMb] = useState<string>('0.0');
   const [exportStatusText, setExportStatusText] = useState<string>('Ready to record 1080p @ 24fps');
 
-  // File Input ref for JSON import
+  // File Input ref for JSON import & 60fps direct HUD DOM refs
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const timecodeHudRef = useRef<HTMLSpanElement | null>(null);
+  const timelineTimeRef = useRef<HTMLSpanElement | null>(null);
+  const timelineFrameRef = useRef<HTMLSpanElement | null>(null);
+  const scrubberInputRef = useRef<HTMLInputElement | null>(null);
 
   // Three.js Refs
   const viewportContainerRef = useRef<HTMLDivElement | null>(null);
@@ -610,6 +653,23 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   const orbitCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const orbitControlsRef = useRef<OrbitControls | null>(null);
   const dirLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const hemiLightRef = useRef<THREE.HemisphereLight | null>(null);
+  const rimLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const orbitFlyTargetRef = useRef<{
+    pos: THREE.Vector3;
+    target: THREE.Vector3;
+    active: boolean;
+  }>({
+    pos: new THREE.Vector3(-12, 8, 14),
+    target: new THREE.Vector3(0, 1.5, 0),
+    active: false,
+  });
+  const cameraSnapBoostRef = useRef<number>(1);
+  const overrideMaterialsRef = useRef<{
+    clay: THREE.MeshStandardMaterial;
+    depth: THREE.MeshDepthMaterial;
+    normals: THREE.MeshNormalMaterial;
+  } | null>(null);
 
   // Dynamic Scene Object Maps
   const envGroupRef = useRef<THREE.Group | null>(null);
@@ -624,13 +684,17 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
 
   // Mutable animation loop state refs
   const stateRef = useRef({
+    sceneTitle,
     currentTime,
     duration,
     physicsConfig,
     isPlaying,
+    playbackSpeed,
     isRecording,
     viewportMode,
     viewportTool,
+    renderMode,
+    snapToGrid,
     showTrajectories,
     selectedCharId,
     selectedPropId,
@@ -643,13 +707,17 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
 
   useEffect(() => {
     stateRef.current = {
+      sceneTitle,
       currentTime,
       duration,
       physicsConfig,
       isPlaying,
+      playbackSpeed,
       isRecording,
       viewportMode,
       viewportTool,
+      renderMode,
+      snapToGrid,
       showTrajectories,
       selectedCharId,
       selectedPropId,
@@ -660,13 +728,17 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       cameraConfig,
     };
   }, [
+    sceneTitle,
     currentTime,
     duration,
     physicsConfig,
     isPlaying,
+    playbackSpeed,
     isRecording,
     viewportMode,
     viewportTool,
+    renderMode,
+    snapToGrid,
     showTrajectories,
     selectedCharId,
     selectedPropId,
@@ -677,10 +749,119 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     cameraConfig,
   ]);
 
+  const notifyStudio = useCallback((msg: string) => {
+    setStudioNotice(msg);
+    window.setTimeout(() => {
+      setStudioNotice((prev) => (prev === msg ? null : prev));
+    }, 2400);
+  }, []);
+
+  const pushHistorySnapshot = useCallback(() => {
+    const s = stateRef.current;
+    const snap: SceneHistorySnapshot = {
+      sceneTitle: s.sceneTitle,
+      duration: s.duration,
+      physicsConfig: { ...s.physicsConfig },
+      envSettings: { ...s.envSettings },
+      characters: s.characters.map((c) => ({
+        ...c,
+        startPos: [...c.startPos] as [number, number, number],
+        endPos: [...c.endPos] as [number, number, number],
+      })),
+      propsList: s.propsList.map((p) => ({
+        ...p,
+        startPos: [...p.startPos] as [number, number, number],
+        endPos: [...p.endPos] as [number, number, number],
+        dimensions: [...p.dimensions] as [number, number, number],
+      })),
+      cameraConfig: {
+        ...s.cameraConfig,
+        startPos: [...s.cameraConfig.startPos] as [number, number, number],
+        endPos: [...s.cameraConfig.endPos] as [number, number, number],
+        startTarget: [...s.cameraConfig.startTarget] as [number, number, number],
+        endTarget: [...s.cameraConfig.endTarget] as [number, number, number],
+      },
+    };
+    undoStackRef.current.push(snap);
+    if (undoStackRef.current.length > 25) undoStackRef.current.shift();
+    redoStackRef.current = [];
+    setHistoryCounts({ undo: undoStackRef.current.length, redo: 0 });
+  }, []);
+
+  const applySnapshot = useCallback((snap: SceneHistorySnapshot) => {
+    setSceneTitle(snap.sceneTitle);
+    setDuration(snap.duration);
+    setPhysicsConfig(snap.physicsConfig);
+    setEnvSettings(snap.envSettings);
+    setCharacters(snap.characters);
+    setPropsList(snap.propsList);
+    setCameraConfig(snap.cameraConfig);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    const s = stateRef.current;
+    redoStackRef.current.push({
+      sceneTitle: s.sceneTitle,
+      duration: s.duration,
+      physicsConfig: { ...s.physicsConfig },
+      envSettings: { ...s.envSettings },
+      characters: s.characters,
+      propsList: s.propsList,
+      cameraConfig: s.cameraConfig,
+    });
+    applySnapshot(prev);
+    setHistoryCounts({
+      undo: undoStackRef.current.length,
+      redo: redoStackRef.current.length,
+    });
+    notifyStudio('Reverted previous scene edit');
+  }, [applySnapshot, notifyStudio]);
+
+  const handleRedo = useCallback(() => {
+    const next = redoStackRef.current.pop();
+    if (!next) return;
+    const s = stateRef.current;
+    undoStackRef.current.push({
+      sceneTitle: s.sceneTitle,
+      duration: s.duration,
+      physicsConfig: { ...s.physicsConfig },
+      envSettings: { ...s.envSettings },
+      characters: s.characters,
+      propsList: s.propsList,
+      cameraConfig: s.cameraConfig,
+    });
+    applySnapshot(next);
+    setHistoryCounts({
+      undo: undoStackRef.current.length,
+      redo: redoStackRef.current.length,
+    });
+    notifyStudio('Restored scene edit');
+  }, [applySnapshot, notifyStudio]);
+
+  /**
+   * Sync lightweight 60fps timecode HUD DOM nodes without triggering React re-renders per frame
+   */
+  const syncTimelineDomHud = useCallback((t: number, totalDur: number) => {
+    if (timecodeHudRef.current) {
+      timecodeHudRef.current.textContent = `${t.toFixed(2)}s / ${totalDur.toFixed(1)}s`;
+    }
+    if (timelineTimeRef.current) {
+      timelineTimeRef.current.textContent = `${t.toFixed(1)}s`;
+    }
+    if (timelineFrameRef.current) {
+      timelineFrameRef.current.textContent = `${Math.round(t * 24)}`;
+    }
+    if (scrubberInputRef.current) {
+      scrubberInputRef.current.value = String(t);
+    }
+  }, []);
+
   /**
    * Deterministic evaluation of the entire 3D greybox scene at timestamp `t`
    */
-  const evaluateSceneAtTimestamp = useCallback((t: number) => {
+  const evaluateSceneAtTimestamp = useCallback((t: number, smoothAlpha = 1.0) => {
     const {
       duration: totalDur,
       physicsConfig: physCfg,
@@ -715,25 +896,66 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
         camCfg,
         rigsMap,
         t,
-        totalDur
+        totalDur,
+        smoothAlpha
       );
     }
   }, []);
 
   /**
-   * Initialize Three.js WebGLRenderer, Scene, Lighting, and Cameras
+   * Smooth damped camera fly-to presets for Free Orbit inspection
+   */
+  const handleOrbitCameraPreset = useCallback((preset: OrbitCameraPreset) => {
+    setViewportMode('free_orbit');
+    const fly = orbitFlyTargetRef.current;
+    fly.target.set(0, 1.4, 0);
+    switch (preset) {
+      case 'top':
+        fly.pos.set(0.01, 28, 0.01);
+        break;
+      case 'side':
+        fly.pos.set(18, 3.2, 0);
+        break;
+      case 'low':
+        fly.pos.set(-7.5, 0.9, 9.5);
+        fly.target.set(0, 2.2, -2);
+        break;
+      case 'quarter':
+      default:
+        fly.pos.set(-13, 8.5, 14.5);
+        break;
+    }
+    fly.active = true;
+  }, []);
+
+  /**
+   * Initialize Three.js WebGLRenderer, Scene, Lighting Rig, Cameras & Software-WebGL Guard
    */
   useEffect(() => {
     const container = viewportContainerRef.current;
     if (!container) return;
 
+    const isSoftwareGl = (() => {
+      try {
+        const probe = document.createElement('canvas').getContext('webgl2');
+        if (!probe) return true;
+        const ext = probe.getExtension('WEBGL_debug_renderer_info');
+        const param = ext ? ext.UNMASKED_RENDERER_WEBGL : probe.RENDERER;
+        const gpu = String(probe.getParameter(param));
+        probe.getExtension('WEBGL_lose_context')?.loseContext();
+        return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+      } catch {
+        return true;
+      }
+    })();
+
     const renderer = new THREE.WebGLRenderer({
-      antialias: true,
+      antialias: !isSoftwareGl,
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true,
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
+    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
@@ -746,22 +968,39 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
+    const handleContextLost = (ev: Event) => {
+      ev.preventDefault();
+      setContextLost(true);
+    };
+    const handleContextRestored = () => {
+      setContextLost(false);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored);
+
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(stateRef.current.envSettings.backgroundHex);
-    scene.fog = new THREE.FogExp2(stateRef.current.envSettings.backgroundHex, 0.012);
+    const initialMood = getAtmosphereMoodSpec(stateRef.current.envSettings.atmosphereMood);
+    scene.background = new THREE.Color(initialMood.backgroundHex);
+    scene.fog = new THREE.FogExp2(initialMood.backgroundHex, initialMood.fogDensity);
     sceneRef.current = scene;
 
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     pmremGenerator.dispose();
 
-    const hemiLight = new THREE.HemisphereLight(0xdce2ec, 0x383d45, 0.65);
+    // 3-Point Studio Lighting Rig (Hemisphere Cool/Ground + Warm Key + Rim Backlight)
+    const hemiLight = new THREE.HemisphereLight(
+      initialMood.hemiSky,
+      initialMood.hemiGround,
+      initialMood.hemiIntensity
+    );
     hemiLight.position.set(0, 40, 0);
     scene.add(hemiLight);
+    hemiLightRef.current = hemiLight;
 
-    const dirLight = new THREE.DirectionalLight(0xf6f8fc, 1.65);
+    const dirLight = new THREE.DirectionalLight(initialMood.keyColor, initialMood.keyIntensity);
     dirLight.position.set(18, 28, 16);
-    dirLight.castShadow = true;
+    dirLight.castShadow = !isSoftwareGl;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 0.5;
@@ -772,8 +1011,28 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     dirLight.shadow.camera.top = d;
     dirLight.shadow.camera.bottom = -d;
     dirLight.shadow.bias = -0.0005;
+    dirLight.shadow.normalBias = 0.02;
     scene.add(dirLight);
     dirLightRef.current = dirLight;
+
+    const rimLight = new THREE.DirectionalLight(initialMood.rimColor, initialMood.rimIntensity);
+    rimLight.position.set(-18, 14, -22);
+    scene.add(rimLight);
+    rimLightRef.current = rimLight;
+
+    overrideMaterialsRef.current = {
+      clay: new THREE.MeshStandardMaterial({
+        color: 0xd8d4cc,
+        roughness: 0.78,
+        metalness: 0.04,
+      }),
+      depth: new THREE.MeshDepthMaterial({
+        depthPacking: THREE.BasicDepthPacking,
+      }),
+      normals: new THREE.MeshNormalMaterial({
+        flatShading: true,
+      }),
+    };
 
     const cineCam = new THREE.PerspectiveCamera(
       focalLengthToVerticalFov(stateRef.current.cameraConfig.focalLengthMm),
@@ -788,12 +1047,19 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     orbitCameraRef.current = orbitCam;
 
     const controls = new OrbitControls(orbitCam, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
+    controls.enableDamping = !isSoftwareGl;
+    controls.dampingFactor = 0.065;
     controls.target.set(0, 1.5, 0);
     controls.maxPolarAngle = Math.PI / 2 - 0.02;
     controls.enabled = stateRef.current.viewportMode === 'free_orbit';
+    controls.addEventListener('start', () => {
+      orbitFlyTargetRef.current.active = false;
+    });
     orbitControlsRef.current = controls;
+
+    if (!isSoftwareGl) {
+      renderer.compile(scene, cineCam);
+    }
 
     const updateSize = () => {
       if (!viewportContainerRef.current || stateRef.current.isRecording) return;
@@ -812,6 +1078,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
 
     let rafId = 0;
     let lastPerfTime = performance.now();
+    let lastReactSyncTime = 0;
 
     const animate = (now: number) => {
       rafId = requestAnimationFrame(animate);
@@ -822,17 +1089,46 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
 
       let nextTime = stateRef.current.currentTime;
       if (stateRef.current.isPlaying) {
-        nextTime += dt;
+        nextTime += dt * stateRef.current.playbackSpeed;
         if (nextTime > stateRef.current.duration) {
           nextTime = 0;
         }
         stateRef.current.currentTime = nextTime;
-        setCurrentTime(nextTime);
+        syncTimelineDomHud(nextTime, stateRef.current.duration);
+
+        // Throttled state sync (~6Hz) so UI stays accurate without forcing 60fps DOM tree rebuilds
+        if (now - lastReactSyncTime > 160) {
+          lastReactSyncTime = now;
+          setCurrentTime(nextTime);
+        }
       }
 
-      evaluateSceneAtTimestamp(nextTime);
+      const camSmoothAlpha =
+        cameraSnapBoostRef.current < 1
+          ? Math.min(1, cameraSnapBoostRef.current + dt * 6)
+          : 1 - Math.exp(-12 * Math.max(0.008, dt));
+      cameraSnapBoostRef.current = camSmoothAlpha;
+
+      evaluateSceneAtTimestamp(nextTime, isSoftwareGl ? 1.0 : camSmoothAlpha);
+
+      // Apply active Render Pass override cleanly
+      const activePass = stateRef.current.renderMode;
+      if (overrideMaterialsRef.current && activePass !== 'greybox') {
+        scene.overrideMaterial = overrideMaterialsRef.current[activePass];
+      } else {
+        scene.overrideMaterial = null;
+      }
 
       if (stateRef.current.viewportMode === 'free_orbit') {
+        const fly = orbitFlyTargetRef.current;
+        if (fly.active) {
+          const dampK = 1 - Math.exp(-9 * Math.max(0.008, dt));
+          orbitCam.position.lerp(fly.pos, isSoftwareGl ? 1 : dampK);
+          controls.target.lerp(fly.target, isSoftwareGl ? 1 : dampK);
+          if (orbitCam.position.distanceToSquared(fly.pos) < 0.01) {
+            fly.active = false;
+          }
+        }
         controls.update();
         renderer.render(scene, orbitCam);
       } else {
@@ -845,13 +1141,18 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     return () => {
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
+      overrideMaterialsRef.current?.clay.dispose();
+      overrideMaterialsRef.current?.depth.dispose();
+      overrideMaterialsRef.current?.normals.dispose();
       controls.dispose();
       renderer.dispose();
     };
-  }, [evaluateSceneAtTimestamp]);
+  }, [evaluateSceneAtTimestamp, syncTimelineDomHud]);
 
   /**
-   * Rebuild Environment Geometry & Lighting when `envSettings` changes
+   * Rebuild Environment Geometry & 3-Point Lighting when `envSettings` changes
    */
   useEffect(() => {
     const scene = sceneRef.current;
@@ -869,10 +1170,26 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     envGroupRef.current = root;
     envDynamicUpdaterRef.current = updateDynamicElements;
 
-    scene.background = new THREE.Color(envSettings.backgroundHex);
-    scene.fog = new THREE.FogExp2(envSettings.backgroundHex, 0.011);
+    const mood = getAtmosphereMoodSpec(envSettings.atmosphereMood);
+    const bgHex = envSettings.backgroundHex || mood.backgroundHex;
+    scene.background = new THREE.Color(bgHex);
+    scene.fog = new THREE.FogExp2(bgHex, mood.fogDensity);
 
+    if (rendererRef.current) {
+      rendererRef.current.toneMappingExposure = mood.exposure;
+    }
+    if (hemiLightRef.current) {
+      hemiLightRef.current.color.setHex(mood.hemiSky);
+      hemiLightRef.current.groundColor.setHex(mood.hemiGround);
+      hemiLightRef.current.intensity = mood.hemiIntensity;
+    }
+    if (rimLightRef.current) {
+      rimLightRef.current.color.setHex(mood.rimColor);
+      rimLightRef.current.intensity = mood.rimIntensity;
+    }
     if (dirLightRef.current) {
+      dirLightRef.current.color.setHex(mood.keyColor);
+      dirLightRef.current.intensity = mood.keyIntensity;
       const azRad = THREE.MathUtils.degToRad(envSettings.sunAzimuthDeg);
       const elRad = THREE.MathUtils.degToRad(Math.max(10, envSettings.sunElevationDeg));
       const dist = 34;
@@ -883,7 +1200,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       );
     }
 
-    evaluateSceneAtTimestamp(stateRef.current.currentTime);
+    evaluateSceneAtTimestamp(stateRef.current.currentTime, 1.0);
   }, [envSettings, evaluateSceneAtTimestamp]);
 
   /**
@@ -1003,8 +1320,11 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     const groundPlaneMath = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const hitPoint = new THREE.Vector3();
     if (raycasterRef.current.ray.intersectPlane(groundPlaneMath, hitPoint)) {
-      const rx = Number(Math.max(-35, Math.min(35, hitPoint.x)).toFixed(1));
-      const rz = Number(Math.max(-35, Math.min(35, hitPoint.z)).toFixed(1));
+      const snap = stateRef.current.snapToGrid;
+      const quantize = (v: number) =>
+        snap ? Math.round(v * 2) / 2 : Number(v.toFixed(1));
+      const rx = quantize(Math.max(-35, Math.min(35, hitPoint.x)));
+      const rz = quantize(Math.max(-35, Math.min(35, hitPoint.z)));
       const tool = stateRef.current.viewportTool;
 
       if (stateRef.current.activeTab === 'props' && stateRef.current.selectedPropId) {
@@ -1041,6 +1361,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     if (!ndc || !cam || !scene) return;
 
     if (viewportTool === 'drag_start' || viewportTool === 'drag_end') {
+      pushHistorySnapshot();
       isDraggingGroundRef.current = true;
       applyGroundIntersectionToSelected(ndc);
       return;
@@ -1080,21 +1401,124 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   };
 
   /**
+   * Keyboard NLE & Studio Shortcuts (Space Play/Pause, Arrows Step Frame, H Zen Mode, Cmd/Ctrl+Z Undo/Redo)
+   */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable;
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        if (isTyping) return;
+        e.preventDefault();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
+        return;
+      }
+
+      if (isTyping || isCoOpModalOpen) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        setIsPlaying((p) => !p);
+      } else if (e.key.toLowerCase() === 'h') {
+        setIsZenMode((z) => !z);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setIsPlaying(false);
+        const nextT = Math.max(0, stateRef.current.currentTime - 1 / 24);
+        stateRef.current.currentTime = nextT;
+        setCurrentTime(nextT);
+        syncTimelineDomHud(nextT, stateRef.current.duration);
+        evaluateSceneAtTimestamp(nextT, 1.0);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setIsPlaying(false);
+        const nextT = Math.min(stateRef.current.duration, stateRef.current.currentTime + 1 / 24);
+        stateRef.current.currentTime = nextT;
+        setCurrentTime(nextT);
+        syncTimelineDomHud(nextT, stateRef.current.duration);
+        evaluateSceneAtTimestamp(nextT, 1.0);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo, isCoOpModalOpen, syncTimelineDomHud, evaluateSceneAtTimestamp]);
+
+  /**
+   * Capture high-res PNG still frame honoring the active Render Pass
+   */
+  const handleCapturePngFrame = useCallback(() => {
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const cam = getActiveCamera();
+    if (!renderer || !scene || !cam) return;
+
+    const prevTraj = trajectoryGroupRef.current?.visible ?? true;
+    if (trajectoryGroupRef.current) trajectoryGroupRef.current.visible = false;
+
+    const activePass = stateRef.current.renderMode;
+    scene.overrideMaterial =
+      overrideMaterialsRef.current && activePass !== 'greybox'
+        ? overrideMaterialsRef.current[activePass]
+        : null;
+
+    renderer.render(scene, cam);
+    const dataUrl = renderer.domElement.toDataURL('image/png');
+
+    if (trajectoryGroupRef.current) trajectoryGroupRef.current.visible = prevTraj;
+
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `fulabs-${activePass}-${stateRef.current.currentTime.toFixed(1)}s.png`;
+    a.click();
+    notifyStudio(`Exported ${activePass.toUpperCase()} 1080p PNG frame`);
+  }, [notifyStudio]);
+
+  /**
+   * Apply One-Click Atmosphere Lighting Mood
+   */
+  const handleSelectAtmosphereMood = (moodId: AtmosphereMoodPreset) => {
+    pushHistorySnapshot();
+    const spec = getAtmosphereMoodSpec(moodId);
+    setEnvSettings((prev) => ({
+      ...prev,
+      atmosphereMood: moodId,
+      backgroundHex: spec.backgroundHex,
+      sunAzimuthDeg: spec.sunAzimuthDeg,
+      sunElevationDeg: spec.sunElevationDeg,
+      weatherParticles:
+        moodId === 'overcast_mist' && prev.weatherParticles === 'none'
+          ? 'rain'
+          : prev.weatherParticles,
+    }));
+    notifyStudio(`Atmosphere: ${spec.label}`);
+  };
+
+  /**
    * Change scene duration (5, 10, 15, 20, 25, 30s) and synchronize active actor/prop timelines
    */
   const handleSelectDuration = (sec: number) => {
+    pushHistorySnapshot();
     setDuration(sec);
     setCharacters((prev) => prev.map((c) => ({ ...c, endTime: sec })));
     setPropsList((prev) => prev.map((p) => ({ ...p, endTime: sec })));
+    const nextT = currentTime > sec ? 0 : currentTime;
     if (currentTime > sec) {
       setCurrentTime(0);
     }
+    syncTimelineDomHud(nextT, sec);
   };
 
   /**
    * Switch 3D Physics & Movement Dynamics preset (slow, normal, fast, epic, complex)
    */
   const handleSelectPhysicsMode = (mode: ScenePhysicsMode) => {
+    pushHistorySnapshot();
     const nextPhys = getPhysicsPresetConfig(mode);
     setPhysicsConfig(nextPhys);
     setCameraConfig((prev) => ({
@@ -1108,10 +1532,12 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
    * Clear template to a Blank Scratch Stage so user can decide Duration (5–30s) & Physics first
    */
   const handleStartWithoutTemplate = () => {
+    pushHistorySnapshot();
     setIsPlaying(false);
     setIsScratchMode(true);
-    setSceneTitle('Custom Scratch Stage (Choose Duration & Physics First)');
+    setSceneTitle('Custom Scratch Stage');
     setCurrentTime(0);
+    syncTimelineDomHud(0, duration);
     setEnvSettings({
       preset: 'urban_streets',
       buildingDensity: 1.0,
@@ -1121,8 +1547,9 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       showWireframeEdges: true,
       sunAzimuthDeg: 42,
       sunElevationDeg: 52,
-      backgroundHex: '#181c22',
+      backgroundHex: '#181b21',
       weatherParticles: 'none',
+      atmosphereMood: 'studio_day',
     });
     setCharacters([
       {
@@ -1153,6 +1580,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
    * Load a curated scene template
    */
   const applySceneTemplate = (tpl: SceneTemplatePreset) => {
+    pushHistorySnapshot();
     setIsPlaying(false);
     setIsScratchMode(false);
     setSceneTitle(tpl.label);
@@ -1161,13 +1589,15 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       : 10;
     setDuration(snapDuration);
     setCurrentTime(0);
-    setEnvSettings({ ...tpl.environment });
+    syncTimelineDomHud(0, snapDuration);
+    setEnvSettings({ atmosphereMood: 'studio_day', ...tpl.environment });
     setCharacters(tpl.characters.map((c) => ({ ...c, endTime: snapDuration })));
     setPropsList(tpl.props.map((p) => ({ ...p, endTime: snapDuration })));
     setCameraConfig({ ...tpl.camera });
     setSelectedCharId(tpl.characters[0]?.id || '');
     setSelectedPropId(tpl.props[0]?.id || '');
     setRecordedVideoUrl(null);
+    cameraSnapBoostRef.current = 0.25;
     setTimeout(() => setIsPlaying(true), 60);
   };
 
@@ -1175,15 +1605,17 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
    * Load and Co-Direct a Community 3D Scene from the Co-Op Matrix
    */
   const handleLoadCommunityScene = (sceneData: any, newDuration: number, newPhysicsMode: string) => {
+    pushHistorySnapshot();
     setIsPlaying(false);
     if (sceneData.sceneTitle) setSceneTitle(sceneData.sceneTitle);
     const snapDur = SCENE_DURATION_OPTIONS.includes(newDuration as any) ? newDuration : 10;
     setDuration(snapDur);
     if (newPhysicsMode) {
-      handleSelectPhysicsMode(newPhysicsMode as any);
+      const nextPhys = getPhysicsPresetConfig(newPhysicsMode as ScenePhysicsMode);
+      setPhysicsConfig(nextPhys);
     }
     if (sceneData.environment) {
-      setEnvSettings(sceneData.environment);
+      setEnvSettings({ atmosphereMood: 'studio_day', ...sceneData.environment });
     }
     if (Array.isArray(sceneData.characters)) {
       setCharacters(sceneData.characters.map((c: any) => ({ ...c, endTime: snapDur })));
@@ -1200,8 +1632,10 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       setAiSeedancePrompt(sceneData.seedancePrompt);
     }
     setCurrentTime(0);
+    syncTimelineDomHud(0, snapDur);
     setViewportMode('cinematic');
     setRecordedVideoUrl(null);
+    cameraSnapBoostRef.current = 0.25;
     setTimeout(() => setIsPlaying(true), 80);
   };
 
@@ -1218,7 +1652,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     try {
       const response = await fetch('/api/prompt/fulabs-3d-scene', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           prompt: promptToUse,
           model: aiModel,
@@ -1244,6 +1678,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
         throw new Error(data.error || 'Failed to generate 3D greybox scene.');
       }
 
+      pushHistorySnapshot();
       setIsPlaying(false);
       setIsScratchMode(false);
       setSceneTitle(data.sceneTitle || 'AI Generated 3D Greybox Scene');
@@ -1251,6 +1686,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       setAiEngineUsed(data.engineUsed || aiModel);
       setAiSeedancePrompt(data.seedancePrompt || '');
 
+      const nextDuration = typeof data.duration === 'number' ? data.duration : duration;
       if (typeof data.duration === 'number') {
         setDuration(data.duration);
       }
@@ -1264,7 +1700,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
         });
       }
       if (data.environment) {
-        setEnvSettings(data.environment);
+        setEnvSettings({ atmosphereMood: 'studio_day', ...data.environment });
       }
       if (Array.isArray(data.characters) && data.characters.length > 0) {
         setCharacters(data.characters);
@@ -1279,8 +1715,10 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       }
 
       setCurrentTime(0);
+      syncTimelineDomHud(0, nextDuration);
       setViewportMode('cinematic');
       setRecordedVideoUrl(null);
+      cameraSnapBoostRef.current = 0.25;
       setTimeout(() => setIsPlaying(true), 80);
     } catch (err: any) {
       setAiError(err?.message || 'Unable to generate 3D scene from prompt.');
@@ -1293,6 +1731,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
    * Add a new procedural character
    */
   const handleAddCharacter = () => {
+    pushHistorySnapshot();
     const idx = characters.length + 1;
     const newId = `char-${Date.now().toString().slice(-4)}`;
     const newChar: GreyboxCharacterConfig = {
@@ -1316,6 +1755,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   };
 
   const handleDuplicateCharacter = (char: GreyboxCharacterConfig) => {
+    pushHistorySnapshot();
     const newId = `char-${Date.now().toString().slice(-4)}`;
     const clone: GreyboxCharacterConfig = {
       ...char,
@@ -1329,6 +1769,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   };
 
   const handleAutoFaceCharacterTrajectory = (id: string) => {
+    pushHistorySnapshot();
     setCharacters((prev) =>
       prev.map((c) => {
         if (c.id !== id) return c;
@@ -1343,6 +1784,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
 
   const handleRemoveCharacter = (id: string) => {
     if (characters.length <= 1) return;
+    pushHistorySnapshot();
     const filtered = characters.filter((c) => c.id !== id);
     setCharacters(filtered);
     if (selectedCharId === id) {
@@ -1360,6 +1802,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
    * Add a 3D asset from the 26-item Procedural Library
    */
   const handleAddProp = (type: GreyboxPropType) => {
+    pushHistorySnapshot();
     const catalogItem = PROP_LIBRARY_CATALOG.find((item) => item.type === type);
     const dims: [number, number, number] = catalogItem
       ? ([...catalogItem.defaultDims] as [number, number, number])
@@ -1393,6 +1836,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
   };
 
   const removeProp = (id: string) => {
+    pushHistorySnapshot();
     const next = propsList.filter((p) => p.id !== id);
     setPropsList(next);
     if (selectedPropId === id) {
@@ -1423,6 +1867,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     a.download = `fulabs-scene-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    notifyStudio('Exported 3D Scene JSON');
   };
 
   const handleImportSceneJson = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1433,17 +1878,21 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       try {
         const parsed = JSON.parse(String(reader.result));
         if (parsed.environment && Array.isArray(parsed.characters)) {
+          pushHistorySnapshot();
+          const parsedDur = Number(parsed.duration) || 8;
           setSceneTitle(parsed.sceneTitle || 'Imported 3D Greybox Scene');
-          setDuration(Number(parsed.duration) || 8);
-          setEnvSettings(parsed.environment);
+          setDuration(parsedDur);
+          setEnvSettings({ atmosphereMood: 'studio_day', ...parsed.environment });
           setCharacters(parsed.characters);
           setPropsList(Array.isArray(parsed.props) ? parsed.props : []);
           if (parsed.camera) setCameraConfig(parsed.camera);
           if (parsed.seedancePrompt) setAiSeedancePrompt(parsed.seedancePrompt);
           setCurrentTime(0);
+          syncTimelineDomHud(0, parsedDur);
+          notifyStudio('Imported 3D Scene JSON');
         }
       } catch {
-        // Ignore invalid JSON file
+        notifyStudio('Invalid JSON scene file');
       }
     };
     reader.readAsText(file);
@@ -1473,89 +1922,103 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
     const prevWidth = renderer.domElement.width;
     const prevHeight = renderer.domElement.height;
     const prevPixelRatio = renderer.getPixelRatio();
+    const activePass = stateRef.current.renderMode;
 
-    renderer.setPixelRatio(1);
-    renderer.setSize(1920, 1080, false);
-    cineCam.aspect = 1920 / 1080;
-    cineCam.updateProjectionMatrix();
-
-    const fps = 24;
-    const stream = renderer.domElement.captureStream(fps);
-    const mimeCandidates = [
-      'video/webm;codecs=vp9',
-      'video/webm;codecs=vp8',
-      'video/webm',
-    ];
-    const selectedMime =
-      mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
-
-    const chunks: BlobPart[] = [];
-    const recorder = new MediaRecorder(stream, {
-      mimeType: selectedMime,
-      videoBitsPerSecond: 12_000_000,
-    });
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        chunks.push(e.data);
-      }
-    };
-
-    const recordingFinished = new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve();
-    });
-
-    const totalFrames = Math.max(24, Math.round(duration * fps));
-    const frameIntervalMs = 1000 / fps;
-
-    recorder.start(100);
-
-    for (let frameIdx = 0; frameIdx <= totalFrames; frameIdx++) {
-      const simTime = Math.min(duration, (frameIdx / totalFrames) * duration);
-      stateRef.current.currentTime = simTime;
-      setCurrentTime(simTime);
-
-      evaluateSceneAtTimestamp(simTime);
-      renderer.render(scene, cineCam);
-
-      const pct = Math.round((frameIdx / totalFrames) * 100);
-      setRecordingProgress(pct);
-      setExportStatusText(
-        `Rendering frame ${frameIdx}/${totalFrames} (${pct}%) — 1920×1080 @ 24fps`
-      );
-
-      await new Promise((r) => setTimeout(r, frameIntervalMs));
-    }
-
-    recorder.stop();
-    await recordingFinished;
-
-    const blob = new Blob(chunks, { type: selectedMime });
-    const url = URL.createObjectURL(blob);
-    const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
-
-    setRecordedVideoUrl(url);
-    setRecordedFileSizeMb(sizeMb);
-    setExportStatusText(`Complete • 1920×1080 • 24 FPS • ${duration}s (${sizeMb} MB)`);
-
-    if (viewportContainerRef.current) {
-      const w = Math.max(320, viewportContainerRef.current.clientWidth);
-      const h = Math.max(180, viewportContainerRef.current.clientHeight);
-      renderer.setPixelRatio(prevPixelRatio);
-      renderer.setSize(w, h, false);
-      cineCam.aspect = w / h;
+    try {
+      renderer.setPixelRatio(1);
+      renderer.setSize(1920, 1080, false);
+      cineCam.aspect = 1920 / 1080;
       cineCam.updateProjectionMatrix();
-    } else {
-      renderer.setPixelRatio(prevPixelRatio);
-      renderer.setSize(prevWidth, prevHeight, false);
-    }
 
-    if (trajectoryGroupRef.current) {
-      trajectoryGroupRef.current.visible = stateRef.current.showTrajectories;
-    }
+      scene.overrideMaterial =
+        overrideMaterialsRef.current && activePass !== 'greybox'
+          ? overrideMaterialsRef.current[activePass]
+          : null;
 
-    setIsRecording(false);
-    setActiveTab('export');
+      const fps = 24;
+      const stream = renderer.domElement.captureStream(fps);
+      const mimeCandidates = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+      ];
+      const selectedMime =
+        mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+      const chunks: BlobPart[] = [];
+      const recorder = new MediaRecorder(stream, {
+        mimeType: selectedMime,
+        videoBitsPerSecond: 12_000_000,
+      });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      const recordingFinished = new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+      });
+
+      const totalFrames = Math.max(24, Math.round(duration * fps));
+      const frameIntervalMs = 1000 / fps;
+
+      recorder.start(100);
+
+      for (let frameIdx = 0; frameIdx <= totalFrames; frameIdx++) {
+        const simTime = Math.min(duration, (frameIdx / totalFrames) * duration);
+        stateRef.current.currentTime = simTime;
+        syncTimelineDomHud(simTime, duration);
+        if (frameIdx % 6 === 0 || frameIdx === totalFrames) {
+          setCurrentTime(simTime);
+        }
+
+        evaluateSceneAtTimestamp(simTime, 1.0);
+        renderer.render(scene, cineCam);
+
+        const pct = Math.round((frameIdx / totalFrames) * 100);
+        setRecordingProgress(pct);
+        setExportStatusText(
+          `Rendering ${activePass.toUpperCase()} frame ${frameIdx}/${totalFrames} (${pct}%) — 1920×1080 @ 24fps`
+        );
+
+        await new Promise((r) => setTimeout(r, frameIntervalMs));
+      }
+
+      recorder.stop();
+      await recordingFinished;
+
+      const blob = new Blob(chunks, { type: selectedMime });
+      const url = URL.createObjectURL(blob);
+      const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
+
+      setRecordedVideoUrl(url);
+      setRecordedFileSizeMb(sizeMb);
+      setExportStatusText(
+        `Complete • 1920×1080 • 24 FPS • ${activePass.toUpperCase()} • ${duration}s (${sizeMb} MB)`
+      );
+      setActiveTab('export');
+    } finally {
+      scene.overrideMaterial = null;
+      if (viewportContainerRef.current) {
+        const w = Math.max(320, viewportContainerRef.current.clientWidth);
+        const h = Math.max(180, viewportContainerRef.current.clientHeight);
+        renderer.setPixelRatio(prevPixelRatio);
+        renderer.setSize(w, h, false);
+        cineCam.aspect = w / h;
+        cineCam.updateProjectionMatrix();
+      } else {
+        renderer.setPixelRatio(prevPixelRatio);
+        renderer.setSize(prevWidth, prevHeight, false);
+      }
+
+      if (trajectoryGroupRef.current) {
+        trajectoryGroupRef.current.visible = stateRef.current.showTrajectories;
+      }
+
+      setIsRecording(false);
+    }
   };
 
   const selectedChar =
@@ -1569,7 +2032,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       : PROP_LIBRARY_CATALOG.filter((item) => item.category === propCategoryFilter);
 
   return (
-    <div className="relative w-full h-full bg-[#0d0f12] text-[#e4e7ec] flex flex-col overflow-hidden select-none font-sans">
+    <div className="relative w-full h-full bg-[#07080b] text-[#ecece9] flex flex-col overflow-hidden select-none font-sans">
       {/* Hidden JSON file input */}
       <input
         ref={fileInputRef}
@@ -1579,14 +2042,15 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
         onChange={handleImportSceneJson}
       />
 
-      {/* TOP STUDIO HEADER BAR */}
-      <header className="h-[calc(3rem+env(safe-area-inset-top))] pt-[max(0rem,env(safe-area-inset-top))] shrink-0 border-b border-white/10 bg-[#12151a] px-3 flex items-center justify-between gap-2 z-30">
-        <div className="flex items-center gap-2.5 min-w-0">
+      {/* TOP STUDIO HEADER BAR — Single-Line Three-Zone Contract */}
+      <header className="h-[calc(3rem+env(safe-area-inset-top))] pt-[max(0rem,env(safe-area-inset-top))] shrink-0 border-b border-white/[0.08] bg-[#0b0d12] px-3 sm:px-4 flex items-center justify-between gap-3 z-30">
+        {/* Zone 1: Menu & Workspace Wordmark */}
+        <div className="flex items-center gap-2.5 min-w-0 shrink">
           {onOpenMenu && (
             <button
               type="button"
               onClick={onOpenMenu}
-              className="h-8 px-2.5 rounded border border-white/15 bg-white/5 hover:bg-white/10 text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 text-white/90 transition"
+              className="min-h-[36px] px-2.5 border border-white/15 bg-white/[0.04] hover:bg-white/[0.09] text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 text-white/90 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               title="Open Slide Navigation"
             >
               <Menu className="w-3.5 h-3.5" />
@@ -1594,42 +2058,41 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
             </button>
           )}
 
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-white text-black font-mono text-[10px] font-bold tracking-widest uppercase">
-              SLIDE 05 • FU LABS
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono text-[11px] font-semibold tracking-[0.18em] uppercase text-[#ecece9] whitespace-nowrap shrink-0">
+              05 · FU LABS
             </span>
-            <h1 className="text-xs sm:text-sm font-semibold tracking-tight text-white truncate">
+            <span className="text-white/25 hidden sm:inline" aria-hidden="true">/</span>
+            <h1 className="text-xs sm:text-sm font-medium tracking-tight text-white/80 truncate max-w-[140px] sm:max-w-[220px]">
               {sceneTitle}
             </h1>
-            <span className="hidden xl:inline-block text-[11px] font-mono text-white/45 border-l border-white/10 pl-2">
-              AI TEXT-TO-3D GREYBOX • SEEDANCE 2.5 STRUCTURAL REFERENCE
-            </span>
           </div>
         </div>
 
-        {/* Center Quick Scene Preset Selector + Scratch Mode */}
-        <div className="hidden lg:flex items-center gap-1.5">
+        {/* Zone 2: Quick Stage Presets (xl+) */}
+        <div className="hidden xl:flex items-center gap-1.5 overflow-x-auto no-scrollbar min-w-0">
           <button
             type="button"
             onClick={handleStartWithoutTemplate}
-            className={`px-2.5 py-1 rounded text-[11px] font-mono border transition ${
+            className={`px-2.5 py-1 text-[11px] font-mono border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               isScratchMode
-                ? 'bg-emerald-400 text-black border-emerald-300 font-bold'
-                : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-400/30 text-emerald-300'
+                ? 'bg-[#ecece9] text-black border-white font-semibold'
+                : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/15 text-white/80'
             }`}
-            title="Start without a template: decide Duration (5–30s) and Physics first, then generate from prompt"
+            title="Start with a blank stage and set Duration (5–30s) & Physics first"
           >
-            + Blank Stage (No Template)
+            + Blank Stage
           </button>
-          <span className="text-[10px] font-mono uppercase tracking-wider text-white/35 mx-0.5">
-            |
-          </span>
           {CURATED_SCENE_TEMPLATES.map((tpl) => (
             <button
               key={tpl.id}
               type="button"
               onClick={() => applySceneTemplate(tpl)}
-              className="px-2 py-1 rounded text-[11px] font-mono bg-white/5 hover:bg-white/15 border border-white/10 text-white/85 transition truncate max-w-[145px]"
+              className={`px-2.5 py-1 text-[11px] font-mono border transition-colors truncate max-w-[138px] whitespace-nowrap shrink-0 cursor-pointer ${
+                sceneTitle === tpl.label
+                  ? 'bg-white/[0.12] border-white/40 text-white'
+                  : 'bg-transparent hover:bg-white/[0.05] border-white/[0.08] text-white/65 hover:text-white'
+              }`}
               title={tpl.description}
             >
               {tpl.label}
@@ -1637,35 +2100,89 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
           ))}
         </div>
 
-        {/* Right Actions */}
-        <div className="flex items-center gap-1.5">
+        {/* Zone 3: Studio Actions & Export */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Undo / Redo */}
+          <div className="hidden sm:flex items-center border border-white/10 bg-black/40">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={historyCounts.undo === 0}
+              className="h-8 px-2 text-white/75 hover:text-white hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Undo (Cmd/Ctrl + Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={historyCounts.redo === 0}
+              className="h-8 px-2 border-l border-white/10 text-white/75 hover:text-white hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              title="Redo (Cmd/Ctrl + Shift + Z)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsZenMode((z) => !z)}
+            className={`h-8 px-2.5 border text-[11px] font-mono flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              isZenMode
+                ? 'bg-[#ecece9] text-black border-white font-semibold'
+                : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-white/80'
+            }`}
+            title="Toggle Full-Viewport Cinema Mode (Shortcut: H)"
+          >
+            {isZenMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            <span className="hidden lg:inline">{isZenMode ? 'Exit Zen' : 'Zen View'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCoOpModalOpen(true)}
+            className="h-8 px-2.5 border border-white/15 bg-white/[0.04] hover:bg-white/[0.1] text-[11px] font-mono text-white/85 hidden md:flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Open Co-Op 3D Scene Matrix"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Co-Op</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCapturePngFrame}
+            className="h-8 px-2.5 border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-mono text-white/80 hidden sm:flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Capture PNG frame in active Render Pass"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span className="hidden 2xl:inline">PNG</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportSceneJson}
-            className="h-8 px-2.5 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-[11px] font-mono text-white/75 flex items-center gap-1 transition"
-            title="Download 3D Scene JSON"
+            className="h-8 px-2 border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-mono text-white/75 hidden lg:flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Save 3D Scene JSON"
           >
             <FileJson className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Save JSON</span>
           </button>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="h-8 px-2.5 rounded border border-white/10 bg-white/5 hover:bg-white/10 text-[11px] font-mono text-white/75 flex items-center gap-1 transition"
+            className="h-8 px-2 border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-mono text-white/75 hidden lg:flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             title="Load 3D Scene JSON"
           >
             <Upload className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Load</span>
           </button>
 
           {onGoToSlideFour && (
             <button
               type="button"
               onClick={onGoToSlideFour}
-              className="h-8 px-2.5 rounded border border-white/15 bg-white/5 hover:bg-white/10 text-[11px] font-mono text-white/80 transition hidden sm:flex items-center gap-1"
+              className="h-8 px-2.5 border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-mono text-white/75 transition-colors hidden xl:flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Film className="w-3.5 h-3.5" />
-              <span>Slide 04 Studio</span>
+              <span>04 Lab</span>
             </button>
           )}
 
@@ -1673,10 +2190,10 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
             <button
               type="button"
               onClick={onGoToVx}
-              className="h-8 px-2.5 rounded border border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/20 text-[11px] font-mono text-amber-300 transition hidden md:flex items-center gap-1"
+              className="h-8 px-2.5 border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-[11px] font-mono text-white/75 transition-colors hidden 2xl:flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Slide 06 VX</span>
+              <span>06 VX</span>
             </button>
           )}
 
@@ -1684,15 +2201,18 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
             type="button"
             disabled={isRecording}
             onClick={handleExport1080pVideo}
-            className={`h-8 px-3 rounded text-xs font-mono uppercase tracking-wider font-semibold flex items-center gap-1.5 transition ${
+            className={`h-8 px-3.5 text-xs font-mono uppercase tracking-wider font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               isRecording
-                ? 'bg-amber-500/20 border border-amber-400/50 text-amber-200 cursor-wait'
-                : 'bg-white text-black hover:bg-white/90'
+                ? 'bg-white/10 border border-white/30 text-white cursor-wait'
+                : 'bg-[#ecece9] text-black hover:bg-white'
             }`}
           >
             <Video className="w-3.5 h-3.5" />
-            <span>
-              {isRecording ? `Recording ${recordingProgress}%` : 'Export 1080p Reference'}
+            <span className="hidden sm:inline tabular-nums">
+              {isRecording ? `Rec ${recordingProgress}%` : 'Export 1080p'}
+            </span>
+            <span className="sm:hidden tabular-nums">
+              {isRecording ? `${recordingProgress}%` : '1080p'}
             </span>
           </button>
         </div>
@@ -1701,121 +2221,112 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
       {/* MAIN WORKSPACE: LEFT VIEWPORT + TIMELINE | RIGHT INSPECTOR DOCK */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
         {/* LEFT COLUMN: QUICK AI BAR + 3D VIEWPORT + TIMELINE */}
-        <div className="flex-1 min-h-0 flex flex-col bg-[#0b0d10] relative">
-          {/* QUICK AI TEXT-TO-3D PROMPT BAR ABOVE VIEWPORT (DECIDE DURATION & PHYSICS FIRST) */}
-          <div className="border-b border-white/10 bg-[#11151c] px-3 py-2 flex flex-wrap items-center gap-2 z-10">
-            <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-emerald-300 shrink-0">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI 3D</span>
+        <div className="flex-1 min-h-0 flex flex-col bg-[#07080b] relative">
+          {/* QUICK AI TEXT-TO-3D PROMPT BAR (Hidden cleanly in Zen Mode) */}
+          {!isZenMode && (
+            <div className="border-b border-white/[0.08] bg-[#0b0d12] px-3 py-2 flex flex-wrap items-center gap-2 z-10">
+              <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.14em] text-white/75 shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>AI 3D</span>
+              </div>
+
+              {/* Duration Selector (5–30s) */}
+              <div className="flex items-center gap-0.5 bg-black/60 border border-white/12 p-0.5 tabular-nums">
+                {SCENE_DURATION_OPTIONS.map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => handleSelectDuration(sec)}
+                    className={`px-2 py-1 text-[10px] font-mono transition-colors cursor-pointer ${
+                      duration === sec
+                        ? 'bg-[#ecece9] text-black font-semibold'
+                        : 'text-white/60 hover:text-white'
+                    }`}
+                    title={`Set 3D scene duration to ${sec} seconds`}
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
+
+              {/* Physics Preset */}
+              <select
+                value={physicsConfig.mode}
+                onChange={(e) => handleSelectPhysicsMode(e.target.value as ScenePhysicsMode)}
+                className="h-8 px-2.5 bg-black/60 border border-white/12 text-[11px] font-mono text-white/85 focus:outline-none focus:border-white/40 cursor-pointer"
+                title="Manage 3D Physics & Movement Dynamics"
+              >
+                {SCENE_PHYSICS_PRESET_META.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    Physics · {p.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Gemini Model Selector */}
+              <select
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value as FreeGeminiModelId)}
+                className="h-8 px-2.5 bg-black/60 border border-white/12 text-[11px] font-mono text-white/85 focus:outline-none focus:border-white/40 hidden sm:block cursor-pointer"
+                title="Select Gemini Model"
+              >
+                {FREE_GEMINI_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={aiMode}
+                onChange={(e) => setAiMode(e.target.value as 'create' | 'modify')}
+                className="h-8 px-2.5 bg-black/60 border border-white/12 text-[11px] font-mono text-white/85 focus:outline-none focus:border-white/40 cursor-pointer"
+                title="Create new 3D scene or modify current scene"
+              >
+                <option value="create">Create</option>
+                <option value="modify">Modify</option>
+              </select>
+
+              <input
+                type="text"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleGenerateAi3DScene();
+                  }
+                }}
+                placeholder="Describe 3D scene blocking..."
+                className="flex-1 min-w-[160px] h-8 px-3 bg-black/60 border border-white/12 text-xs text-white placeholder-white/35 focus:outline-none focus:border-white/45"
+              />
+
+              <button
+                type="button"
+                disabled={isGeneratingAiScene || !aiPrompt.trim()}
+                onClick={() => handleGenerateAi3DScene()}
+                className={`h-8 px-3.5 text-[11px] font-mono uppercase tracking-wider font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  isGeneratingAiScene
+                    ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 cursor-wait'
+                    : 'bg-[#ecece9] text-black hover:bg-white'
+                }`}
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                <span>
+                  {isGeneratingAiScene
+                    ? `Building ${duration}s...`
+                    : aiMode === 'modify'
+                    ? 'Apply Edit'
+                    : `Generate ${duration}s`}
+                </span>
+              </button>
             </div>
-
-            {/* 1. Decide Duration First (5, 10, 15, 20, 25, 30s) */}
-            <div className="flex items-center gap-1 bg-black/50 border border-white/15 rounded px-1.5 py-0.5">
-              <span className="text-[10px] font-mono text-white/50 uppercase">Dur:</span>
-              {SCENE_DURATION_OPTIONS.map((sec) => (
-                <button
-                  key={sec}
-                  type="button"
-                  onClick={() => handleSelectDuration(sec)}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition ${
-                    duration === sec
-                      ? 'bg-emerald-400 text-black font-bold'
-                      : 'text-white/70 hover:text-white'
-                  }`}
-                  title={`Set 3D scene duration to ${sec} seconds before generating`}
-                >
-                  {sec}s
-                </button>
-              ))}
-            </div>
-
-            {/* 2. Decide 3D Physics Movement Mode (Slow, Normal, Fast, Epic, Complex) */}
-            <select
-              value={physicsConfig.mode}
-              onChange={(e) => handleSelectPhysicsMode(e.target.value as ScenePhysicsMode)}
-              className="h-7 px-2 rounded bg-black/50 border border-white/15 text-[11px] font-mono text-emerald-300 focus:outline-none focus:border-white/40"
-              title="Manage 3D Physics & Movement Dynamics (Slow, Normal, Fast, Epic, Complex)"
-            >
-              {SCENE_PHYSICS_PRESET_META.map((p) => (
-                <option key={p.id} value={p.id}>
-                  Physics: {p.label}
-                </option>
-              ))}
-            </select>
-
-            {/* 3. Free Gemini Model Selector */}
-            <select
-              value={aiModel}
-              onChange={(e) => setAiModel(e.target.value as FreeGeminiModelId)}
-              className="h-7 px-2 rounded bg-black/50 border border-white/15 text-[11px] font-mono text-white/90 focus:outline-none focus:border-white/40"
-              title="Select Free Gemini Model"
-            >
-              {FREE_GEMINI_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label} • {m.badge}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={aiMode}
-              onChange={(e) => setAiMode(e.target.value as 'create' | 'modify')}
-              className="h-7 px-2 rounded bg-black/50 border border-white/15 text-[11px] font-mono text-white/90 focus:outline-none focus:border-white/40"
-              title="Create new 3D scene or modify current scene"
-            >
-              <option value="create">Create New</option>
-              <option value="modify">Modify Scene</option>
-            </select>
-
-            <input
-              type="text"
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleGenerateAi3DScene();
-                }
-              }}
-              placeholder="Describe 3D scene (e.g. Helicopter chasing sports car down skyscraper avenue)..."
-              className="flex-1 min-w-[180px] h-7 px-2.5 rounded bg-black/50 border border-white/15 text-xs text-white placeholder-white/35 focus:outline-none focus:border-white/40"
-            />
-
-            <button
-              type="button"
-              disabled={isGeneratingAiScene || !aiPrompt.trim()}
-              onClick={() => handleGenerateAi3DScene()}
-              className={`h-7 px-3 rounded text-[11px] font-mono uppercase tracking-wider font-semibold flex items-center gap-1.5 transition ${
-                isGeneratingAiScene
-                  ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 cursor-wait'
-                  : 'bg-emerald-400 text-black hover:bg-emerald-300'
-              }`}
-            >
-              <Wand2 className="w-3 h-3" />
-              <span>
-                {isGeneratingAiScene
-                  ? `Building ${duration}s...`
-                  : aiMode === 'modify'
-                  ? 'AI Modify'
-                  : `Generate ${duration}s Scene`}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsCoOpModalOpen(true)}
-              className="h-7 px-2.5 rounded bg-cyan-400/15 hover:bg-cyan-400/30 border border-cyan-400/40 text-cyan-300 font-mono text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0"
-              title="Open Co-Op 3D Scene Matrix & Community Stages"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>CO-OP STAGES</span>
-            </button>
-          </div>
+          )}
 
           {/* 3D VIEWPORT STAGE */}
           <div className="flex-1 min-h-0 relative flex items-center justify-center p-2 sm:p-3 overflow-hidden">
-            <div className="relative w-full h-full max-w-full max-h-full aspect-video bg-[#181b20] rounded border border-white/15 overflow-hidden shadow-2xl">
-              {/* Three.js Canvas Mount */}
+            <div className="relative w-full h-full max-w-full max-h-full aspect-video bg-[#13161b] border border-white/12 overflow-hidden shadow-2xl">
+              {/* Three.js Canvas Mount — Zero backdrop-filter overlays over WebGL */}
               <div
                 ref={viewportContainerRef}
                 onPointerDown={handleViewportPointerDown}
@@ -1826,44 +2337,100 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                 }`}
               />
 
-              {/* Viewport HUD Overlay (Only on UI container — NEVER recorded into canvas stream) */}
-              <div className="pointer-events-none absolute inset-x-3 top-2.5 flex items-start justify-between gap-2">
-                <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-black/75 backdrop-blur-md border border-white/15 rounded px-2 py-1">
+              {/* Composition Viewfinder SVG Guides (DOM-only, excluded from WebM/PNG capture) */}
+              {!isRecording && compositionGuide === 'thirds' && (
+                <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                  <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/10" />
+                  <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/10" />
+                  <div className="absolute top-1/3 left-0 right-0 h-px bg-white/10" />
+                  <div className="absolute top-2/3 left-0 right-0 h-px bg-white/10" />
+                </div>
+              )}
+              {!isRecording && compositionGuide === 'anamorphic' && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col justify-between" aria-hidden="true">
+                  <div className="h-[13%] bg-black/80 border-b border-white/15" />
+                  <div className="h-[13%] bg-black/80 border-t border-white/15" />
+                </div>
+              )}
+              {!isRecording && compositionGuide === 'crosshair' && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden="true">
+                  <div className="w-8 h-px bg-white/30" />
+                  <div className="h-8 w-px bg-white/30 -ml-4" />
+                </div>
+              )}
+
+              {/* WebGL Context Lost Recovery Overlay */}
+              {contextLost && (
+                <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center text-center p-6 z-20">
+                  <span className="text-xs font-mono uppercase tracking-widest text-amber-300 mb-1">
+                    WebGL Context Suspended
+                  </span>
+                  <p className="text-xs text-white/60 max-w-sm">
+                    Graphics hardware context is resetting cleanly. Your scene timeline and blocking are preserved.
+                  </p>
+                </div>
+              )}
+
+              {/* Viewport HUD Overlay (Opaque/High-Contrast Solid Surface, No backdrop-blur over WebGL) */}
+              <div className="pointer-events-none absolute inset-x-2.5 top-2.5 flex items-start justify-between gap-2">
+                <div className="pointer-events-auto flex flex-wrap items-center gap-1 bg-[#090b0f]/92 border border-white/15 p-1">
                   <button
                     type="button"
                     onClick={() => setViewportMode('cinematic')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider transition ${
+                    className={`px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap ${
                       viewportMode === 'cinematic'
-                        ? 'bg-white text-black font-semibold'
+                        ? 'bg-[#ecece9] text-black font-semibold'
                         : 'text-white/70 hover:text-white'
                     }`}
                   >
-                    Cinematic Cam ({cameraConfig.focalLengthMm}mm)
+                    Cine ({cameraConfig.focalLengthMm}mm)
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewportMode('free_orbit')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider transition ${
+                    className={`px-2 py-1 text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap ${
                       viewportMode === 'free_orbit'
-                        ? 'bg-white text-black font-semibold'
+                        ? 'bg-[#ecece9] text-black font-semibold'
                         : 'text-white/70 hover:text-white'
                     }`}
                   >
-                    Free Orbit Inspect
+                    Free Orbit
                   </button>
 
-                  <span className="text-white/20">|</span>
+                  {viewportMode === 'free_orbit' && (
+                    <div className="hidden md:flex items-center gap-0.5 border-l border-white/15 pl-1 ml-0.5">
+                      {(
+                        [
+                          { id: 'quarter', label: '3/4' },
+                          { id: 'top', label: 'Top' },
+                          { id: 'side', label: 'Side' },
+                          { id: 'low', label: 'Low' },
+                        ] as { id: OrbitCameraPreset; label: string }[]
+                      ).map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleOrbitCameraPreset(preset.id)}
+                          className="px-1.5 py-1 text-[10px] font-mono text-white/65 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+                          title={`Glide Free Orbit camera to ${preset.label} angle`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                  {/* Interactive 3D Viewport Placement Tools */}
+                  <span className="text-white/20 px-0.5" aria-hidden="true">|</span>
+
+                  {/* Placement Tools */}
                   <button
                     type="button"
                     onClick={() => setViewportTool('select')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
+                    className={`px-2 py-1 text-[10px] font-mono uppercase flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
                       viewportTool === 'select'
-                        ? 'bg-emerald-400/25 border border-emerald-400/50 text-emerald-200 font-semibold'
-                        : 'text-white/65 hover:text-white'
+                        ? 'bg-white/15 text-white font-semibold'
+                        : 'text-white/60 hover:text-white'
                     }`}
-                    title="Click any 3D actor or prop in the viewport to select it"
                   >
                     <MousePointer className="w-2.5 h-2.5" />
                     <span>Select</span>
@@ -1871,102 +2438,173 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                   <button
                     type="button"
                     onClick={() => setViewportTool('drag_start')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
+                    className={`px-2 py-1 text-[10px] font-mono uppercase flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
                       viewportTool === 'drag_start'
-                        ? 'bg-emerald-400/25 border border-emerald-400/50 text-emerald-200 font-semibold'
-                        : 'text-white/65 hover:text-white'
+                        ? 'bg-emerald-400/20 border border-emerald-400/40 text-emerald-200 font-semibold'
+                        : 'text-white/60 hover:text-white'
                     }`}
-                    title="Click & drag on the ground plane to move the selected object's Start Position"
                   >
                     <Move className="w-2.5 h-2.5" />
-                    <span>Drag Start</span>
+                    <span>Start</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setViewportTool('drag_end')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase flex items-center gap-1 transition ${
+                    className={`px-2 py-1 text-[10px] font-mono uppercase flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
                       viewportTool === 'drag_end'
-                        ? 'bg-emerald-400/25 border border-emerald-400/50 text-emerald-200 font-semibold'
-                        : 'text-white/65 hover:text-white'
+                        ? 'bg-emerald-400/20 border border-emerald-400/40 text-emerald-200 font-semibold'
+                        : 'text-white/60 hover:text-white'
                     }`}
-                    title="Click & drag on the ground plane to move the selected object's End Position"
                   >
                     <Compass className="w-2.5 h-2.5" />
-                    <span>Drag End</span>
+                    <span>End</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSnapToGrid((s) => !s)}
+                    className={`px-1.5 py-1 text-[10px] font-mono uppercase flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
+                      snapToGrid ? 'bg-white/12 text-white' : 'text-white/45 hover:text-white'
+                    }`}
+                    title="Snap viewport drag placement to 0.5m grid increments"
+                  >
+                    <Magnet className="w-2.5 h-2.5" />
+                    <span className="hidden xl:inline">Snap</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowTrajectories((v) => !v)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase transition ${
+                    className={`px-2 py-1 text-[10px] font-mono uppercase transition-colors cursor-pointer whitespace-nowrap ${
                       showTrajectories
-                        ? 'bg-white/15 text-white'
+                        ? 'bg-white/12 text-white'
                         : 'text-white/45 hover:text-white/80'
                     }`}
-                    title="Toggle 3D motion path lines (automatically hidden during video export)"
                   >
                     Paths
                   </button>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-2 bg-black/75 backdrop-blur-md border border-white/15 rounded px-2.5 py-1 text-[10px] font-mono text-white/80">
-                  <span>1920×1080</span>
-                  <span className="text-white/30">•</span>
-                  <span className="text-emerald-300 uppercase">
-                    PHYSICS: {physicsConfig.mode} ({physicsConfig.timeScale.toFixed(2)}×)
-                  </span>
-                  <span className="text-white/30">•</span>
-                  <span className="uppercase">{cameraConfig.mode.replace(/_/g, ' ')}</span>
-                  <span className="text-white/30">•</span>
-                  <span>
+                {/* Top-Right Viewport Render Pass, Guide & Timecode Strip */}
+                <div className="pointer-events-auto hidden sm:flex items-center gap-1 bg-[#090b0f]/92 border border-white/15 p-1 text-[10px] font-mono text-white/80 tabular-nums">
+                  {(
+                    [
+                      { id: 'greybox', label: 'Greybox' },
+                      { id: 'clay', label: 'Clay' },
+                      { id: 'depth', label: 'Depth' },
+                      { id: 'normals', label: 'Normals' },
+                    ] as { id: ViewportRenderMode; label: string }[]
+                  ).map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => setRenderMode(mode.id)}
+                      className={`px-2 py-1 uppercase transition-colors cursor-pointer whitespace-nowrap ${
+                        renderMode === mode.id
+                          ? 'bg-[#ecece9] text-black font-semibold'
+                          : 'text-white/60 hover:text-white'
+                      }`}
+                      title={`Switch 3D shader pass to ${mode.label}`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+
+                  <span className="text-white/20 px-0.5" aria-hidden="true">|</span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const order: CompositionGuideMode[] = ['none', 'thirds', 'anamorphic', 'crosshair'];
+                      const next = order[(order.indexOf(compositionGuide) + 1) % order.length];
+                      setCompositionGuide(next);
+                    }}
+                    className={`px-2 py-1 uppercase flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap ${
+                      compositionGuide !== 'none'
+                        ? 'bg-white/12 text-white'
+                        : 'text-white/50 hover:text-white'
+                    }`}
+                    title="Cycle Viewfinder Composition Overlay (Thirds, 2.39:1 Anamorphic, Crosshair)"
+                  >
+                    <Grid className="w-2.5 h-2.5" />
+                    <span>{compositionGuide === 'anamorphic' ? '2.39:1' : compositionGuide}</span>
+                  </button>
+
+                  <span className="text-white/20 px-0.5" aria-hidden="true">|</span>
+                  <span ref={timecodeHudRef} className="px-1.5 text-white font-medium whitespace-nowrap">
                     {currentTime.toFixed(2)}s / {duration.toFixed(1)}s
                   </span>
                 </div>
               </div>
 
-              {/* Recording Banner Overlay */}
+              {/* Studio Action Toast */}
+              {studioNotice && !isRecording && (
+                <div className="pointer-events-none absolute left-3 bottom-3 bg-[#090b0f]/95 border border-white/20 px-3 py-1.5 text-[11px] font-mono text-white">
+                  {studioNotice}
+                </div>
+              )}
+
+              {/* Recording Banner Overlay (Clean Spinner, Zero Pulsing Dot) */}
               {isRecording && (
-                <div className="pointer-events-none absolute inset-x-4 bottom-3 bg-black/85 border border-white/25 rounded p-2.5 flex items-center justify-between text-xs font-mono">
+                <div className="pointer-events-none absolute inset-x-4 bottom-3 bg-[#090b0f]/95 border border-white/25 p-2.5 flex items-center justify-between text-xs font-mono tabular-nums">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                     <span>{exportStatusText}</span>
                   </div>
-                  <span className="font-bold text-white">{recordingProgress}%</span>
+                  <span className="font-semibold text-white">{recordingProgress}%</span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* BOTTOM ANIMATION TIMELINE SCRUBBER */}
-          <div className="h-24 shrink-0 border-t border-white/10 bg-[#12151a] px-4 py-2 flex flex-col justify-between">
+          {/* BOTTOM NLE ANIMATION TIMELINE SCRUBBER */}
+          <div className="h-24 shrink-0 border-t border-white/[0.08] bg-[#0b0d12] px-4 py-2 flex flex-col justify-between">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => {
                     setIsPlaying(false);
+                    stateRef.current.currentTime = 0;
                     setCurrentTime(0);
-                    evaluateSceneAtTimestamp(0);
+                    syncTimelineDomHud(0, duration);
+                    evaluateSceneAtTimestamp(0, 1.0);
                   }}
-                  className="p-1.5 rounded bg-white/5 hover:bg-white/15 border border-white/10 text-white/80"
+                  className="p-1.5 bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white/80 cursor-pointer"
                   title="Jump to Start (0.0s)"
                 >
                   <SkipBack className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setIsPlaying(false);
+                    const nextT = Math.max(0, stateRef.current.currentTime - 1 / 24);
+                    stateRef.current.currentTime = nextT;
+                    setCurrentTime(nextT);
+                    syncTimelineDomHud(nextT, duration);
+                    evaluateSceneAtTimestamp(nextT, 1.0);
+                  }}
+                  className="p-1.5 bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white/80 cursor-pointer"
+                  title="Step Back 1 Frame (Left Arrow)"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => setIsPlaying((p) => !p)}
-                  className="px-3 py-1.5 rounded bg-white text-black hover:bg-white/90 text-xs font-mono font-semibold flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 bg-[#ecece9] text-black hover:bg-white text-xs font-mono font-semibold flex items-center gap-1.5 cursor-pointer"
+                  title="Play / Pause (Space)"
                 >
                   {isPlaying ? (
                     <>
                       <Pause className="w-3.5 h-3.5" />
-                      <span>PAUSE</span>
+                      <span>Pause</span>
                     </>
                   ) : (
                     <>
                       <Play className="w-3.5 h-3.5" />
-                      <span>PLAY</span>
+                      <span>Play</span>
                     </>
                   )}
                 </button>
@@ -1974,28 +2612,63 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                   type="button"
                   onClick={() => {
                     setIsPlaying(false);
-                    setCurrentTime(duration);
-                    evaluateSceneAtTimestamp(duration);
+                    const nextT = Math.min(duration, stateRef.current.currentTime + 1 / 24);
+                    stateRef.current.currentTime = nextT;
+                    setCurrentTime(nextT);
+                    syncTimelineDomHud(nextT, duration);
+                    evaluateSceneAtTimestamp(nextT, 1.0);
                   }}
-                  className="p-1.5 rounded bg-white/5 hover:bg-white/15 border border-white/10 text-white/80"
+                  className="p-1.5 bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white/80 cursor-pointer"
+                  title="Step Forward 1 Frame (Right Arrow)"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPlaying(false);
+                    stateRef.current.currentTime = duration;
+                    setCurrentTime(duration);
+                    syncTimelineDomHud(duration, duration);
+                    evaluateSceneAtTimestamp(duration, 1.0);
+                  }}
+                  className="p-1.5 bg-white/[0.04] hover:bg-white/10 border border-white/10 text-white/80 cursor-pointer"
                   title="Jump to End"
                 >
                   <SkipForward className="w-3.5 h-3.5" />
                 </button>
+
+                {/* Playback Rate Multiplier */}
+                <div className="hidden sm:flex items-center border border-white/10 bg-black/40 ml-1 tabular-nums">
+                  {PLAYBACK_SPEED_OPTIONS.map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      onClick={() => setPlaybackSpeed(spd)}
+                      className={`px-1.5 py-1 text-[10px] font-mono transition-colors cursor-pointer ${
+                        playbackSpeed === spd
+                          ? 'bg-white/20 text-white font-semibold'
+                          : 'text-white/50 hover:text-white'
+                      }`}
+                    >
+                      {spd}×
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Duration Options: 5, 10, 15, 20, 25, 30s */}
-              <div className="flex items-center gap-1 text-xs font-mono">
-                <span className="text-white/50 text-[10px] mr-0.5">DURATION:</span>
+              {/* Duration Options */}
+              <div className="flex items-center gap-1 text-xs font-mono tabular-nums">
+                <span className="text-white/45 text-[10px] mr-0.5 hidden sm:inline">DUR</span>
                 {SCENE_DURATION_OPTIONS.map((sec) => (
                   <button
                     key={sec}
                     type="button"
                     onClick={() => handleSelectDuration(sec)}
-                    className={`px-2 py-0.5 rounded border text-[11px] transition ${
+                    className={`px-2 py-0.5 border text-[11px] transition-colors cursor-pointer ${
                       duration === sec
-                        ? 'bg-white text-black border-white font-bold'
-                        : 'bg-white/5 text-white/75 border-white/10 hover:bg-white/10'
+                        ? 'bg-[#ecece9] text-black border-white font-semibold'
+                        : 'bg-white/[0.03] text-white/65 border-white/10 hover:bg-white/[0.08]'
                     }`}
                   >
                     {sec}s
@@ -2003,18 +2676,18 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                 ))}
               </div>
 
-              {/* Quick Physics Movement Selector on Timeline */}
+              {/* Physics Preset Strip */}
               <div className="hidden md:flex items-center gap-1 text-xs font-mono">
-                <span className="text-white/50 text-[10px] mr-0.5">PHYSICS:</span>
+                <span className="text-white/45 text-[10px] mr-0.5">PHYSICS</span>
                 {SCENE_PHYSICS_PRESET_META.map((p) => (
                   <button
                     key={p.id}
                     type="button"
                     onClick={() => handleSelectPhysicsMode(p.id)}
-                    className={`px-2 py-0.5 rounded border text-[10px] uppercase transition ${
+                    className={`px-2 py-0.5 border text-[10px] uppercase transition-colors cursor-pointer ${
                       physicsConfig.mode === p.id
-                        ? 'bg-emerald-400 text-black border-emerald-300 font-bold'
-                        : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
+                        ? 'bg-emerald-400 text-black border-emerald-300 font-semibold'
+                        : 'bg-white/[0.03] text-white/65 border-white/10 hover:bg-white/[0.08]'
                     }`}
                     title={p.description}
                   >
@@ -2023,9 +2696,9 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                 ))}
               </div>
 
-              <div className="text-xs font-mono text-white/75">
-                FRAME{' '}
-                <span className="text-white font-semibold">
+              <div className="text-xs font-mono text-white/65 tabular-nums">
+                FR{' '}
+                <span ref={timelineFrameRef} className="text-white font-semibold">
                   {Math.round(currentTime * 24)}
                 </span>{' '}
                 / {Math.round(duration * 24)}
@@ -2033,116 +2706,116 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
             </div>
 
             {/* Scrubber Slider */}
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-mono text-white/60 w-10">
+            <div className="flex items-center gap-3 tabular-nums">
+              <span ref={timelineTimeRef} className="text-[11px] font-mono text-white/65 w-10">
                 {currentTime.toFixed(1)}s
               </span>
               <input
+                ref={scrubberInputRef}
                 type="range"
                 min={0}
                 max={duration}
                 step={0.04}
-                value={currentTime}
+                defaultValue={currentTime}
                 onChange={(e) => {
                   const val = parseFloat(e.target.value);
                   setIsPlaying(false);
+                  stateRef.current.currentTime = val;
                   setCurrentTime(val);
-                  evaluateSceneAtTimestamp(val);
+                  syncTimelineDomHud(val, duration);
+                  evaluateSceneAtTimestamp(val, 1.0);
                 }}
-                className="flex-1 accent-white h-1.5 bg-white/15 rounded-lg cursor-pointer"
+                className="flex-1 accent-[#ecece9] h-1.5 bg-white/15 cursor-pointer"
               />
-              <span className="text-[11px] font-mono text-white/60 w-10 text-right">
+              <span className="text-[11px] font-mono text-white/55 w-10 text-right">
                 {duration.toFixed(1)}s
               </span>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: DOCKED INSPECTOR WORKSPACE */}
-        <aside className="w-full lg:w-[430px] xl:w-[460px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/10 bg-[#12151a] flex flex-col h-[46vh] lg:h-full">
-          {/* Inspector Navigation Tabs */}
-          <div className="grid grid-cols-7 border-b border-white/10 bg-[#0e1115] text-[10px] font-mono uppercase tracking-wider">
-            {(
-              [
-                { id: 'ai_architect', label: 'AI 3D', icon: Sparkles },
-                { id: 'characters', label: 'Actors', icon: Users },
-                { id: 'props', label: 'Library', icon: Box },
-                { id: 'camera', label: 'Camera', icon: Camera },
-                { id: 'environment', label: 'World', icon: Building2 },
-                { id: 'hierarchy', label: 'Scene', icon: Layers },
-                { id: 'export', label: 'Export', icon: Download },
-              ] as { id: InspectorTab; label: string; icon: React.ComponentType<any> }[]
-            ).map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`py-2.5 flex flex-col items-center justify-center gap-1 border-b-2 transition ${
-                    active
-                      ? 'border-white text-white bg-white/5 font-semibold'
-                      : 'border-transparent text-white/50 hover:text-white/80'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        {/* RIGHT COLUMN: DOCKED INSPECTOR WORKSPACE (Hidden cleanly in Zen Cinema Mode) */}
+        {!isZenMode && (
+          <aside className="w-full lg:w-[420px] xl:w-[450px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.08] bg-[#0b0d12] flex flex-col h-[44vh] lg:h-full">
+            {/* Inspector Navigation Tabs */}
+            <div className="grid grid-cols-7 border-b border-white/[0.08] bg-[#07080b] text-[10px] font-mono uppercase tracking-wider">
+              {(
+                [
+                  { id: 'ai_architect', label: 'AI 3D', icon: Sparkles },
+                  { id: 'characters', label: 'Actors', icon: Users },
+                  { id: 'props', label: 'Library', icon: Box },
+                  { id: 'camera', label: 'Camera', icon: Camera },
+                  { id: 'environment', label: 'World', icon: Building2 },
+                  { id: 'hierarchy', label: 'Scene', icon: Layers },
+                  { id: 'export', label: 'Export', icon: Download },
+                ] as { id: InspectorTab; label: string; icon: React.ComponentType<any> }[]
+              ).map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`min-h-[46px] py-2 flex flex-col items-center justify-center gap-1 border-b-2 transition-colors cursor-pointer ${
+                      active
+                        ? 'border-[#ecece9] text-white bg-white/[0.05] font-semibold'
+                        : 'border-transparent text-white/45 hover:text-white/80'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
           {/* Inspector Scrollable Body */}
           <div className="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs">
             {/* TAB 0: AI TEXT-TO-3D SCENE ARCHITECT (DURATION -> PHYSICS -> GEMINI) */}
             {activeTab === 'ai_architect' && (
               <div className="space-y-3.5">
-                <div className="p-3 rounded bg-gradient-to-br from-emerald-500/10 via-white/5 to-transparent border border-emerald-400/25 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-300 font-semibold flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>Text-to-3D Scene & Physics Architect</span>
+                <div className="p-3 bg-white/[0.03] border border-white/15 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-mono uppercase tracking-wider text-white font-semibold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Text-to-3D Scene Architect</span>
                     </span>
                     <button
                       type="button"
                       onClick={handleStartWithoutTemplate}
-                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"
+                      className="text-[10px] font-mono px-2 py-0.5 bg-white/[0.06] hover:bg-white/15 text-white border border-white/15 transition-colors cursor-pointer"
                       title="Clear template and start from a blank stage"
                     >
-                      Reset to Blank Stage
+                      Reset Stage
                     </button>
                   </div>
-                  <p className="text-[11px] text-white/70 leading-relaxed">
-                    Before generating a 3D scene without a template, choose your{' '}
-                    <span className="text-white font-semibold">Duration (5s–30s)</span> and{' '}
-                    <span className="text-white font-semibold">
-                      3D Physics Movement (Slow, Fast, Epic, Complex)
-                    </span>{' '}
-                    below, then describe your scene.
+                  <p className="text-[11px] text-white/65 leading-relaxed">
+                    Choose <span className="text-white font-semibold">Duration (5s–30s)</span> and{' '}
+                    <span className="text-white font-semibold">Physics Dynamics</span> below, then describe your shot for deterministic 3D staging.
                   </p>
                 </div>
 
-                {/* STEP 1: CHOOSE SCENE DURATION FIRST (5, 10, 15, 20, 25, 30s) */}
-                <div className="p-3 rounded bg-white/5 border border-white/10 space-y-2">
+                {/* STEP 1: SCENE DURATION (5–30s) */}
+                <div className="p-3 bg-white/[0.03] border border-white/10 space-y-2 tabular-nums">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-semibold">
-                      Step 1 • Decide Scene Duration First
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-white/65 font-semibold">
+                      Step 1 · Scene Duration
                     </label>
-                    <span className="text-[11px] font-mono font-bold text-white">
-                      {duration} Seconds ({duration * 24} Frames @ 24fps)
+                    <span className="text-[11px] font-mono font-semibold text-white">
+                      {duration}s ({duration * 24}f @ 24fps)
                     </span>
                   </div>
-                  <div className="grid grid-cols-6 gap-1.5">
+                  <div className="grid grid-cols-6 gap-1">
                     {SCENE_DURATION_OPTIONS.map((sec) => (
                       <button
                         key={sec}
                         type="button"
                         onClick={() => handleSelectDuration(sec)}
-                        className={`py-2 rounded font-mono text-xs border transition ${
+                        className={`py-2 font-mono text-xs border transition-colors cursor-pointer ${
                           duration === sec
-                            ? 'bg-emerald-400 text-black border-emerald-300 font-bold shadow'
-                            : 'bg-black/40 text-white/75 border-white/10 hover:bg-white/10'
+                            ? 'bg-[#ecece9] text-black border-white font-semibold'
+                            : 'bg-black/45 text-white/75 border-white/10 hover:bg-white/[0.08]'
                         }`}
                       >
                         {sec}s
@@ -2151,13 +2824,13 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                   </div>
                 </div>
 
-                {/* STEP 2: MANAGE 3D SCENE PHYSICS MOVEMENTS (SLOW, NORMAL, FAST, EPIC, COMPLEX) */}
-                <div className="p-3 rounded bg-white/5 border border-white/10 space-y-2.5">
+                {/* STEP 2: 3D PHYSICS MOVEMENTS */}
+                <div className="p-3 bg-white/[0.03] border border-white/10 space-y-2.5 tabular-nums">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-semibold">
-                      Step 2 • 3D Physics & Movement Dynamics
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-white/65 font-semibold">
+                      Step 2 · Physics & Motion
                     </label>
-                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-emerald-400/15 text-emerald-300">
+                    <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 border border-emerald-400/35 bg-emerald-500/10 text-emerald-300">
                       {physicsConfig.mode.toUpperCase()}
                     </span>
                   </div>
@@ -2170,21 +2843,19 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                           key={p.id}
                           type="button"
                           onClick={() => handleSelectPhysicsMode(p.id)}
-                          className={`text-left p-2 rounded border transition flex items-start justify-between gap-2 ${
+                          className={`text-left p-2 border transition-colors flex items-start justify-between gap-2 cursor-pointer ${
                             active
-                              ? 'bg-emerald-400/15 border-emerald-400 text-white'
-                              : 'bg-black/40 border-white/10 text-white/75 hover:bg-white/10'
+                              ? 'bg-white/[0.1] border-white/50 text-white'
+                              : 'bg-black/40 border-white/10 text-white/75 hover:bg-white/[0.06]'
                           }`}
                         >
                           <div>
-                            <div className="font-semibold text-xs flex items-center gap-1.5">
-                              <span>{p.label}</span>
-                            </div>
+                            <div className="font-semibold text-xs">{p.label}</div>
                             <div className="text-[10px] text-white/55 mt-0.5 leading-snug">
                               {p.description}
                             </div>
                           </div>
-                          <span className="shrink-0 px-1.5 py-0.5 rounded bg-white/10 text-white/85 font-mono text-[9px]">
+                          <span className="shrink-0 px-1.5 py-0.5 bg-white/[0.08] text-white/80 font-mono text-[9px]">
                             {p.badge}
                           </span>
                         </button>
@@ -2211,7 +2882,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                             timeScale: parseFloat(e.target.value),
                           }))
                         }
-                        className="w-full accent-emerald-400"
+                        className="w-full accent-[#ecece9]"
                       />
                     </div>
 
@@ -2232,7 +2903,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                             gravityScale: parseFloat(e.target.value),
                           }))
                         }
-                        className="w-full accent-emerald-400"
+                        className="w-full accent-[#ecece9]"
                       />
                     </div>
 
@@ -2253,7 +2924,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                             pathCurvature: parseFloat(e.target.value),
                           }))
                         }
-                        className="w-full accent-emerald-400"
+                        className="w-full accent-[#ecece9]"
                       />
                     </div>
 
@@ -2274,16 +2945,16 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                             secondaryMotion: parseFloat(e.target.value),
                           }))
                         }
-                        className="w-full accent-emerald-400"
+                        className="w-full accent-[#ecece9]"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* STEP 3: FREE GEMINI MODEL & SCENE DESCRIPTION */}
+                {/* STEP 3: GEMINI MODEL & SCENE DESCRIPTION */}
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-semibold">
-                    Step 3 • Select Free Gemini Model
+                  <label className="block text-[10px] font-mono uppercase tracking-wider text-white/65 font-semibold">
+                    Step 3 · Model Engine
                   </label>
                   <div className="grid grid-cols-1 gap-1.5">
                     {FREE_GEMINI_MODELS.map((m) => {
@@ -2293,10 +2964,10 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                           key={m.id}
                           type="button"
                           onClick={() => setAiModel(m.id)}
-                          className={`text-left p-2 rounded border transition flex items-start justify-between gap-2 ${
+                          className={`text-left p-2 border transition-colors flex items-start justify-between gap-2 cursor-pointer ${
                             selected
-                              ? 'bg-white/15 border-white text-white'
-                              : 'bg-white/5 border-white/10 text-white/75 hover:bg-white/10'
+                              ? 'bg-white/[0.12] border-white/60 text-white'
+                              : 'bg-white/[0.03] border-white/10 text-white/75 hover:bg-white/[0.07]'
                           }`}
                         >
                           <div>
@@ -2305,7 +2976,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                               {m.description}
                             </div>
                           </div>
-                          <span className="shrink-0 px-1.5 py-0.5 rounded bg-emerald-400/15 text-emerald-300 font-mono text-[9px]">
+                          <span className="shrink-0 px-1.5 py-0.5 border border-white/15 bg-white/[0.06] text-white/80 font-mono text-[9px]">
                             {m.badge}
                           </span>
                         </button>
@@ -2319,24 +2990,24 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                   <button
                     type="button"
                     onClick={() => setAiMode('create')}
-                    className={`py-2 px-2.5 rounded border text-[11px] font-mono uppercase transition ${
+                    className={`py-2 px-2.5 border text-[11px] font-mono uppercase transition-colors cursor-pointer ${
                       aiMode === 'create'
-                        ? 'bg-white text-black border-white font-bold'
-                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        ? 'bg-[#ecece9] text-black border-white font-semibold'
+                        : 'bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/[0.08]'
                     }`}
                   >
-                    Create New 3D Scene
+                    Create Scene
                   </button>
                   <button
                     type="button"
                     onClick={() => setAiMode('modify')}
-                    className={`py-2 px-2.5 rounded border text-[11px] font-mono uppercase transition ${
+                    className={`py-2 px-2.5 border text-[11px] font-mono uppercase transition-colors cursor-pointer ${
                       aiMode === 'modify'
-                        ? 'bg-white text-black border-white font-bold'
-                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        ? 'bg-[#ecece9] text-black border-white font-semibold'
+                        : 'bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/[0.08]'
                     }`}
                   >
-                    Modify Current Scene
+                    Modify Scene
                   </button>
                 </div>
 
@@ -2344,15 +3015,15 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono uppercase tracking-wider text-white/55">
                     {aiMode === 'modify'
-                      ? `Describe Modifications (${duration}s • ${physicsConfig.mode.toUpperCase()} Physics)`
-                      : `Describe 3D Scene (${duration}s • ${physicsConfig.mode.toUpperCase()} Physics)`}
+                      ? `Modifications (${duration}s · ${physicsConfig.mode.toUpperCase()})`
+                      : `Scene Description (${duration}s · ${physicsConfig.mode.toUpperCase()})`}
                   </label>
                   <textarea
                     rows={3}
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     placeholder="e.g. A helicopter chasing a sports car and motorcycle down a skyscraper avenue while two pedestrians run along the sidewalk..."
-                    className="w-full p-2.5 rounded bg-black/50 border border-white/15 text-xs text-white placeholder-white/35 focus:outline-none focus:border-white/45 leading-relaxed"
+                    className="w-full p-2.5 bg-black/55 border border-white/15 text-xs text-white placeholder-white/35 focus:outline-none focus:border-white/45 leading-relaxed"
                   />
                 </div>
 
@@ -2360,24 +3031,24 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                   type="button"
                   disabled={isGeneratingAiScene || !aiPrompt.trim()}
                   onClick={() => handleGenerateAi3DScene()}
-                  className={`w-full py-2.5 rounded font-mono text-xs uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition ${
+                  className={`w-full py-2.5 font-mono text-xs uppercase tracking-wider font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                     isGeneratingAiScene
-                      ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 cursor-wait'
-                      : 'bg-emerald-400 text-black hover:bg-emerald-300'
+                      ? 'bg-white/10 border border-white/30 text-white cursor-wait'
+                      : 'bg-[#ecece9] text-black hover:bg-white'
                   }`}
                 >
                   <Wand2 className="w-4 h-4" />
                   <span>
                     {isGeneratingAiScene
-                      ? `Synthesizing ${duration}s ${physicsConfig.mode.toUpperCase()} 3D Scene...`
+                      ? `Synthesizing ${duration}s 3D Scene...`
                       : aiMode === 'modify'
-                      ? `Apply AI Modifications (${duration}s • ${physicsConfig.mode.toUpperCase()})`
-                      : `Generate ${duration}s ${physicsConfig.mode.toUpperCase()} 3D Scene`}
+                      ? `Apply Edits (${duration}s · ${physicsConfig.mode.toUpperCase()})`
+                      : `Generate ${duration}s 3D Scene`}
                   </span>
                 </button>
 
                 {aiError && (
-                  <div className="p-2.5 rounded bg-red-500/15 border border-red-400/40 text-red-200 text-[11px]">
+                  <div className="p-2.5 bg-red-500/10 border border-red-400/35 text-red-200 text-[11px]">
                     {aiError}
                   </div>
                 )}
@@ -3382,9 +4053,42 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
               </div>
             )}
 
-            {/* TAB 5: ARCHITECTURAL ENVIRONMENT & WEATHER */}
+            {/* TAB 5: ARCHITECTURAL ENVIRONMENT, LIGHTING MOOD & WEATHER */}
             {activeTab === 'environment' && (
               <div className="space-y-4">
+                {/* Atmosphere Lighting Mood Presets */}
+                <div className="p-3 bg-white/[0.03] border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-white/55 flex items-center gap-1.5">
+                      <Sun className="w-3.5 h-3.5 text-white/75" />
+                      <span>Studio Lighting Atmosphere</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {ATMOSPHERE_MOOD_META.map((mood) => {
+                      const active = (envSettings.atmosphereMood || 'studio_day') === mood.id;
+                      return (
+                        <button
+                          key={mood.id}
+                          type="button"
+                          onClick={() => handleSelectAtmosphereMood(mood.id)}
+                          className={`px-2.5 py-2 border text-left text-[11px] font-mono transition-colors cursor-pointer flex items-center gap-2 ${
+                            active
+                              ? 'bg-[#ecece9] text-black border-white font-semibold'
+                              : 'bg-black/45 text-white/75 border-white/10 hover:bg-white/[0.08]'
+                          }`}
+                        >
+                          <span
+                            className="w-3 h-3 border border-white/25 shrink-0"
+                            style={{ backgroundColor: mood.backgroundHex }}
+                          />
+                          <span className="truncate">{mood.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-mono uppercase tracking-wider text-white/50 mb-1.5">
                     Procedural Architectural Blockout Preset
@@ -3397,15 +4101,15 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                         onClick={() =>
                           setEnvSettings((prev) => ({ ...prev, preset: env.id }))
                         }
-                        className={`text-left p-2 rounded border transition ${
+                        className={`text-left p-2.5 border transition-colors cursor-pointer ${
                           envSettings.preset === env.id
-                            ? 'bg-white/15 border-white text-white'
-                            : 'bg-white/5 border-white/10 text-white/75 hover:bg-white/10'
+                            ? 'bg-white/[0.12] border-white/50 text-white'
+                            : 'bg-white/[0.03] border-white/10 text-white/75 hover:bg-white/[0.07]'
                         }`}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold text-xs">{env.label}</span>
-                          <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-black/40 text-white/55">
+                          <span className="text-[10px] font-mono uppercase text-white/45">
                             {env.category}
                           </span>
                         </div>
@@ -3418,7 +4122,7 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                 </div>
 
                 {/* Weather Particles & Spatial Parameters */}
-                <div className="p-3 rounded bg-white/5 border border-white/10 space-y-3">
+                <div className="p-3 bg-white/[0.03] border border-white/10 space-y-3">
                   <div>
                     <label className="block text-[10px] font-mono uppercase text-white/50 mb-1">
                       Atmospheric Weather Volume (Deterministic)
@@ -3582,44 +4286,55 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                     zero UI overlays or trajectory lines, ready to upload as a spatial and camera motion reference in Seedance 2.5.
                   </p>
 
-                  <div className="grid grid-cols-2 gap-2 pt-2 font-mono text-[11px]">
-                    <div className="p-2 rounded bg-black/40 border border-white/10">
-                      <div className="text-white/40 text-[10px]">RESOLUTION</div>
-                      <div className="text-white font-semibold">1920 × 1080 (16:9)</div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 font-mono text-[11px] tabular-nums">
+                    <div className="p-2.5 bg-black/45 border border-white/10">
+                      <div className="text-white/40 text-[10px]">RESOLUTION / PASS</div>
+                      <div className="text-white font-semibold uppercase">1920 × 1080 · {renderMode}</div>
                     </div>
-                    <div className="p-2 rounded bg-black/40 border border-white/10">
+                    <div className="p-2.5 bg-black/45 border border-white/10">
                       <div className="text-white/40 text-[10px]">FRAME RATE</div>
-                      <div className="text-white font-semibold">24 FPS ({duration}s)</div>
+                      <div className="text-white font-semibold">24 FPS · {duration}s</div>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    disabled={isRecording}
-                    onClick={handleExport1080pVideo}
-                    className={`w-full mt-2 py-2.5 rounded font-mono text-xs uppercase tracking-wider font-bold flex items-center justify-center gap-2 transition ${
-                      isRecording
-                        ? 'bg-amber-500/20 border border-amber-400/50 text-amber-200 cursor-wait'
-                        : 'bg-white text-black hover:bg-white/90'
-                    }`}
-                  >
-                    <Video className="w-4 h-4" />
-                    <span>
-                      {isRecording
-                        ? `Capturing 1080p (${recordingProgress}%)`
-                        : 'Render & Record 1080p WebM'}
-                    </span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <button
+                      type="button"
+                      disabled={isRecording}
+                      onClick={handleExport1080pVideo}
+                      className={`py-2.5 px-3 font-mono text-xs uppercase tracking-wider font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                        isRecording
+                          ? 'bg-white/10 border border-white/30 text-white cursor-wait'
+                          : 'bg-[#ecece9] text-black hover:bg-white'
+                      }`}
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>
+                        {isRecording
+                          ? `${recordingProgress}%`
+                          : 'Export 1080p WebM'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCapturePngFrame}
+                      className="py-2.5 px-3 border border-white/15 bg-white/[0.04] hover:bg-white/[0.1] text-white font-mono text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      <span>Capture PNG Still</span>
+                    </button>
+                  </div>
                 </div>
 
                 {recordedVideoUrl && (
-                  <div className="p-3 rounded bg-emerald-500/10 border border-emerald-400/30 space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-400/30 space-y-3">
+                    <div className="flex items-center justify-between tabular-nums">
                       <span className="text-xs font-mono font-semibold text-emerald-300">
                         Reference Video Ready ({recordedFileSizeMb} MB)
                       </span>
                       <span className="text-[10px] font-mono text-white/60">
-                        WebM • 1080p24
+                        WebM · 1080p24
                       </span>
                     </div>
 
@@ -3627,23 +4342,24 @@ export const FuLabsGreyboxSlide: React.FC<FuLabsGreyboxSlideProps> = ({
                       src={recordedVideoUrl}
                       controls
                       loop
-                      className="w-full aspect-video rounded border border-white/20 bg-black"
+                      className="w-full aspect-video border border-white/20 bg-black"
                     />
 
                     <a
                       href={recordedVideoUrl}
-                      download={`fulabs-greybox-reference-${duration}s-1080p24.webm`}
-                      className="w-full py-2 rounded bg-emerald-400 text-black hover:bg-emerald-300 font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition"
+                      download={`fulabs-greybox-${renderMode}-${duration}s-1080p24.webm`}
+                      className="w-full py-2.5 bg-emerald-400 text-black hover:bg-emerald-300 font-mono text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
                     >
                       <Download className="w-4 h-4" />
-                      <span>Download WebM Reference Video</span>
+                      <span>Download WebM Reference</span>
                     </a>
                   </div>
                 )}
               </div>
             )}
           </div>
-        </aside>
+          </aside>
+        )}
       </div>
 
       {/* Co-Op 3D Scene Matrix Modal */}

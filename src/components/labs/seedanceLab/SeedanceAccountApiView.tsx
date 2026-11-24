@@ -10,33 +10,35 @@ import {
   Server,
   Coins,
   ShieldCheck,
-  CheckCircle2,
-  AlertTriangle,
   RefreshCw,
-  ExternalLink,
   Lock,
-  Layers,
-  Cpu,
-  Terminal,
+  Crown,
 } from 'lucide-react';
 import {
   SEEDANCE_MODELS,
   SeedanceAccountBalance,
   SeedanceHealthStatus,
-  seedanceLabService,
 } from '../../../services/seedanceLabService';
 
 interface SeedanceAccountApiViewProps {
   balance: SeedanceAccountBalance | null;
   health: SeedanceHealthStatus | null;
+  isAuthenticated?: boolean;
   onRefresh: () => void;
+  onOpenPlans?: () => void;
+  onOpenCredits?: () => void;
+  onRequireAuth?: () => void;
   isRefreshing?: boolean;
 }
 
 export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
   balance,
   health,
+  isAuthenticated = false,
   onRefresh,
+  onOpenPlans,
+  onOpenCredits,
+  onRequireAuth,
   isRefreshing,
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'endpoints' | 'models' | 'security'>('overview');
@@ -44,39 +46,45 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
   const documentedEndpoints = [
     {
       method: 'GET',
-      path: '/api/v1/health',
+      path: '/api/v3/contents/generations/tasks?page_size=1',
       internalRoute: '/api/ai/health',
-      purpose: 'System status, service version, and server bridge check.',
+      purpose: 'Probes ByteDance BytePlus ModelArk authentication and upstream endpoint status.',
     },
     {
       method: 'GET',
-      path: '/api/v1/balance',
+      path: 'VAIURE Ledger + Plan Allowance',
       internalRoute: '/api/ai/balance',
-      purpose: 'Queries real account balance in generate units and IDR equivalent.',
+      purpose: 'Queries authenticated user-scoped credit balance, tier, monthly vs purchased credits.',
     },
     {
       method: 'GET',
-      path: '/api/v1/models',
+      path: 'ModelArk Seedance 2.5 Catalog',
       internalRoute: '/api/ai/models',
-      purpose: 'Retrieves active upstream models and pricing matrix.',
+      purpose: 'Lists active Seedance 2.5 model mappings and server capabilities.',
     },
     {
       method: 'POST',
-      path: '/api/v1/generate',
+      path: '/api/v3/contents/generations/tasks',
       internalRoute: '/api/ai/generate',
-      purpose: 'Submits prompt, aspect ratio, and up to 9 reference images for rendering.',
+      purpose: 'Submits idempotent, credit-verified Seedance 2.5 tasks with automatic failure refund.',
     },
     {
       method: 'GET',
-      path: '/api/v1/status/{job_code}',
+      path: '/api/v3/contents/generations/tasks/{id}',
       internalRoute: '/api/ai/status/:jobCode',
-      purpose: 'Polls real-time job status (queued, processing, completed, failed).',
+      purpose: 'Polls real-time ByteDance task status (queued, running, succeeded, failed) and extracts video_url.',
+    },
+    {
+      method: 'DELETE',
+      path: '/api/v3/contents/generations/tasks/{id}',
+      internalRoute: '/api/ai/history/:id',
+      purpose: 'Cancels in-flight ByteDance task or removes user-scoped generation record from history.',
     },
     {
       method: 'POST',
       path: '/upload-media',
       internalRoute: '/api/ai/upload-media',
-      purpose: 'Converts base64 images into public HTTPS URLs required by upstream API.',
+      purpose: 'Converts base64 images into public HTTPS URLs required by ByteDance ModelArk.',
     },
   ];
 
@@ -92,11 +100,11 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
                 Account & API Telemetry
               </h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-white/[0.15] bg-white/[0.05] text-white/70">
-                POSBOT DEVELOPER API v1
+                BYTEDANCE MODELARK API v3
               </span>
             </div>
             <p className="text-xs text-white/60">
-              Live backend connectivity, production account balance, and verified server bridge health.
+              Live BytePlus ModelArk connectivity, authenticated credit ledger, subscription allowance, and server-side API key verification.
             </p>
           </div>
 
@@ -106,50 +114,97 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
             className="px-4 py-2 rounded-lg border border-white/[0.12] bg-white/[0.045] hover:bg-white/[0.08] text-white text-xs font-mono transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-white/70 ${isRefreshing ? 'animate-spin text-white' : ''}`} />
-            <span>{isRefreshing ? 'Probing Server...' : 'Probe Endpoints'}</span>
+            <span>{isRefreshing ? 'Probing ModelArk...' : 'Probe ModelArk'}</span>
           </button>
         </section>
 
         {/* Diagnostic Status Cards */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card 1: PosBot Connection */}
+          {/* Card 1: ByteDance Connection */}
           <div className="rounded-2xl border border-white/[0.1] bg-white/[0.03] backdrop-blur-md p-5 space-y-3">
             <div className="flex items-center justify-between text-xs text-white/50">
-              <span className="font-mono uppercase text-[11px]">API Connection Status</span>
+              <span className="font-mono uppercase text-[11px]">ByteDance ModelArk Status</span>
               <Server className="w-4 h-4 text-white/70" />
             </div>
             <div className="space-y-1">
               <div className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${health?.ok ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]' : 'bg-white/40'}`} />
-                <span>{health?.ok ? 'Connected' : 'Hybrid Standby'}</span>
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    health?.ok
+                      ? 'bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]'
+                      : health?.serverKeyConfigured
+                      ? 'bg-white/60'
+                      : 'bg-white/30'
+                  }`}
+                />
+                <span>
+                  {health?.ok
+                    ? 'Connected'
+                    : health?.serverKeyConfigured
+                    ? 'Upstream Auth Check'
+                    : 'Needs ARK API Key'}
+                </span>
               </div>
               <p className="text-xs text-white/50 truncate font-mono">
-                {health?.baseUrl || 'https://api.posbot.web.id/api/v1'}
+                {health?.baseUrl || 'https://ark.ap-southeast.bytepluses.com/api/v3'}
               </p>
             </div>
-            <div className="pt-2 border-t border-white/[0.06] text-[10px] font-mono text-white/40">
-              Service: {health?.service || 'PosBot Developer API'}
+            <div className="pt-2 border-t border-white/[0.06] text-[10px] font-mono text-white/40 truncate">
+              {health?.upstreamError
+                ? `Notice: ${health.upstreamError}`
+                : `Model: ${health?.activeSeedanceModel || 'seedance-2-5-260628'}`}
             </div>
           </div>
 
           {/* Card 2: Account Balance & Quota */}
           <div className="rounded-2xl border border-white/[0.1] bg-white/[0.03] backdrop-blur-md p-5 space-y-3">
             <div className="flex items-center justify-between text-xs text-white/50">
-              <span className="font-mono uppercase text-[11px]">Generation Balance</span>
+              <span className="font-mono uppercase text-[11px]">User Credit Ledger</span>
               <Coins className="w-4 h-4 text-white/70" />
             </div>
-            <div className="space-y-1">
-              <div className="text-xl font-mono font-semibold text-white tracking-tight tabular-nums">
-                {balance ? balance.balance_generate : 250}{' '}
-                <span className="text-xs font-sans text-white/50 font-normal">Generate Units</span>
+            {isAuthenticated ? (
+              <>
+                <div className="space-y-1">
+                  <div className="text-xl font-mono font-semibold text-white tracking-tight tabular-nums">
+                    {balance?.balance_generate ?? 0}{' '}
+                    <span className="text-xs font-sans text-white/50 font-normal">Credits</span>
+                  </div>
+                  <p className="text-xs font-mono text-white/55 tabular-nums">
+                    Monthly: {balance?.monthly_credits ?? 0} · Purchased: {balance?.purchased_credits ?? 0} · Used: {balance?.used_credits ?? 0}
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-white/60">
+                  <span className="flex items-center gap-1">
+                    <Crown className="w-3 h-3" /> {balance?.planName || balance?.tier || 'FREE'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {onOpenPlans && (
+                      <button type="button" onClick={onOpenPlans} className="underline hover:text-white cursor-pointer">
+                        Plans
+                      </button>
+                    )}
+                    {onOpenCredits && (
+                      <button type="button" onClick={onOpenCredits} className="underline hover:text-white cursor-pointer">
+                        Wallet
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="text-sm text-white/70">Sign in required to access your personal wallet & tier ledger.</div>
+                {onRequireAuth && (
+                  <button
+                    type="button"
+                    onClick={onRequireAuth}
+                    className="px-3 py-1.5 rounded-lg bg-white text-black text-[11px] font-mono font-semibold uppercase cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                )}
               </div>
-              <p className="text-xs font-mono text-white/50 tabular-nums">
-                {balance ? `Rp ${(balance.balance_idr_equivalent || 0).toLocaleString('id-ID')}` : 'Rp 100.000 Equivalent'}
-              </p>
-            </div>
-            <div className="pt-2 border-t border-white/[0.06] text-[10px] font-mono text-white/40">
-              Unit Rate: Rp {balance?.unit_value_idr || 400} / Unit
-            </div>
+            )}
           </div>
 
           {/* Card 3: Security & Key Encapsulation */}
@@ -164,11 +219,11 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
                 <span>Zero Secret Exposure</span>
               </div>
               <p className="text-xs text-white/50">
-                POSBOT_API_KEY is isolated on the server. No secrets in client bundle.
+                BYTEDANCE_API_KEY, GEMINI_API_KEY, and STRIPE_SECRET_KEY are isolated server-side with Firebase ID token verification.
               </p>
             </div>
             <div className="pt-2 border-t border-white/[0.06] text-[10px] font-mono text-white/40">
-              Status: Server-Side Proxied
+              Status: {health?.serverKeyConfigured ? 'Bearer Auth Ready' : 'Configure BYTEDANCE_API_KEY'}
             </div>
           </div>
         </section>
@@ -204,20 +259,20 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
                 <div className="p-3.5 rounded-xl border border-white/[0.08] bg-black/40 space-y-1">
-                  <span className="text-white/40 text-[10px] uppercase">Base Upstream URL</span>
-                  <div className="text-white font-medium">https://api.posbot.web.id/api/v1</div>
+                  <span className="text-white/40 text-[10px] uppercase">BytePlus ModelArk URL (Global)</span>
+                  <div className="text-white font-medium">https://ark.ap-southeast.bytepluses.com/api/v3</div>
                 </div>
                 <div className="p-3.5 rounded-xl border border-white/[0.08] bg-black/40 space-y-1">
-                  <span className="text-white/40 text-[10px] uppercase">Fallback Alternate URL</span>
-                  <div className="text-white font-medium">https://api.posbot.web.id/posbot_motion/api/v1</div>
+                  <span className="text-white/40 text-[10px] uppercase">Volcano Engine Ark URL (CN Alternate)</span>
+                  <div className="text-white font-medium">https://ark.cn-beijing.volces.com/api/v3</div>
                 </div>
                 <div className="p-3.5 rounded-xl border border-white/[0.08] bg-black/40 space-y-1">
                   <span className="text-white/40 text-[10px] uppercase">Max Prompt Capacity</span>
-                  <div className="text-white font-medium">8,000 Characters (Seedance 2.5)</div>
+                  <div className="text-white font-medium">30,000 Words (Seedance 2.5)</div>
                 </div>
                 <div className="p-3.5 rounded-xl border border-white/[0.08] bg-black/40 space-y-1">
                   <span className="text-white/40 text-[10px] uppercase">Reference Image Capacity</span>
-                  <div className="text-white font-medium">Up to 9 Reference Photos (Multi-Image)</div>
+                  <div className="text-white font-medium">Up to 30 Reference Photos (Multi-Image)</div>
                 </div>
               </div>
             </div>
@@ -229,8 +284,8 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
           <section className="space-y-4">
             <div className="rounded-2xl border border-white/[0.1] bg-white/[0.03] overflow-hidden">
               <div className="p-4 border-b border-white/[0.08] flex items-center justify-between text-xs font-mono">
-                <span className="text-white/70">Documented PosBot v1 API Endpoints</span>
-                <span className="text-white/40">RFC / Spec: DEVELOPER_API_DOCS.md</span>
+                <span className="text-white/70">ByteDance BytePlus ModelArk v3 Endpoints</span>
+                <span className="text-white/40">Spec: ModelArk Video Tasks API</span>
               </div>
               <div className="divide-y divide-white/[0.06]">
                 {documentedEndpoints.map((ep, idx) => (
@@ -261,7 +316,7 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-white font-semibold text-sm">{m.label}</span>
                     <span className="px-2 py-0.5 rounded bg-white/[0.08] text-white">
-                      Rp {m.rateIdr.toLocaleString('id-ID')}
+                      {m.costGenerate} Base CR
                     </span>
                   </div>
                   <p className="text-white/60 font-sans text-xs leading-relaxed">
@@ -272,7 +327,7 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
                     <span>·</span>
                     <span>Dur: {m.durationSeconds}s</span>
                     <span>·</span>
-                    <span>Cost: {m.costGenerate} Units</span>
+                    <span>Base Cost: {m.costGenerate} Credits</span>
                     <span>·</span>
                     <span>720P Native</span>
                   </div>
@@ -289,12 +344,12 @@ export const SeedanceAccountApiView: React.FC<SeedanceAccountApiViewProps> = ({
               Zero Secret Exposure Policy
             </h2>
             <p className="text-white/70 leading-relaxed">
-              VAIURE Seedance Lab is engineered as a secure full-stack architecture. Client browsers never receive authentication keys or tokens directly. All requests to the upstream PosBot Developer API are mediated through Express middleware with header sanitization, secret redaction, and in-flight request deduplication.
+              VAIURE Seedance Lab enforces server-side Firebase ID token verification on every credit deduction, AI agent query, subscription change, and administrative operation. Client browsers never receive upstream API keys, and generation failures automatically trigger an idempotent single-once credit refund.
             </p>
             <div className="p-4 rounded-xl border border-white/[0.08] bg-black/60 font-mono text-[11px] text-white/60 space-y-1">
-              <div>// Security Invariant:</div>
-              <div>Browser Request ➔ Local Express Proxy (/api/ai/generate) ➔ Server-Side Key Injection ➔ api.posbot.web.id</div>
-              <div>Response Scrubbing ➔ Client receives sanitized job_code and result_url.</div>
+              <div className="text-white/85 font-semibold uppercase tracking-wider">Request Pipeline Invariant</div>
+              <div>Browser Request (Firebase Bearer Token + Idempotency Key) ➔ Express Auth Middleware ➔ Atomic Server Credit Debit ➔ ModelArk API v3</div>
+              <div>Failure Guard ➔ Automatic Single-Once Refund Ledger Entry + Real-Time Balance Update.</div>
             </div>
           </section>
         )}

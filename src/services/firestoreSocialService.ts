@@ -27,6 +27,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
 } from '../lib/firebase';
+import { getAuthHeaders } from '../lib/authHeaders';
 import {
   SocialPost,
   UserProfile,
@@ -94,41 +95,45 @@ export function subscribeToFirestorePosts(
 }
 
 /**
- * Real-time subscription to Users/Creators from Firestore
+ * Real-time subscription to Public Creators directory from Firestore (PII-isolated)
  */
 export function subscribeToFirestoreCreators(
   onUpdate: (creators: Record<string, UserProfile>) => void
 ): () => void {
-  const usersRef = collection(db, 'users');
-  const q = query(usersRef, limit(50));
+  const pubRef = collection(db, 'publicProfiles');
+  const q = query(pubRef, limit(50));
 
   const unsubscribe = onSnapshot(
     q,
-    (snapshot) => {
+    async (snapshot) => {
+      const map: Record<string, UserProfile> = {};
       if (snapshot.empty) {
-        onUpdate({});
+        try {
+          const fallbackUsers = await fetchAllUsersRealtime();
+          for (const u of fallbackUsers) {
+            if (u.username) map[u.username] = u;
+          }
+        } catch {
+          // ignore
+        }
+        onUpdate(map);
         return;
       }
-      const map: Record<string, UserProfile> = {};
       snapshot.forEach((d) => {
         const data = d.data();
-        if (data.username || data.displayName || data.email) {
-          const rawName = data.username || data.displayName?.toLowerCase().replace(/\s+/g, '_') || data.email?.split('@')[0] || d.id;
-          const isDesignated =
-            data.email === 'rachvan420@gmail.com' ||
-            data.role === 'ADMIN' ||
-            data.role === 'SUPER_ADMIN';
+        if (data.username || data.displayName) {
+          const rawName = data.username || data.displayName?.toLowerCase().replace(/\s+/g, '_') || d.id;
+          const isAdminRole = data.role === 'ADMIN' || data.role === 'SUPER_ADMIN';
 
           const profile: UserProfile = {
             id: data.uid || d.id,
             username: rawName,
             displayName: data.displayName || rawName,
-            email: data.email,
             avatar: data.photoURL || '',
             bannerImage: data.bannerImage,
-            role: isDesignated ? 'SUPER_ADMIN' : (data.role || data.accountType || 'CREATOR'),
-            specialBadge: isDesignated ? 'ADMINISTRATOR' : data.specialBadge,
-            verified: isDesignated ? true : Boolean(data.verified),
+            role: isAdminRole ? 'SUPER_ADMIN' : (data.role || data.accountType || 'CREATOR'),
+            specialBadge: isAdminRole ? 'ADMINISTRATOR' : data.specialBadge,
+            verified: isAdminRole ? true : Boolean(data.verified),
             bio: data.bio || '',
             location: data.location || '',
             website: data.website || '',
@@ -144,9 +149,17 @@ export function subscribeToFirestoreCreators(
       });
       onUpdate(map);
     },
-    (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-      onUpdate({});
+    async () => {
+      try {
+        const fallbackUsers = await fetchAllUsersRealtime();
+        const map: Record<string, UserProfile> = {};
+        for (const u of fallbackUsers) {
+          if (u.username) map[u.username] = u;
+        }
+        onUpdate(map);
+      } catch {
+        onUpdate({});
+      }
     }
   );
 
@@ -158,7 +171,9 @@ export function subscribeToFirestoreCreators(
  */
 export async function fetchAllUsersRealtime(): Promise<UserProfile[]> {
   try {
-    const res = await fetch('/api/users');
+    const res = await fetch('/api/users', {
+      headers: await getAuthHeaders({}, false),
+    });
     if (res.ok) {
       const data = await res.json();
       return (data.users || []).map((u: any) => ({
@@ -192,7 +207,9 @@ export async function fetchAllUsersRealtime(): Promise<UserProfile[]> {
  */
 export async function fetchUserByHandleOrId(idOrUsername: string): Promise<UserProfile | null> {
   try {
-    const res = await fetch(`/api/users/${encodeURIComponent(idOrUsername)}`);
+    const res = await fetch(`/api/users/${encodeURIComponent(idOrUsername)}`, {
+      headers: await getAuthHeaders({}, false),
+    });
     if (res.ok) {
       const data = await res.json();
       return {
@@ -223,6 +240,7 @@ export async function fetchUserByHandleOrId(idOrUsername: string): Promise<UserP
 
 /**
  * Real-time subscription to a specific User profile from Firestore
+ * Uses private users/{uid} only when inspecting own profile; otherwise reads publicProfiles/{uid}
  */
 export function subscribeToFirestoreUser(
   uid: string,
@@ -232,7 +250,9 @@ export function subscribeToFirestoreUser(
     onUpdate(null);
     return () => {};
   }
-  const userRef = doc(db, 'users', uid);
+  const isSelf = auth.currentUser?.uid === uid;
+  const targetCollection = isSelf ? 'users' : 'publicProfiles';
+  const userRef = doc(db, targetCollection, uid);
   const unsubscribe = onSnapshot(
     userRef,
     (snapshot) => {
@@ -243,7 +263,6 @@ export function subscribeToFirestoreUser(
       const data = snapshot.data();
       const rawName = data.username || data.displayName?.toLowerCase().replace(/\s+/g, '_') || data.email?.split('@')[0] || snapshot.id;
       const isDesignated =
-        data.email === 'rachvan420@gmail.com' ||
         data.role === 'ADMIN' ||
         data.role === 'SUPER_ADMIN';
 
@@ -251,7 +270,7 @@ export function subscribeToFirestoreUser(
         id: snapshot.id,
         username: rawName,
         displayName: data.displayName || rawName,
-        email: data.email,
+        email: isSelf ? data.email : undefined,
         avatar: data.photoURL || '',
         bannerImage: data.bannerImage,
         role: isDesignated ? 'SUPER_ADMIN' : (data.role || data.accountType || 'CREATOR'),
@@ -267,8 +286,7 @@ export function subscribeToFirestoreUser(
         collections: [],
       });
     },
-    (error) => {
-      handleFirestoreError(error, OperationType.GET, `users/${uid}`);
+    () => {
       onUpdate(null);
     }
   );
@@ -754,23 +772,23 @@ export function getConversationId(uid1: string, uid2: string): string {
 }
 
 /**
- * Real-time subscription to Conversations for a User
+ * Real-time subscription to Conversations for a User (strictly participant-scoped)
  */
 export function subscribeToFirestoreConversations(
   userId: string,
   onUpdate: (convs: Conversation[]) => void
 ): () => void {
-  if (!userId) {
+  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) {
     onUpdate([]);
     return () => {};
   }
   const convsRef = collection(db, 'conversations');
-  const q = query(convsRef, orderBy('updatedAt', 'desc'), limit(50));
+  const q = query(convsRef, where('participantUids', 'array-contains', userId), limit(50));
 
   const unsub = onSnapshot(
     q,
     (snapshot) => {
-      const list: Conversation[] = [];
+      const list: Array<Conversation & { _updatedAtMs: number }> = [];
       snapshot.forEach((d) => {
         const data = d.data();
         if (data.participantUids && !data.participantUids.includes(userId)) {
@@ -792,10 +810,12 @@ export function subscribeToFirestoreConversations(
               createdAt: data.updatedAt || '',
             },
             unreadCount: (data.unreadRecipientId === userId ? data.unreadCount : 0) || 0,
+            _updatedAtMs: new Date(data.updatedAt || 0).getTime(),
           });
         }
       });
-      onUpdate(list);
+      list.sort((a, b) => b._updatedAtMs - a._updatedAtMs);
+      onUpdate(list.map(({ _updatedAtMs, ...rest }) => rest));
     },
     (err) => {
       handleFirestoreError(err, OperationType.GET, 'conversations');
@@ -813,7 +833,7 @@ export function subscribeToConversationMessages(
   convId: string,
   onUpdate: (messages: ChatMessage[]) => void
 ): () => void {
-  if (!convId) {
+  if (!convId || !auth.currentUser) {
     onUpdate([]);
     return () => {};
   }
@@ -1196,6 +1216,7 @@ export async function uploadMediaToFirebaseStorage(
 
     const res = await fetch('/api/upload', {
       method: 'POST',
+      headers: await getAuthHeaders({}, false),
       body: formData,
     });
 

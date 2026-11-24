@@ -1,0 +1,57 @@
+[
+  {
+    "id": "log_1795349598607_fa1014d3",
+    "timestamp": "2026-11-22T12:13:18.607Z",
+    "provider": "muapi",
+    "model_id": "muapi/seedance-2.5-spicy-image-to-video",
+    "job_id": "test_wh_1795349598585",
+    "user_id": "user_webhook_test",
+    "action": "WEBHOOK",
+    "success": true,
+    "httpStatus": 200
+  },
+  {
+    "id": "log_1795349547198_06cf2b7b",
+    "timestamp": "2026-11-22T12:12:27.198Z",
+    "provider": "muapi",
+    "model_id": "muapi/seedance-2.5-spicy-image-to-video",
+    "job_id": "test_wh_1795349547128",
+    "user_id": "user_webhook_test",
+    "action": "WEBHOOK",
+    "success": true,
+    "httpStatus": 200
+  },
+  {
+    "id": "log_1795234661555_96088c58",
+    "timestamp": "2026-11-21T04:17:41.555Z",
+    "provider": "muapi",
+    "model_id": "muapi/seedance-2.5-spicy-image-to-video",
+    "job_id": "test_wh_1795234661542",
+    "user_id": "user_webhook_test",
+    "action": "WEBHOOK",
+    "success": true,
+    "httpStatus": 200
+  },
+  {
+    "id": "log_1795200752799_87231d64",
+    "timestamp": "2026-11-20T18:52:32.799Z",
+    "provider": "muapi",
+    "model_id": "muapi/seedance-2.5-spicy-image-to-video",
+    "job_id": "test_wh_1795200752786",
+    "user_id": "user_webhook_test",
+    "action": "WEBHOOK",
+    "success": true,
+    "httpStatus": 200
+  },
+  {
+    "id": "log_1795200649980_0e9fa93f",
+    "timestamp": "2026-11-20T18:50:49.980Z",
+    "provider": "muapi",
+    "model_id": "muapi/seedance-2.5-spicy-image-to-video",
+    "job_id": "test_wh_1795200649966",
+    "user_id": "user_webhook_test",
+    "action": "WEBHOOK",
+    "success": true,
+    "httpStatus": 200
+  }
+]

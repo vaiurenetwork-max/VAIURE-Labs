@@ -4,6 +4,7 @@
  * Never calls Gemini directly in client code.
  */
 
+import { getAuthHeaders } from '../lib/authHeaders';
 import {
   CopyGenerateRequest,
   CopyGenerateResponse,
@@ -21,7 +22,7 @@ import {
 export async function generateEditorialCopy(req: CopyGenerateRequest): Promise<CopyGenerateResponse> {
   const res = await fetch('/api/copy/generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(req),
   });
 
@@ -36,7 +37,7 @@ export async function generateEditorialCopy(req: CopyGenerateRequest): Promise<C
 export async function polishDraftCopy(req: CopyPolishRequest): Promise<CopyPolishResponse> {
   const res = await fetch('/api/copy/polish', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(req),
   });
 
@@ -51,7 +52,7 @@ export async function polishDraftCopy(req: CopyPolishRequest): Promise<CopyPolis
 export async function generateCinemaCopy(req: CopyCinemaRequest): Promise<CopyCinemaResponse> {
   const res = await fetch('/api/copy/cinema', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(req),
   });
 
@@ -66,7 +67,7 @@ export async function generateCinemaCopy(req: CopyCinemaRequest): Promise<CopyCi
 export async function translateEditorialCopy(req: CopyTranslateRequest): Promise<CopyTranslateResponse> {
   const res = await fetch('/api/copy/translate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(req),
   });
 
@@ -85,7 +86,7 @@ export async function duplicatePost(
 ): Promise<CopyDuplicateResponse> {
   const res = await fetch(`/api/copy/post/${encodeURIComponent(postId)}/duplicate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ newAuthorUid, customTitle }),
   });
 
@@ -103,7 +104,7 @@ export async function duplicateThread(
 ): Promise<CopyDuplicateResponse> {
   const res = await fetch(`/api/copy/thread/${encodeURIComponent(threadId)}/duplicate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ newAuthorUid }),
   });
 
@@ -118,7 +119,7 @@ export async function duplicateThread(
 export async function exportUserArchiveCopy(uid: string): Promise<CopyArchiveExportResponse> {
   const res = await fetch(`/api/copy/export/${encodeURIComponent(uid)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
   });
 
   if (!res.ok) {
@@ -137,7 +138,7 @@ export async function generateCopyShareLink(
 ): Promise<CopyShareLinkResponse> {
   const res = await fetch('/api/copy/link', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ type, id, title, description }),
   });
 
@@ -163,7 +164,7 @@ export async function streamEditorialCopy(
   try {
     const res = await fetch('/api/copy/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ prompt, tone, category }),
     });
 

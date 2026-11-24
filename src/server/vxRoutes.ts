@@ -17,6 +17,8 @@ import {
   VxConfidenceReport,
   VX_SUPPORTED_MODELS,
 } from '../types/vx';
+import { requireFirebaseAuth } from './firebaseAuthMiddleware';
+import { aiLimiter, validateMagicBytes, sanitizeErrorMessage } from './securityMiddleware';
 
 export const vxRouter = Router();
 
@@ -90,17 +92,18 @@ vxRouter.get('/models', (_req: Request, res: Response) => {
 /**
  * Helper to parse base64 Data URL into inlineData part
  */
-function parseImageData(dataUrl: string): { mimeType: string; data: string } {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (match) {
-    return {
-      mimeType: match[1],
-      data: match[2],
-    };
-  }
+function parseImageData(dataUrl: string): { mimeType: string; data: string } | null {
+  if (typeof dataUrl !== 'string' || !dataUrl.trim()) return null;
+  const match = dataUrl.trim().match(/^data:([^;]+);base64,(.+)$/);
+  const declaredMime = match ? match[1].toLowerCase() : 'image/jpeg';
+  const base64Data = match ? match[2] : dataUrl.trim();
+  const buf = Buffer.from(base64Data, 'base64');
+  if (buf.length > 15 * 1024 * 1024) return null;
+  const magic = validateMagicBytes(buf, declaredMime, ['image']);
+  if (!magic.valid || !magic.detectedMime) return null;
   return {
-    mimeType: 'image/jpeg',
-    data: dataUrl,
+    mimeType: magic.detectedMime,
+    data: buf.toString('base64'),
   };
 }
 
@@ -159,7 +162,7 @@ Return valid JSON adhering strictly to the requested schema.`;
  * POST /api/vx/analyze-and-reconstruct
  * Main multi-stage visual reverse-engineering pipeline
  */
-vxRouter.post('/analyze-and-reconstruct', async (req: Request, res: Response) => {
+vxRouter.post('/analyze-and-reconstruct', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       image, // Primary image data URL
@@ -212,13 +215,18 @@ vxRouter.post('/analyze-and-reconstruct', async (req: Request, res: Response) =>
       ? `\nUSER SPECIFIC DIRECTIVES: ${advancedConfig.customInstructions}\nEnsure these instructions are seamlessly integrated without violating the core image characteristics.`
       : '';
 
+    const parsedPrimary = parseImageData(image);
+    if (!parsedPrimary) {
+      return res.status(400).json({ error: 'Invalid, unsupported, or oversized primary image payload.' });
+    }
     const primaryImagePart = {
-      inlineData: parseImageData(image),
+      inlineData: parsedPrimary,
     };
 
-    const refParts = (references || []).map((refUrl) => ({
-      inlineData: parseImageData(refUrl),
-    }));
+    const refParts = (Array.isArray(references) ? references.slice(0, 6) : [])
+      .map((refUrl) => parseImageData(refUrl))
+      .filter((part): part is { mimeType: string; data: string } => Boolean(part))
+      .map((part) => ({ inlineData: part }));
 
     const contents = [
       primaryImagePart,
@@ -561,7 +569,7 @@ Perform:
   } catch (error: any) {
     console.error('[VX Engine] Error during visual reconstruction:', error);
     return res.status(500).json({
-      error: error.message || 'Visual reconstruction failed. Please check image input and try again.',
+      error: sanitizeErrorMessage(error, 'Visual reconstruction failed. Please check image input and try again.'),
     });
   }
 });
@@ -570,7 +578,7 @@ Perform:
  * POST /api/vx/refine
  * Refines an existing reconstructed prompt with user-supplied guidance or missing detail compensation
  */
-vxRouter.post('/refine', async (req: Request, res: Response) => {
+vxRouter.post('/refine', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       currentPrompt,
@@ -680,6 +688,6 @@ Instructions:
     });
   } catch (err: any) {
     console.error('[VX Engine] Refine error:', err);
-    return res.status(500).json({ error: err.message || 'Prompt refinement failed.' });
+    return res.status(500).json({ error: sanitizeErrorMessage(err, 'Prompt refinement failed.') });
   }
 });

@@ -63,6 +63,7 @@ import {
   estimateJobCost,
 } from '../../../services/videoGenerationAdapter';
 import { uploadAndOptimizeThreadImage } from '../../../services/forumService';
+import { getAuthHeaders } from '../../../services/authTokenHelper';
 
 import { VaiuSeedanceTransferPayload } from './VaiuSeedanceWorkspace';
 
@@ -274,11 +275,11 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
     return () => clearTimeout(t);
   }, [vaiuPrefill]);
 
-  const [posbotBalance, setPosbotBalance] = useState<{
+  const [backendBalance, setBackendBalance] = useState<{
     balance_generate: number;
     balance_idr_equivalent: number;
   } | null>(null);
-  const [posbotHealth, setPosbotHealth] = useState<{
+  const [backendHealth, setBackendHealth] = useState<{
     ok: boolean;
     serverKeyConfigured: boolean;
   } | null>(null);
@@ -409,58 +410,70 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
   React.useEffect(() => {
     const syncAndCheck = async () => {
       try {
+        const authJsonHeaders = await getAuthHeaders(true);
+        const authGetHeaders = await getAuthHeaders(false);
+        const hasAuthToken = Boolean(authGetHeaders.Authorization);
+
         if (
-          mjManualConfig.discordToken.trim() ||
-          mjManualConfig.guildId.trim() ||
-          mjManualConfig.channelId.trim()
+          hasAuthToken &&
+          (mjManualConfig.discordToken.trim() ||
+            mjManualConfig.guildId.trim() ||
+            mjManualConfig.channelId.trim())
         ) {
           const res = await fetch('/api/midjourney/config', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authJsonHeaders,
             body: JSON.stringify(mjManualConfig),
           });
-          const data = await res.json();
-          if (data && typeof data.configured === 'boolean') {
-            setMjStatus(data);
-            return;
+          if (res.ok) {
+            const data = await res.json();
+            if (data && typeof data.configured === 'boolean') {
+              setMjStatus(data);
+              return;
+            }
           }
         }
-        const statusRes = await fetch('/api/midjourney/status');
-        const statusData = await statusRes.json();
-        if (statusData && typeof statusData.configured === 'boolean') {
-          setMjStatus(statusData);
-          if (statusData.guildId && !mjManualConfig.guildId) {
-            setMjManualConfig((prev) => ({
-              ...prev,
-              guildId: statusData.guildId || prev.guildId,
-              channelId: statusData.channelId || prev.channelId,
-              applicationId: statusData.applicationId || prev.applicationId,
-              commandId: statusData.commandId || prev.commandId,
-              commandVersion: statusData.commandVersion || prev.commandVersion,
-            }));
+        if (hasAuthToken) {
+          const statusRes = await fetch('/api/midjourney/status', { headers: authGetHeaders });
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData && typeof statusData.configured === 'boolean') {
+              setMjStatus(statusData);
+              if (statusData.guildId && !mjManualConfig.guildId) {
+                setMjManualConfig((prev) => ({
+                  ...prev,
+                  guildId: statusData.guildId || prev.guildId,
+                  channelId: statusData.channelId || prev.channelId,
+                  applicationId: statusData.applicationId || prev.applicationId,
+                  commandId: statusData.commandId || prev.commandId,
+                  commandVersion: statusData.commandVersion || prev.commandVersion,
+                }));
+              }
+            }
           }
         }
       } catch {
         // ignore network error on initial check
       }
 
-      // Check PosBot /api/ai/health and /api/ai/balance
+      // Check ByteDance ModelArk /api/ai/health and /api/ai/balance
       try {
+        const authGetHeaders = await getAuthHeaders(false);
         const [hRes, bRes] = await Promise.all([
           fetch('/api/ai/health'),
-          fetch('/api/ai/balance'),
+          fetch('/api/ai/balance', { headers: authGetHeaders }),
         ]);
         const hData = await hRes.json();
-        setPosbotHealth({
+        setBackendHealth({
           ok: Boolean(hData?.ok),
           serverKeyConfigured: Boolean(hData?.serverKeyConfigured),
         });
         if (bRes.ok) {
           const bData = await bRes.json();
           if (bData?.ok && typeof bData.balance_generate === 'number') {
-            setPosbotBalance({
+            setBackendBalance({
               balance_generate: bData.balance_generate,
-              balance_idr_equivalent: bData.balance_idr_equivalent || bData.balance_generate * 400,
+              balance_idr_equivalent: bData.balance_idr_equivalent || bData.balance_generate * 600,
             });
           }
         }
@@ -496,7 +509,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
       localStorage.setItem('vaiure_mj_discord_config_v1', JSON.stringify(mjManualConfig));
       const res = await fetch('/api/midjourney/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(true),
         body: JSON.stringify(mjManualConfig),
       });
       const data = await res.json();
@@ -533,7 +546,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
       await handleSaveMjEnvConfig(true);
       const res = await fetch('/api/midjourney/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(true),
         body: JSON.stringify(mjManualConfig),
       });
       const data = await res.json();
@@ -639,7 +652,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
     try {
       const res = await fetch('/api/prompt/optimize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(true),
         body: JSON.stringify({
           compiledPrompt: prompt,
           durationSeconds: duration || 4,
@@ -733,7 +746,9 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
           let fallbackPct = 8;
           const statusTimer = setInterval(async () => {
             try {
-              const stRes = await fetch('/api/midjourney/active-status');
+              const stRes = await fetch('/api/midjourney/active-status', {
+                headers: await getAuthHeaders(false),
+              });
               if (stRes.ok) {
                 const stData = await stRes.json();
                 if (stData && stData.phase && stData.phase !== 'IDLE') {
@@ -764,7 +779,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
           try {
             const response = await fetch('/api/generate', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: await getAuthHeaders(true),
               body: JSON.stringify({
                 prompt: compiledMjPrompt,
                 ...manualCredentialPayload,
@@ -789,7 +804,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
 
           const triggerRes = await fetch('/api/midjourney/trigger', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: await getAuthHeaders(true),
             body: JSON.stringify({
               prompt: compiledMjPrompt,
               ...manualCredentialPayload,
@@ -814,7 +829,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
 
             const pollRes = await fetch('/api/midjourney/poll', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: await getAuthHeaders(true),
               body: JSON.stringify({
                 prompt: compiledMjPrompt,
                 since: triggerAt,
@@ -942,7 +957,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
     }
 
     // MODE 1 (GEMINI DIRECT KEYFRAME SYNTHESIS via /api/prompt/generate-image)
-    if (studioMode === 'image-gen' && !selectedModel.posbotModelKey) {
+    if (studioMode === 'image-gen' && !selectedModel.bytedanceModelKey) {
       setGenerationPhase('SENDING');
       setCurrentStage('Sending prompt to Image Synthesis Engine...');
       setProgress(18);
@@ -957,9 +972,10 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
       }, 600);
 
       try {
+        const authHeaders = await getAuthHeaders(true);
         const response = await fetch('/api/prompt/generate-image', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify({
             prompt,
             negativePrompt,
@@ -969,6 +985,8 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
             modelId: selectedModel.id,
             characterNames: activeChars.map((c) => `${c.name} (${c.appearance})`),
             locationName: activeLoc ? `${activeLoc.name} (${activeLoc.lighting})` : '',
+            projectId: project.id,
+            projectName: project.title,
           }),
         });
 
@@ -1070,12 +1088,13 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
       return;
     }
 
-    // POSBOT DEVELOPER API v1 GENERATION (Image, Image Edit, T2V, I2V, Seedance 2.5 R2V, Motion Control)
+    // BYTEDANCE MODELARK API v3 GENERATION (Seedream, Seedance 2.5 R2V/T2V/I2V)
     const isStillImageOutput = studioMode === 'image-gen';
-    let resolvedPosBotKey = selectedModel.posbotModelKey || selectedModel.id;
+    let resolvedModelKey =
+      selectedModel.bytedanceModelKey || selectedModel.id;
 
     if (selectedModel.id === 'seedance-2.5-ref-video') {
-      resolvedPosBotKey =
+      resolvedModelKey =
         duration >= 30
           ? studioMode === 'ref-video'
             ? 'seedance_25_30s_r2v'
@@ -1084,15 +1103,15 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
           ? 'seedance_25_15s_r2v'
           : 'seedance_25_15s';
     } else if (selectedModel.id === 'kling_30_5s') {
-      resolvedPosBotKey =
+      resolvedModelKey =
         duration >= 15 ? 'kling_30_15s' : duration >= 10 ? 'kling_30_10s' : 'kling_30_5s';
     } else if (selectedModel.id === 'grok_imagine_2_15s') {
-      resolvedPosBotKey = duration >= 30 ? 'grok_imagine_2_30s' : 'grok_imagine_2_15s';
+      resolvedModelKey = duration >= 30 ? 'grok_imagine_2_30s' : 'grok_imagine_2_15s';
     } else if (selectedModel.id === 'veo-3.1-generate-preview') {
-      resolvedPosBotKey =
+      resolvedModelKey =
         studioMode === 'image-to-video' && sourceImageUrl
-          ? 'omni_flash_i2v'
-          : 'omni_flash_t2v';
+          ? 'seedance_25_15s_r2v'
+          : 'seedance_25_15s';
     }
 
     // Validate model-specific required inputs before calling backend
@@ -1116,7 +1135,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
 
     // Assemble structured prompt with Character, Location & Vehicle LHD/RHD continuity locks when in Ref-Video / Seedance mode
     let compiledBackendPrompt = prompt.trim();
-    if (studioMode === 'ref-video' || resolvedPosBotKey.startsWith('seedance_')) {
+    if (studioMode === 'ref-video' || resolvedModelKey.startsWith('seedance_')) {
       const continuityBlocks: string[] = [];
       if (activeChars.length > 0) {
         continuityBlocks.push(
@@ -1179,7 +1198,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
     );
 
     const generatePayload: Record<string, unknown> = {
-      model: resolvedPosBotKey,
+      model: resolvedModelKey,
       prompt: compiledBackendPrompt,
       aspect_ratio: aspectRatio,
     };
@@ -1202,28 +1221,28 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
     }
 
     setGenerationPhase('SENDING');
-    setCurrentStage(`Submitting to PosBot API (${resolvedPosBotKey})...`);
+    setCurrentStage(`Submitting to ByteDance ModelArk (${resolvedModelKey})...`);
     setProgress(15);
 
     try {
       const submitRes = await fetch('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(true),
         body: JSON.stringify(generatePayload),
       });
       const submitData = await submitRes.json();
 
       if (!submitRes.ok || !submitData.ok || !submitData.job_code) {
         throw new Error(
-          submitData.error || `PosBot generation request failed (HTTP ${submitRes.status}).`
+          submitData.error || `ByteDance ModelArk request failed (HTTP ${submitRes.status}).`
         );
       }
 
       const jobCode: string = submitData.job_code;
       if (typeof submitData.remaining_balance_generate === 'number') {
-        setPosbotBalance({
+        setBackendBalance({
           balance_generate: submitData.remaining_balance_generate,
-          balance_idr_equivalent: submitData.remaining_balance_generate * 400,
+          balance_idr_equivalent: submitData.remaining_balance_generate * 600,
         });
       }
 
@@ -1245,7 +1264,9 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
         await new Promise((r) => setTimeout(r, pollCount === 0 ? 1500 : 4000));
         pollCount++;
 
-        const statusRes = await fetch(`/api/ai/jobs/${encodeURIComponent(jobCode)}`);
+        const statusRes = await fetch(`/api/ai/jobs/${encodeURIComponent(jobCode)}`, {
+          headers: await getAuthHeaders(false),
+        });
         const statusData = await statusRes.json();
 
         if (!statusRes.ok || !statusData.ok) {
@@ -1278,7 +1299,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
 
       if (!finalResultUrl) {
         throw new Error(
-          `Job ${jobCode} is still processing on PosBot servers. Check Generation History to refresh when complete.`
+          `Task ${jobCode} is still processing on ByteDance ModelArk servers. Check Generation History to refresh when complete.`
         );
       }
 
@@ -1377,7 +1398,7 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
       }
 
       onJobComplete(completedJob, updatedShot, newAsset);
-      showToast(`PosBot job ${jobCode} completed & added to Studio Assets`);
+      showToast(`ByteDance ModelArk task ${jobCode} completed & added to Studio Assets`);
     } catch (err: any) {
       setIsGenerating(false);
       setGenerationPhase('ERROR');
@@ -2367,11 +2388,11 @@ export const VideoGenerationWorkspace: React.FC<VideoGenerationWorkspaceProps> =
               </div>
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-mono text-emerald-400">
-                  {posbotBalance
-                    ? `${posbotBalance.balance_generate} GEN`
-                    : posbotHealth?.serverKeyConfigured
-                    ? 'API READY'
-                    : 'READY'}
+                  {backendBalance
+                    ? `${backendBalance.balance_generate} GEN`
+                    : backendHealth?.serverKeyConfigured
+                    ? 'MODELARK READY'
+                    : 'NEEDS ARK KEY'}
                 </span>
                 <button
                   onClick={() => setIsRightOpen(false)}

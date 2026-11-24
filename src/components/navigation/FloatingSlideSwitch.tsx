@@ -1,14 +1,8 @@
 /**
  * VAIURE — INTELLIGENT RESPONSIVE FLOATING SLIDE SWITCH
  *
- * Features:
- * - Non-conflicting intelligent positioning across Desktop, Tablet, and Mobile.
- * - Draggable with touch & pointer physics + edge snapping.
- * - Auto-collapse to micro-pill on idle or mobile to avoid covering top/bottom navbars.
- * - Tap-outside to dismiss expanded menu.
- * - Touch targets >= 44px on mobile and touchscreen devices.
- * - Full safe-area insets support (env(safe-area-inset-top), env(safe-area-inset-bottom)).
- * - Centralized z-index layering (Z_LAYERS.NAV_SWITCHER = z-40).
+ * Non-conflicting default anchor at bottom-left (shifts above mobile bottom bars on Slides 01 & 02),
+ * draggable with edge snapping, Escape / tap-outside collapse, and ⌘K Command Palette shortcut.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -20,19 +14,21 @@ import {
   ArrowDown,
   ArrowUp,
   X,
-  Compass,
+  Command,
 } from 'lucide-react';
 import { Z_LAYERS } from '../../constants/zLayers';
 
 export interface FloatingSlideSwitchProps {
-  activeSlide: 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  onSelectSlide: (slideIdx: 0 | 1 | 2 | 3 | 4 | 5 | 6) => void;
+  activeSlide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  onSelectSlide: (slideIdx: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
   onMinimize?: () => void;
   onHide?: () => void;
+  onOpenCommandPalette?: () => void;
+  onPrefetchDestination?: (target: string) => void;
 }
 
 export const SLIDE_DEFINITIONS: Array<{
-  id: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  id: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
   code: string;
   name: string;
   badge?: string;
@@ -44,50 +40,53 @@ export const SLIDE_DEFINITIONS: Array<{
   { id: 4, code: '04', name: 'SEEDANCE LAB', badge: 'SEEDANCE 2.5' },
   { id: 5, code: '05', name: 'FU LABS', badge: '3D' },
   { id: 6, code: '06', name: 'VX', badge: 'VISION' },
+  { id: 7, code: '07', name: 'VAIBYTE CANVAS', badge: 'STUDIO' },
 ];
 
-type DockPosition = 'top-center' | 'top-right' | 'bottom-center';
+type DockPosition = 'bottom-left' | 'top-right' | 'bottom-center';
 
 export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
   activeSlide,
   onSelectSlide,
   onMinimize,
   onHide,
+  onOpenCommandPalette,
+  onPrefetchDestination,
 }) => {
-  // Collapsed state: on mobile default to collapsed micro-pill to prevent blocking top headers
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('vaiure_slide_switch_collapsed');
       if (stored !== null) return stored === 'true';
-      // Default to collapsed on small screens, expanded on desktop
-      return typeof window !== 'undefined' && window.innerWidth < 1024;
+      return true;
     } catch {
-      return false;
+      return true;
     }
   });
 
-  // Dock placement: 'top-center' | 'top-right' | 'bottom-center'
   const [dockPos, setDockPos] = useState<DockPosition>(() => {
     try {
-      const saved = localStorage.getItem('vaiure_slide_switch_dock');
-      if (saved === 'top-right' || saved === 'bottom-center' || saved === 'top-center') {
+      const saved = localStorage.getItem('vaiure_slide_switch_dock_v2');
+      if (saved === 'top-right' || saved === 'bottom-center' || saved === 'bottom-left') {
         return saved;
       }
-      return 'top-center';
+      return 'bottom-left';
     } catch {
-      return 'top-center';
+      return 'bottom-left';
     }
   });
 
-  // Dragging state
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
-  const dragStartRef = useRef<{ startX: number; startY: number; initialOffsetX: number; initialOffsetY: number } | null>(null);
-  const hasMovedRef = useRef(false);
+  const dragStartRef = useRef<{
+    startX: number;
+    startY: number;
+    initialOffsetX: number;
+    initialOffsetY: number;
+  } | null>(null);
 
   const switchRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-collapse when user taps outside the expanded switcher
+  // Collapse on click outside or Escape
   useEffect(() => {
     if (isCollapsed) return;
 
@@ -97,16 +96,23 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
       }
     };
 
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCollapsed(true);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    window.addEventListener('keydown', handleKey);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('keydown', handleKey);
     };
   }, [isCollapsed]);
 
-  // Persist collapsed state
   const toggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => {
       const next = !prev;
@@ -119,13 +125,18 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
     });
   }, []);
 
-  // Cycle dock position
   const cycleDockPosition = useCallback((newPos?: DockPosition) => {
-    setDragOffset(null); // Reset manual drag offset
+    setDragOffset(null);
     setDockPos((prev) => {
-      const target = newPos || (prev === 'top-center' ? 'top-right' : prev === 'top-right' ? 'bottom-center' : 'top-center');
+      const target =
+        newPos ||
+        (prev === 'bottom-left'
+          ? 'bottom-center'
+          : prev === 'bottom-center'
+          ? 'top-right'
+          : 'bottom-left');
       try {
-        localStorage.setItem('vaiure_slide_switch_dock', target);
+        localStorage.setItem('vaiure_slide_switch_dock_v2', target);
       } catch {
         // ignore
       }
@@ -133,16 +144,13 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
     });
   }, []);
 
-  // Pointer/Touch Drag handlers
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Only drag from non-button elements or drag handles
     const target = e.target as HTMLElement;
     if (target.closest('button:not([data-drag-handle="true"])')) {
       return;
     }
 
     e.currentTarget.setPointerCapture(e.pointerId);
-    hasMovedRef.current = false;
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -154,14 +162,8 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || !dragStartRef.current) return;
-
     const dx = e.clientX - dragStartRef.current.startX;
     const dy = e.clientY - dragStartRef.current.startY;
-
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      hasMovedRef.current = true;
-    }
-
     setDragOffset({
       x: dragStartRef.current.initialOffsetX + dx,
       y: dragStartRef.current.initialOffsetY + dy,
@@ -178,17 +180,16 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
       // ignore
     }
 
-    // If dragged near bottom of screen, snap to bottom dock; if near top, snap to top
     if (dragOffset) {
       const windowHeight = window.innerHeight;
       const elRect = switchRef.current?.getBoundingClientRect();
       if (elRect) {
-        if (elRect.top > windowHeight * 0.65) {
-          cycleDockPosition('bottom-center');
-        } else if (elRect.left > window.innerWidth * 0.6) {
+        if (elRect.top < windowHeight * 0.35) {
           cycleDockPosition('top-right');
+        } else if (elRect.left > window.innerWidth * 0.35 && elRect.left < window.innerWidth * 0.65) {
+          cycleDockPosition('bottom-center');
         } else {
-          cycleDockPosition('top-center');
+          cycleDockPosition('bottom-left');
         }
       }
     }
@@ -199,21 +200,23 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
   const currentMeta =
     SLIDE_DEFINITIONS.find((s) => s.id === activeSlide) || SLIDE_DEFINITIONS[0];
 
-  // Compute CSS placement based on dockPos or manual drag offset
+  const isBottomNavSlide = activeSlide === 1 || activeSlide === 2;
+
   const getPositionClasses = () => {
-    if (dragOffset) {
-      return ''; // will use inline transform
-    }
+    if (dragOffset) return '';
 
     switch (dockPos) {
       case 'top-right':
-        return 'top-[max(0.625rem,env(safe-area-inset-top))] right-4 sm:right-6';
+        return 'top-[max(0.75rem,env(safe-area-inset-top))] right-4 sm:right-6';
       case 'bottom-center':
-        return 'bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2';
-      case 'top-center':
+        return isBottomNavSlide
+          ? 'bottom-[max(4.75rem,calc(env(safe-area-inset-bottom)+4rem))] sm:bottom-4 left-1/2 -translate-x-1/2'
+          : 'bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2';
+      case 'bottom-left':
       default:
-        // Positioned with smart responsiveness: on mobile top-2, on desktop top-2.5
-        return 'top-[max(0.625rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2';
+        return isBottomNavSlide
+          ? 'bottom-[max(4.75rem,calc(env(safe-area-inset-bottom)+4rem))] sm:bottom-4 left-3 sm:left-4'
+          : 'bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4 left-3 sm:left-4';
     }
   };
 
@@ -237,85 +240,72 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
       style={dragStyle}
       className={`fixed ${getPositionClasses()} ${Z_LAYERS.NAV_SWITCHER} font-sans select-none pointer-events-auto transition-all duration-200 ease-out`}
     >
-      {/* 1. COLLAPSED MINIMAL TRIGGER (Unobtrusive, touch-friendly >= 44px touch target) */}
       {isCollapsed ? (
-        <div className="flex items-center gap-1.5 p-1 rounded-full bg-black/90 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_rgba(0,0,0,0.85)] text-white">
+        <div className="flex items-center gap-1 p-1 rounded-full bg-[#0a0a0d]/92 border border-white/20 shadow-[0_10px_34px_rgba(0,0,0,0.85)] text-white">
           <button
             type="button"
-            onClick={toggleCollapse}
-            className="flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-full hover:bg-white/[0.08] transition-all cursor-pointer group active:scale-95 min-h-[44px]"
-            title="Expand Slide Switcher (Select active slide)"
+            onMouseEnter={() => onPrefetchDestination?.('menu-all')}
+            onFocus={() => onPrefetchDestination?.('menu-all')}
+            onClick={() => {
+              onPrefetchDestination?.('menu-all');
+              toggleCollapse();
+            }}
+            className="flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-full hover:bg-white/[0.08] transition-all cursor-pointer group active:scale-95 min-h-[44px] sm:min-h-[36px] whitespace-nowrap shrink-0"
+            title="Switch Stage / Workspace"
             aria-label="Expand Slide Switcher"
           >
-            <Layers className="w-3.5 h-3.5 text-white/90 shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="font-mono text-[10px] sm:text-[11px] tracking-[0.16em] uppercase font-bold text-white">
-              {currentMeta.code} / {currentMeta.name}
+            <Layers className="w-3.5 h-3.5 text-white/85 shrink-0" />
+            <span className="font-mono text-[10px] sm:text-[11px] tracking-[0.16em] uppercase font-bold text-white tabular-nums">
+              {currentMeta.code} · {currentMeta.name}
             </span>
-            <ChevronDown className="w-3.5 h-3.5 text-white/50 group-hover:text-white transition-transform group-hover:translate-y-0.5" />
+            <ChevronUp className="w-3.5 h-3.5 text-white/45 group-hover:text-white transition-colors" />
           </button>
 
-          {/* Quick Dock Position Toggle (Top vs Bottom) */}
-          <button
-            type="button"
-            onClick={() => cycleDockPosition()}
-            title={`Move Switcher (${dockPos === 'bottom-center' ? 'Dock to Top' : 'Dock to Bottom'})`}
-            aria-label="Toggle switcher position"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            {dockPos === 'bottom-center' ? (
-              <ArrowUp className="w-3 h-3" />
-            ) : (
-              <ArrowDown className="w-3 h-3" />
-            )}
-          </button>
+          {onOpenCommandPalette && (
+            <button
+              type="button"
+              onMouseEnter={() => onPrefetchDestination?.('command-palette')}
+              onFocus={() => onPrefetchDestination?.('command-palette')}
+              onClick={onOpenCommandPalette}
+              title="Command Palette (⌘K)"
+              aria-label="Open Command Palette"
+              className="hidden sm:flex items-center gap-1 px-2.5 h-8 rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/15 hover:border-white/30 text-[10px] font-mono text-white/65 hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <Command className="w-3 h-3" />
+              <span>K</span>
+            </button>
+          )}
         </div>
       ) : (
-        /* 2. EXPANDED LUXURY MONOCHROME SLIDE CONTROLLER */
-        <div className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:p-2 rounded-2xl sm:rounded-full bg-[#0a0a0c]/95 backdrop-blur-2xl border border-white/25 shadow-[0_16px_48px_rgba(0,0,0,0.9)] text-[10px] sm:text-[11px] font-mono tracking-[0.14em] uppercase text-white animate-in fade-in zoom-in-95 duration-200 max-w-[96vw] overflow-x-auto scrollbar-none">
-          {/* Draggable Grip Handle */}
+        <div className="flex items-center gap-1 p-1.5 rounded-2xl sm:rounded-full bg-[#0a0a0e]/95 border border-white/25 shadow-[0_18px_50px_rgba(0,0,0,0.92)] text-[10px] sm:text-[11px] font-mono tracking-[0.14em] uppercase text-white animate-silk-fade max-w-[94vw] overflow-x-auto scrollbar-none">
           <div
             data-drag-handle="true"
-            className="hidden sm:flex items-center justify-center px-1.5 cursor-grab active:cursor-grabbing text-white/30 hover:text-white/80 transition-colors"
-            title="Drag to reposition slide bar"
+            className="hidden sm:flex items-center justify-center px-1.5 cursor-grab active:cursor-grabbing text-white/30 hover:text-white/80 transition-colors shrink-0"
+            title="Drag to reposition"
           >
             <GripHorizontal className="w-3.5 h-3.5" />
           </div>
 
-          {/* Slide 00 HERO */}
-          <button
-            type="button"
-            onClick={() => {
-              onSelectSlide(0);
-              // Auto-collapse on mobile after selection
-              if (window.innerWidth < 768) setIsCollapsed(true);
-            }}
-            className={`px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px] flex items-center justify-center ${
-              activeSlide === 0
-                ? 'bg-white text-black font-bold shadow-[0_0_12px_rgba(255,255,255,0.4)]'
-                : 'bg-white/[0.06] hover:bg-white/15 text-white/80 hover:text-white'
-            }`}
-            title="Slide 00: Kinetic Hero Studio"
-          >
-            00 HERO
-          </button>
-
-          <span className="text-white/20 shrink-0">|</span>
-
-          {/* Slides 01 to 06 */}
-          {SLIDE_DEFINITIONS.filter((s) => s.id !== 0).map((s) => {
+          {SLIDE_DEFINITIONS.map((s) => {
             const isActive = activeSlide === s.id;
             return (
               <button
                 key={s.id}
                 type="button"
+                onMouseEnter={() => {
+                  if (s.id > 0) onPrefetchDestination?.(`slide-${s.id}`);
+                }}
+                onFocus={() => {
+                  if (s.id > 0) onPrefetchDestination?.(`slide-${s.id}`);
+                }}
                 onClick={() => {
                   onSelectSlide(s.id);
                   if (window.innerWidth < 768) setIsCollapsed(true);
                 }}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-[32px] justify-center ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 min-h-[44px] sm:min-h-[32px] justify-center tabular-nums ${
                   isActive
-                    ? 'bg-white text-black font-bold shadow-[0_0_12px_rgba(255,255,255,0.4)]'
-                    : 'text-white/60 hover:text-white hover:bg-white/[0.08]'
+                    ? 'bg-white text-black font-bold'
+                    : 'text-white/65 hover:text-white hover:bg-white/[0.08]'
                 }`}
                 title={`Slide ${s.code}: ${s.name}`}
               >
@@ -329,55 +319,65 @@ export const FloatingSlideSwitch: React.FC<FloatingSlideSwitchProps> = ({
             );
           })}
 
-          <span className="text-white/20 shrink-0">|</span>
+          <span className="text-white/15 shrink-0 px-0.5">|</span>
 
-          {/* Minimize Slide Option */}
+          {onOpenCommandPalette && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsCollapsed(true);
+                onOpenCommandPalette();
+              }}
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-white/65 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 whitespace-nowrap min-h-[32px]"
+              title="Open Command Palette (⌘K)"
+            >
+              <Command className="w-3 h-3" />
+              <span className="text-[9px]">K</span>
+            </button>
+          )}
+
           {onMinimize && (
             <button
               type="button"
               onClick={onMinimize}
-              className="px-2 py-1 rounded text-white/60 hover:text-white hover:bg-white/15 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px] flex items-center"
-              title="Minimize current slide to bottom dock"
+              className="px-2.5 py-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 whitespace-nowrap min-h-[44px] sm:min-h-[32px] flex items-center"
+              title="Minimize workspace to Hero dock"
               aria-label="Minimize slide"
             >
-              — MIN
+              MIN
             </button>
           )}
 
-          {/* Position Toggle Button (Top vs Bottom Dock) */}
           <button
             type="button"
             onClick={() => cycleDockPosition()}
-            className="p-1.5 rounded text-white/50 hover:text-white hover:bg-white/15 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px] flex items-center justify-center"
-            title={`Switch to ${dockPos === 'bottom-center' ? 'Top Dock' : 'Bottom Dock'}`}
+            className="w-8 h-8 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px] flex items-center justify-center"
+            title={`Reposition Dock (${dockPos})`}
             aria-label="Switch dock position"
           >
-            {dockPos === 'bottom-center' ? (
-              <ArrowUp className="w-3.5 h-3.5" />
-            ) : (
+            {dockPos === 'top-right' ? (
               <ArrowDown className="w-3.5 h-3.5" />
+            ) : (
+              <ArrowUp className="w-3.5 h-3.5" />
             )}
           </button>
 
-          {/* Collapse Switcher Option */}
           <button
             type="button"
             onClick={toggleCollapse}
-            className="flex items-center gap-1 px-2 py-1 rounded text-white/60 hover:text-white hover:bg-white/15 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px]"
-            title="Collapse slide switcher to discreet pill"
+            className="flex items-center gap-1 px-2 py-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px]"
+            title="Collapse switcher"
             aria-label="Collapse slide switcher"
           >
-            <ChevronUp className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-[9px]">COLLAPSE</span>
+            <ChevronDown className="w-3.5 h-3.5" />
           </button>
 
-          {/* Close Slide Workspace */}
           {onHide && (
             <button
               type="button"
               onClick={onHide}
-              className="p-1.5 rounded text-white/40 hover:text-white hover:bg-white/20 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px] flex items-center justify-center"
-              title="Close slide workspace"
+              className="w-8 h-8 rounded-full text-white/45 hover:text-white hover:bg-white/15 transition-colors cursor-pointer shrink-0 min-h-[44px] sm:min-h-[32px] flex items-center justify-center"
+              title="Return to Motion Hero (Slide 00)"
               aria-label="Close slide workspace"
             >
               <X className="w-3.5 h-3.5" />

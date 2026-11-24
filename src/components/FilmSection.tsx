@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { SocialPost } from '../types/social';
-import { Play } from 'lucide-react';
+import { Play, Film } from 'lucide-react';
 import { useLanguage } from '../services/i18n';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { VaiureEmptyState } from './ui/VaiurePrimitives';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -95,6 +96,9 @@ export const FilmSection: React.FC<FilmSectionProps> = ({ posts, onSelectFilm })
           className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-8 mb-12 gap-6"
         >
           <div>
+            <span className="text-[10px] font-mono tracking-[0.25em] text-white/40 uppercase block mb-2 tabular-nums">
+              SECTION 05 · {filmPosts.length} FILMS
+            </span>
             <h2 className="text-4xl sm:text-6xl lg:text-7xl font-serif font-light text-white tracking-tight uppercase leading-[0.95]">
               {t('navFilm')}
             </h2>
@@ -104,11 +108,14 @@ export const FilmSection: React.FC<FilmSectionProps> = ({ posts, onSelectFilm })
           </span>
         </div>
 
-        {/* Real Dynamic Grid or Minimal Empty State */}
+        {/* Real Dynamic Grid or Empty State */}
         {filmPosts.length === 0 ? (
-          <div className="py-24 text-center border border-white/10 text-white/40 font-mono text-xs tracking-widest uppercase">
-            {t('noWorkYet')}
-          </div>
+          <VaiureEmptyState
+            icon={<Film className="w-5 h-5" />}
+            eyebrow="MOTION ARCHIVE"
+            title={t('noWorkYet')}
+            description="Short films and Seedance 2.5 cinema releases published to the archive will appear here."
+          />
         ) : (
           <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {filmPosts.map((post) => (
@@ -116,7 +123,7 @@ export const FilmSection: React.FC<FilmSectionProps> = ({ posts, onSelectFilm })
                 key={post.id}
                 onClick={() => onSelectFilm(post)}
                 data-cursor="PLAY"
-                className="group cursor-pointer border border-white/10 hover:border-white/30 transition-all flex flex-col will-change-transform"
+                className="group cursor-pointer border border-white/[0.09] bg-[#0a0a0d] hover:border-white/30 transition-all flex flex-col will-change-transform"
               >
                 <div className="relative aspect-[16/9] overflow-hidden bg-neutral-900">
                   {post.media[0]?.url ? (
@@ -132,7 +139,7 @@ export const FilmSection: React.FC<FilmSectionProps> = ({ posts, onSelectFilm })
                     </div>
                   </div>
                 </div>
-                <div className="p-5 border-t border-white/10 space-y-1">
+                <div className="p-5 border-t border-white/[0.08] space-y-1">
                   <h3 className="text-xl font-serif uppercase tracking-tight text-white group-hover:text-white/80 transition-colors">
                     {post.title}
                   </h3>

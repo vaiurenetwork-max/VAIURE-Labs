@@ -49,6 +49,7 @@ interface SettingsCenterModalProps {
   onClose: () => void;
   onOpenWallet: () => void;
   onOpenConverter: () => void;
+  onOpenSeedanceView?: (view: 'plans' | 'credits' | 'agent') => void;
   onSignOut: () => void;
   onUsernameChanged?: (newUsername: string, lastUsernameChangeAt: string) => void;
 }
@@ -59,6 +60,7 @@ export const SettingsCenterModal: React.FC<SettingsCenterModalProps> = ({
   onClose,
   onOpenWallet,
   onOpenConverter,
+  onOpenSeedanceView,
   onSignOut,
   onUsernameChanged,
 }) => {
@@ -286,6 +288,40 @@ export const SettingsCenterModal: React.FC<SettingsCenterModalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {onOpenSeedanceView && (
+                  <div className="p-5 border border-white/10 bg-neutral-950/60 space-y-3">
+                    <span className="text-[10px] font-mono tracking-widest text-white/45 uppercase block">
+                      SEEDANCE LAB WORKSPACE & SUBSCRIPTION
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => onOpenSeedanceView('plans')}
+                        className="px-3 py-2.5 border border-white/15 hover:border-white bg-black/50 text-xs font-mono uppercase text-white flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Manage Tier Plan</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-white/60" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenSeedanceView('credits')}
+                        className="px-3 py-2.5 border border-white/15 hover:border-white bg-black/50 text-xs font-mono uppercase text-white flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Generation Credits</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-white/60" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenSeedanceView('agent')}
+                        className="px-3 py-2.5 border border-white/15 hover:border-white bg-black/50 text-xs font-mono uppercase text-white flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Personal AI Agent</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-white/60" />
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Account Deletion Section */}
                 <div className="pt-8 border-t border-red-500/20 space-y-4">

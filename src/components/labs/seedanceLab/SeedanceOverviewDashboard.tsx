@@ -1,7 +1,7 @@
 /**
  * VAIURE — SEEDANCE LAB OVERVIEW DASHBOARD
  * Monochromatic Production Dashboard
- * Real-time connection status, balance telemetry, 4-model fleet showcase, and recent generation activity.
+ * Real-time connection status, balance telemetry, 4-model fleet showcase, quick workspace launch, and recent generation activity.
  */
 
 import React from 'react';
@@ -13,37 +13,59 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Coins,
-  Cpu,
-  Layers,
-  Sparkles,
   Server,
   Play,
+  Crown,
+  Sparkles,
+  Radio,
+  PhoneCall,
+  Users,
+  Images,
+  Lock,
 } from 'lucide-react';
 import {
   SEEDANCE_MODELS,
   SeedanceModelKey,
   SeedanceAccountBalance,
   SeedanceHealthStatus,
-  PosBotHistoryItem,
+  SeedanceHistoryItem,
 } from '../../../services/seedanceLabService';
 
 interface SeedanceOverviewDashboardProps {
   balance: SeedanceAccountBalance | null;
   health: SeedanceHealthStatus | null;
-  history: PosBotHistoryItem[];
+  history: SeedanceHistoryItem[];
+  isAuthenticated?: boolean;
   onOpenGenerator: (modelKey?: SeedanceModelKey) => void;
   onOpenHistory: () => void;
   onOpenAccount: () => void;
-  onSelectHistoryItem?: (item: PosBotHistoryItem) => void;
+  onOpenPlans?: () => void;
+  onOpenCredits?: () => void;
+  onOpenAgent?: () => void;
+  onOpenStreams?: () => void;
+  onOpenRooms?: () => void;
+  onOpenCommunity?: () => void;
+  onOpenCurated?: (env?: 'public' | 'private') => void;
+  onRequireAuth?: () => void;
+  onSelectHistoryItem?: (item: SeedanceHistoryItem) => void;
 }
 
 export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps> = ({
   balance,
   health,
   history,
+  isAuthenticated = false,
   onOpenGenerator,
   onOpenHistory,
   onOpenAccount,
+  onOpenPlans,
+  onOpenCredits,
+  onOpenAgent,
+  onOpenStreams,
+  onOpenRooms,
+  onOpenCommunity,
+  onOpenCurated,
+  onRequireAuth,
   onSelectHistoryItem,
 }) => {
   const modelKeys: SeedanceModelKey[] = [
@@ -77,9 +99,8 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                 VAIURE — SEEDANCE LAB
               </h1>
               <p className="text-sm sm:text-base text-white/75 font-sans leading-relaxed">
-                Specialized production workspace for high-fidelity 720p cinematic video generation.
-                Engineered exclusively for Seedance 2.5 with multi-shot narrative control, 8,000-character
-                prompts, and multi-image reference lock.
+                Unified AI filmmaking platform for Seedance 2.5 video synthesis, Personal Creative AI Agent
+                orchestration, subscription & credit management, live studio broadcasts, and multiplayer rooms.
               </p>
             </div>
 
@@ -92,10 +113,11 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                 <span>Launch Video Generator</span>
               </button>
               <button
-                onClick={onOpenAccount}
+                onClick={onOpenPlans || onOpenAccount}
                 className="px-5 py-3.5 rounded-xl border border-white/[0.12] bg-white/[0.045] hover:bg-white/[0.08] text-white font-medium text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Diagnostics & API</span>
+                <Crown className="w-3.5 h-3.5 text-white/75" />
+                <span>{balance?.planName ? `${balance.planName} Plan` : 'Plans & Tiers'}</span>
                 <ArrowUpRight className="w-3.5 h-3.5 text-white/60" />
               </button>
             </div>
@@ -111,7 +133,7 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
               <Activity className="w-4 h-4 text-white/70" />
             </div>
             <div className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9)]" />
+              <ShieldCheck className="w-4 h-4 text-white shrink-0" />
               <span>Operational</span>
             </div>
             <p className="text-xs text-white/50">
@@ -125,34 +147,46 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
             className="rounded-xl border border-white/[0.1] bg-white/[0.03] backdrop-blur-md p-5 space-y-2 cursor-pointer hover:border-white/20 transition-all"
           >
             <div className="flex items-center justify-between text-xs text-white/50">
-              <span className="font-mono uppercase tracking-wider text-[11px]">PosBot API Bridge</span>
+              <span className="font-mono uppercase tracking-wider text-[11px]">ByteDance ModelArk API</span>
               <Server className="w-4 h-4 text-white/70" />
             </div>
             <div className="text-xl font-semibold text-white tracking-tight">
-              {health?.ok ? 'Connected (v1)' : 'Hybrid Standby'}
+              {health?.ok
+                ? 'Connected (v3)'
+                : health?.serverKeyConfigured
+                ? 'Standby'
+                : 'Awaiting API Key'}
             </div>
             <p className="text-xs text-white/50 truncate font-mono">
-              {health?.baseUrl || 'https://api.posbot.web.id/api/v1'}
+              {health?.baseUrl || 'https://ark.ap-southeast.bytepluses.com/api/v3'}
             </p>
           </div>
 
           {/* Card 3: Account Balance */}
           <div
-            onClick={onOpenAccount}
+            onClick={() => {
+              if (!isAuthenticated && onRequireAuth) {
+                onRequireAuth();
+              } else if (onOpenCredits) {
+                onOpenCredits();
+              } else {
+                onOpenAccount();
+              }
+            }}
             className="rounded-xl border border-white/[0.1] bg-white/[0.03] backdrop-blur-md p-5 space-y-2 cursor-pointer hover:border-white/20 transition-all"
           >
             <div className="flex items-center justify-between text-xs text-white/50">
-              <span className="font-mono uppercase tracking-wider text-[11px]">Account Balance</span>
+              <span className="font-mono uppercase tracking-wider text-[11px]">Credit Wallet</span>
               <Coins className="w-4 h-4 text-white/70" />
             </div>
             <div className="text-xl font-mono font-semibold text-white tracking-tight tabular-nums">
-              {balance ? balance.balance_generate : 250}{' '}
-              <span className="text-xs font-sans text-white/50 font-normal">Generate Units</span>
+              {isAuthenticated ? balance?.balance_generate ?? 0 : 0}{' '}
+              <span className="text-xs font-sans text-white/50 font-normal">Credits</span>
             </div>
             <p className="text-xs text-white/50 font-mono tabular-nums">
-              {balance
-                ? `≈ Rp ${(balance.balance_idr_equivalent || 0).toLocaleString('id-ID')}`
-                : '≈ Rp 100.000'}
+              {isAuthenticated
+                ? `Tier: ${balance?.planName || balance?.tier || 'FREE'} · Used ${balance?.used_credits ?? 0}`
+                : 'Sign in to view wallet balance'}
             </p>
           </div>
 
@@ -175,6 +209,118 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
           </div>
         </section>
 
+        {/* Platform Capabilities Quick Launch */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <button
+            type="button"
+            onClick={() => onOpenPlans?.()}
+            className="p-5 rounded-xl border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/25 text-left space-y-2 transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <Crown className="w-4 h-4 text-white" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-white/40" />
+            </div>
+            <div className="text-sm font-semibold text-white">Subscription & Credits</div>
+            <p className="text-xs text-white/55">
+              Compare Free, Basic, Pro, Premium & Enterprise tiers, billing cycle & credit ledger.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenAgent?.()}
+            className="p-5 rounded-xl border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/25 text-left space-y-2 transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <Sparkles className="w-4 h-4 text-white" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-white/40" />
+            </div>
+            <div className="text-sm font-semibold text-white">Personal AI Agent</div>
+            <p className="text-xs text-white/55">
+              Private creative assistant with your persistent characters, style & storyline memory.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenStreams?.()}
+            className="p-5 rounded-xl border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/25 text-left space-y-2 transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <Radio className="w-4 h-4 text-white" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-white/40" />
+            </div>
+            <div className="text-sm font-semibold text-white">Livestreams</div>
+            <p className="text-xs text-white/55">
+              Start or join live WebRTC studio streams with real-time chat and moderation.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenRooms?.()}
+            className="p-5 rounded-xl border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/25 text-left space-y-2 transition-all cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <PhoneCall className="w-4 h-4 text-white" />
+              <ArrowUpRight className="w-3.5 h-3.5 text-white/40" />
+            </div>
+            <div className="text-sm font-semibold text-white">Multiplayer Live Rooms</div>
+            <p className="text-xs text-white/55">
+              Create or join real-time voice/video rooms with invite codes and peer controls.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenCommunity?.()}
+            className="p-5 rounded-xl border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/25 text-left space-y-2 transition-all cursor-pointer sm:col-span-2"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-white" />
+                <span className="text-sm font-semibold text-white">Community & Groups Ecosystem</span>
+              </div>
+              <ArrowUpRight className="w-3.5 h-3.5 text-white/40" />
+            </div>
+            <p className="text-xs text-white/55">
+              Discover creator groups, collaborate privately or publicly, share & 1-click import Seedance workflows, follow directors, and send virtual gifts.
+            </p>
+          </button>
+
+          <div className="p-5 rounded-xl border border-white/[0.1] bg-white/[0.03] hover:border-white/25 text-left space-y-3 transition-all sm:col-span-2 flex flex-col justify-between">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Images className="w-4 h-4 text-white" />
+                  <span className="text-sm font-semibold text-white">Curated Gallery & Private Vault</span>
+                </div>
+                <ArrowUpRight className="w-3.5 h-3.5 text-white/40" />
+              </div>
+              <p className="text-xs text-white/55">
+                All completed renders auto-save privately to My Private Curates. Selectively submit favorites for Curator Review into Explore Public Curates.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenCurated?.('public')}
+                className="px-3 py-1.5 rounded-lg bg-white text-black text-[11px] font-semibold uppercase tracking-wider cursor-pointer"
+              >
+                Explore Public Curates
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenCurated?.('private')}
+                className="px-3 py-1.5 rounded-lg border border-white/[0.15] bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-mono text-white flex items-center gap-1.5 cursor-pointer"
+              >
+                <Lock className="w-3 h-3" />
+                <span>My Private Curates</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Seedance 2.5 Model Fleet Matrix */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
@@ -183,7 +329,7 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                 Seedance 2.5 Model Matrix
               </h2>
               <p className="text-xs text-white/50">
-                Four official production configurations supported by upstream PosBot infrastructure.
+                Four official production configurations powered by ByteDance BytePlus ModelArk infrastructure.
               </p>
             </div>
             <span className="text-[11px] font-mono text-white/40">4 ACTIVE VARIANTS</span>
@@ -206,7 +352,7 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                         <span className="text-sm font-semibold text-white">{model.label}</span>
                       </div>
                       <span className="text-xs font-mono text-white/75 font-medium tabular-nums">
-                        Rp {model.rateIdr.toLocaleString('id-ID')}
+                        {model.costGenerate} CR
                       </span>
                     </div>
 
@@ -222,7 +368,10 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                         Native: 720P
                       </span>
                       <span className="px-2 py-0.5 rounded bg-white/[0.03] border border-white/[0.07]">
-                        Max: 8,000 Chars
+                        Max: 30,000 Words
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-white/[0.03] border border-white/[0.07]">
+                        Up to 30 Refs
                       </span>
                       {model.isR2V && (
                         <span className="px-2 py-0.5 rounded bg-white/[0.08] border border-white/[0.2] text-white">
@@ -253,7 +402,7 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                 Recent Generation Activity
               </h2>
               <p className="text-xs text-white/50">
-                Latest jobs submitted to the Seedance 2.5 generation pipeline.
+                Latest jobs submitted to your Seedance 2.5 generation pipeline.
               </p>
             </div>
             <button
@@ -268,15 +417,19 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
           {recentItems.length === 0 ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-8 text-center space-y-3">
               <Clock className="w-8 h-8 text-white/30 mx-auto" />
-              <div className="text-sm font-medium text-white/80">No Generation History Yet</div>
+              <div className="text-sm font-medium text-white/80">
+                {isAuthenticated ? 'No Generation History Yet' : 'Sign In for Personal Workspace History'}
+              </div>
               <p className="text-xs text-white/50 max-w-md mx-auto">
-                Submit your first prompt using the Video Generator to initiate a Seedance 2.5 render.
+                {isAuthenticated
+                  ? 'Submit your first prompt using the Video Generator to initiate a Seedance 2.5 render.'
+                  : 'Authenticate with your VAIURE account to persist your renders, credits, and AI creative memory.'}
               </p>
               <button
-                onClick={() => onOpenGenerator()}
+                onClick={() => (!isAuthenticated && onRequireAuth ? onRequireAuth() : onOpenGenerator())}
                 className="mt-2 px-4 py-2 rounded-lg bg-white text-black font-semibold text-xs tracking-wider uppercase hover:bg-white/90 transition-all cursor-pointer"
               >
-                Create First Video
+                {isAuthenticated ? 'Create First Video' : 'Sign In Now'}
               </button>
             </div>
           ) : (
@@ -290,7 +443,6 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
                   className="rounded-xl border border-white/[0.1] bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05] p-3.5 space-y-3 transition-all cursor-pointer group flex flex-col justify-between"
                 >
                   <div className="space-y-2">
-                    {/* Media Thumbnail or Placeholder */}
                     <div className="w-full aspect-video rounded-lg overflow-hidden bg-neutral-900 border border-white/[0.08] relative flex items-center justify-center">
                       {item.result_url && (item.result_url.endsWith('.mp4') || item.result_url.endsWith('.webm')) ? (
                         <video
@@ -326,7 +478,7 @@ export const SeedanceOverviewDashboard: React.FC<SeedanceOverviewDashboardProps>
 
                   <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-white/40">
                     <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                    <span>{item.cost_generate} GEN</span>
+                    <span>{item.cost_generate} CR</span>
                   </div>
                 </div>
               ))}

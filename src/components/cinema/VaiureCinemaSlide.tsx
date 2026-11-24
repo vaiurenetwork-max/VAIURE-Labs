@@ -18,6 +18,8 @@ import {
   Maximize2,
   Sliders,
   Layers,
+  Play,
+  Pause,
 } from 'lucide-react';
 
 interface VaiureCinemaSlideProps {
@@ -57,6 +59,7 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
   // Hero Touch swipe state for intuitive mobile project cycling
   const [touchHeroStartX, setTouchHeroStartX] = useState<number | null>(null);
   const [touchHeroStartY, setTouchHeroStartY] = useState<number | null>(null);
+  const [isAutoCycling, setIsAutoCycling] = useState(false);
 
   const localizedProjects = useMemo(() => {
     return getLocalizedCinemaProjects(CINEMA_PROJECTS, language);
@@ -153,18 +156,27 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Keyboard navigation for cinematic switching (ArrowUp / ArrowDown)
+  // Auto-cycle slideshow timer when toggled on
+  useEffect(() => {
+    if (!isAutoCycling || selectedDossierProject || isWorkModalOpen || isInfoModalOpen) return;
+    const cycleTimer = setInterval(() => {
+      setActiveProjectIdx((prev) => (prev + 1) % localizedProjects.length);
+    }, 6500);
+    return () => clearInterval(cycleTimer);
+  }, [isAutoCycling, localizedProjects.length, selectedDossierProject, isWorkModalOpen, isInfoModalOpen]);
+
+  // Keyboard navigation for cinematic switching (Arrows + Enter/Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (selectedDossierProject || isWorkModalOpen || isInfoModalOpen) return;
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         e.preventDefault();
-        setActiveProjectIdx((prev) => (prev + 1) % CINEMA_PROJECTS.length);
-      } else if (e.key === 'ArrowUp') {
+        setActiveProjectIdx((prev) => (prev + 1) % localizedProjects.length);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
         e.preventDefault();
-        setActiveProjectIdx((prev) => (prev - 1 + CINEMA_PROJECTS.length) % CINEMA_PROJECTS.length);
+        setActiveProjectIdx((prev) => (prev - 1 + localizedProjects.length) % localizedProjects.length);
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         setSelectedDossierProject(activeProject);
@@ -173,7 +185,7 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDossierProject, isWorkModalOpen, isInfoModalOpen, activeProject]);
+  }, [selectedDossierProject, isWorkModalOpen, isInfoModalOpen, activeProject, localizedProjects.length]);
 
   // Keep active project in view inside bottom scroll ribbon
   useEffect(() => {
@@ -210,7 +222,11 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full min-h-0 bg-[#050507] text-[#ECECE9] overflow-hidden select-none flex flex-col justify-between font-sans">
+    <div
+      onTouchStart={handleHeroTouchStart}
+      onTouchEnd={handleHeroTouchEnd}
+      className="relative w-full h-full min-h-0 bg-[#050507] text-[#ECECE9] overflow-hidden select-none flex flex-col justify-between font-sans"
+    >
       {/* ======================================================== */}
       {/* 1. CINEMATIC FULL-BLEED HERO BACKGROUND BACKDROP         */}
       {/* ======================================================== */}
@@ -308,28 +324,50 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
         </div>
 
         {/* Center: Live 24fps Cinema Timecode Whisper */}
-        <div className="hidden md:flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-white/50 tabular-nums">
-          <span className="w-1.5 h-1.5 rounded-full bg-white/60 animate-subtle-glow" />
+        <div className="hidden md:flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-white/55 tabular-nums whitespace-nowrap shrink-0">
           <span>{timecode}</span>
-          <span className="text-white/25">·</span>
+          <span className="text-white/25" aria-hidden="true">·</span>
           <span>24 FPS</span>
+          <span className="text-white/25" aria-hidden="true">·</span>
+          <span className="text-white/75">
+            {String(activeProjectIdx + 1).padStart(2, '0')} / {String(localizedProjects.length).padStart(2, '0')}
+          </span>
         </div>
 
-        {/* Right: Sound, Work, Studio, and Menu */}
-        <div className="flex items-center gap-2">
+        {/* Right: Auto-cycle, Sound, Work, Studio, and Menu */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Auto-Cycle Slideshow Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsAutoCycling((prev) => !prev)}
+            className={`min-h-[44px] sm:min-h-[32px] px-2 sm:px-2.5 flex items-center gap-1.5 rounded-sm border text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+              isAutoCycling
+                ? 'bg-white text-black border-white font-semibold'
+                : 'bg-white/5 hover:bg-white/10 border-white/15 text-white/75 hover:text-white'
+            }`}
+            title={isAutoCycling ? 'Pause showcase reel' : 'Auto-cycle showcase reel'}
+            aria-label={isAutoCycling ? 'Pause showcase reel' : 'Auto-cycle showcase reel'}
+          >
+            {isAutoCycling ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            <span className="hidden md:inline">{isAutoCycling ? 'REEL ON' : 'REEL'}</span>
+          </button>
+
           {/* Ambient Sound Toggle */}
           <button
+            type="button"
             onClick={toggleAmbientSound}
-            className="p-1.5 rounded-full bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center rounded-sm bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-colors cursor-pointer shrink-0"
             title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-white" />}
           </button>
 
           {/* Work Modal Trigger */}
           <button
+            type="button"
             onClick={() => setIsWorkModalOpen(true)}
-            className="px-2.5 py-1 text-[10px] font-mono text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 rounded-sm transition-colors cursor-pointer"
+            className="min-h-[44px] sm:min-h-[32px] px-2.5 py-1 text-[10px] font-mono text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
             title="Browse Complete Work Portfolio"
           >
             <span>{t('cinemaWork') || 'WORK'}</span>
@@ -338,11 +376,11 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
           {/* Studio Slide 04 Trigger */}
           {onGoToLabs && (
             <button
+              type="button"
               onClick={onGoToLabs}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono text-white bg-white/10 hover:bg-white/20 border border-white/25 rounded-sm transition-colors cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono text-white bg-white/10 hover:bg-white/20 border border-white/25 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
               title="Enter VAIURE Studio (Slide 04)"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-subtle-glow" />
               <span>STUDIO</span>
             </button>
           )}
@@ -350,9 +388,10 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
           {/* Menu Drawer button */}
           {onOpenMenu && (
             <button
+              type="button"
               onClick={onOpenMenu}
               aria-label="Open Navigation Menu"
-              className="p-1.5 rounded-sm bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white transition-colors cursor-pointer"
+              className="min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center rounded-sm bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 hover:text-white transition-colors cursor-pointer shrink-0"
               title="Open Navigation Menu"
             >
               <Layers className="w-3.5 h-3.5" />
@@ -402,14 +441,23 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
         data-no-slide-swipe="true"
         className="relative z-30 w-full bg-black/85 backdrop-blur-xl border-t border-white/10 px-4 sm:px-8 lg:px-12 py-2.5 sm:py-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] select-none"
       >
+        {/* Top subtle progress hairline across projects */}
+        <div
+          className="absolute top-0 left-0 h-[1.5px] bg-white/75 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
+          style={{ width: `${((activeProjectIdx + 1) / Math.max(1, localizedProjects.length)) * 100}%` }}
+          aria-hidden="true"
+        />
+
         <div className="w-full flex items-center justify-between gap-2 sm:gap-4">
           {/* Scroll Navigation Arrow Left */}
           <button
+            type="button"
             onClick={() =>
               setActiveProjectIdx((prev) => (prev - 1 + localizedProjects.length) % localizedProjects.length)
             }
-            className="hidden sm:flex p-2 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0"
+            className="hidden sm:flex min-w-[36px] min-h-[36px] items-center justify-center rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0"
             title="Previous project (←)"
+            aria-label="Previous project"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>

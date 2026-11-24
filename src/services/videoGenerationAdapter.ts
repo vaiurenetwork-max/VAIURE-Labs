@@ -1,12 +1,13 @@
 /**
  * VAIURE Studio — Video & Image Generation Provider Adapter Architecture
- * Connects the original Total VAIURE Studio UI/UX to the real backend endpoints:
- * - /api/ai/generate & /api/ai/jobs/:jobCode (PosBot Developer API v1)
+ * Connects the VAIURE Studio UI/UX to the real backend endpoints:
+ * - /api/ai/generate & /api/ai/jobs/:jobCode (ByteDance BytePlus ModelArk API v3)
  * - /api/prompt/generate-image (Gemini Keyframe & Look-Dev Engine)
  * - /api/midjourney/* & /api/generate (Official Discord v9 /imagine Bridge)
  */
 
 import { AspectRatio } from '../types/studio';
+import { getAuthHeaders } from '../lib/authHeaders';
 
 export type StudioGenerationMode =
   | 'image-gen'
@@ -17,7 +18,7 @@ export type StudioGenerationMode =
 
 export interface VideoModelProvider {
   id: string;
-  posbotModelKey?: string;
+  bytedanceModelKey?: string;
   name: string;
   provider: string;
   description: string;
@@ -27,7 +28,7 @@ export interface VideoModelProvider {
   supportedResolutions: ('1080p' | '4K')[];
   maxResolution: '1080p' | '4K';
   creditCostPerSec: number;
-  flatGenerateCost?: number; // PosBot Generate unit cost (1 Gen = Rp 400)
+  flatGenerateCost?: number; // Generate unit cost (1 Credit = Rp 600)
   maxPromptLength?: number;
   maxReferenceImages?: number;
   requiresSwapImage?: boolean;
@@ -67,14 +68,15 @@ export interface GenerationSubmissionResult {
   estimatedTimeSec: number;
 }
 
-async function submitToPosBotBackend(
-  posbotModelKey: string,
+async function submitToByteDanceBackend(
+  bytedanceModelKey: string,
   params: VideoGenerationRequest
 ): Promise<GenerationSubmissionResult> {
   const payload: Record<string, unknown> = {
-    model: posbotModelKey,
+    model: bytedanceModelKey,
     prompt: params.prompt,
     aspect_ratio: params.aspectRatio,
+    duration: params.duration || undefined,
   };
 
   if (params.firstFrameImageUrl) {
@@ -82,9 +84,6 @@ async function submitToPosBotBackend(
   }
   if (params.endFrameImageUrl) {
     payload.end_image_url = params.endFrameImageUrl;
-  }
-  if (params.swapImageUrl) {
-    payload.swap_image = params.swapImageUrl;
   }
   if (params.sourceVideoUrl) {
     payload.video_url = params.sourceVideoUrl;
@@ -102,7 +101,7 @@ async function submitToPosBotBackend(
 
   const res = await fetch('/api/ai/generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload),
   });
   const data = await res.json();
@@ -111,7 +110,7 @@ async function submitToPosBotBackend(
     return {
       jobId: `job-failed-${Date.now()}`,
       status: 'FAILED',
-      error: data.error || 'PosBot generation submission failed.',
+      error: data.error || 'ByteDance ModelArk generation submission failed.',
       estimatedTimeSec: 0,
     };
   }
@@ -197,13 +196,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
   },
 
   // ============================================================================
-  // POSBOT v1 IMAGE GENERATION & IMAGE EDITING MODELS (/api/ai/generate)
+  // BYTEDANCE MODELARK IMAGE GENERATION & IMAGE EDITING MODELS (/api/ai/generate)
   // ============================================================================
   flux_2_pro: {
     id: 'flux_2_pro',
-    posbotModelKey: 'flux_2_pro',
-    name: 'Flux 2 Pro (PosBot v1)',
-    provider: 'PosBot Image Engine',
+    bytedanceModelKey: 'flux_2_pro',
+    name: 'Flux 2 Pro (ByteDance ModelArk)',
+    provider: 'ByteDance Image Engine',
     description: 'Photorealistic Flux 2 Pro synthesis; supports up to 6 reference images (1 Gen / Rp 400).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -215,13 +214,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2000,
     maxReferenceImages: 6,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('flux_2_pro', params),
+    submitJob: (params) => submitToByteDanceBackend('flux_2_pro', params),
   },
   gpt_image_25: {
     id: 'gpt_image_25',
-    posbotModelKey: 'gpt_image_25',
-    name: 'GPT Image 2.5 (PosBot v1)',
-    provider: 'PosBot Image Engine',
+    bytedanceModelKey: 'gpt_image_25',
+    name: 'GPT Image 2.5 (ByteDance ModelArk)',
+    provider: 'ByteDance Image Engine',
     description: 'Up to 16 reference images & 20,000-char prompt limit for complex scene composition (2 Gen / Rp 800).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -233,13 +232,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 20000,
     maxReferenceImages: 16,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('gpt_image_25', params),
+    submitJob: (params) => submitToByteDanceBackend('gpt_image_25', params),
   },
   gpt_image_25_sunburst: {
     id: 'gpt_image_25_sunburst',
-    posbotModelKey: 'gpt_image_25_sunburst',
+    bytedanceModelKey: 'gpt_image_25_sunburst',
     name: 'GPT Image 2.5 Sunburst',
-    provider: 'PosBot Image Engine',
+    provider: 'ByteDance Image Engine',
     description: 'Sunburst optical lighting profile; up to 16 reference images & 20,000-char prompt limit (2 Gen).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -251,13 +250,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 20000,
     maxReferenceImages: 16,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('gpt_image_25_sunburst', params),
+    submitJob: (params) => submitToByteDanceBackend('gpt_image_25_sunburst', params),
   },
   nano_banana_pro_4k: {
     id: 'nano_banana_pro_4k',
-    posbotModelKey: 'nano_banana_pro_4k',
-    name: 'Nano Banana Pro 4K (PosBot v1)',
-    provider: 'PosBot Image Engine',
+    bytedanceModelKey: 'nano_banana_pro_4k',
+    name: 'Nano Banana Pro 4K (ByteDance ModelArk)',
+    provider: 'ByteDance Image Engine',
     description: 'True 4K resolution keyframe synthesis with up to 4 reference images (4 Gen / Rp 1.600).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -269,13 +268,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2000,
     maxReferenceImages: 4,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('nano_banana_pro_4k', params),
+    submitJob: (params) => submitToByteDanceBackend('nano_banana_pro_4k', params),
   },
   seedream_50_4k: {
     id: 'seedream_50_4k',
-    posbotModelKey: 'seedream_50_4k',
+    bytedanceModelKey: 'seedream_50_4k',
     name: 'Seedream 5.0 4K',
-    provider: 'PosBot Image Engine',
+    provider: 'ByteDance Image Engine',
     description: '4K ByteDance Seedream 5.0 image synthesis; supports up to 4 reference images (2 Gen).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -287,13 +286,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2000,
     maxReferenceImages: 4,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('seedream_50_4k', params),
+    submitJob: (params) => submitToByteDanceBackend('seedream_50_4k', params),
   },
   seedream_5_pro_2k: {
     id: 'seedream_5_pro_2k',
-    posbotModelKey: 'seedream_5_pro_2k',
+    bytedanceModelKey: 'seedream_5_pro_2k',
     name: 'Seedream 5 Pro 2K',
-    provider: 'PosBot Image Engine',
+    provider: 'ByteDance Image Engine',
     description: 'Supports up to 10 reference images and 3,000-character prompts (2 Gen).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -305,13 +304,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 3000,
     maxReferenceImages: 10,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('seedream_5_pro_2k', params),
+    submitJob: (params) => submitToByteDanceBackend('seedream_5_pro_2k', params),
   },
   krea2_2k: {
     id: 'krea2_2k',
-    posbotModelKey: 'krea2_2k',
+    bytedanceModelKey: 'krea2_2k',
     name: 'Krea 2 (2K)',
-    provider: 'PosBot Image Engine',
+    provider: 'ByteDance Image Engine',
     description: 'High-detail 2K optical texture synthesis (1 Gen / Rp 400).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -322,13 +321,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     flatGenerateCost: 1,
     maxPromptLength: 2000,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('krea2_2k', params),
+    submitJob: (params) => submitToByteDanceBackend('krea2_2k', params),
   },
   face_swap: {
     id: 'face_swap',
-    posbotModelKey: 'face_swap',
+    bytedanceModelKey: 'face_swap',
     name: 'Face Swap (Image Edit)',
-    provider: 'PosBot Image Enhance',
+    provider: 'ByteDance Image Enhance',
     description: 'Swaps source face (swap_image) onto target base image (image_url) (1 Gen / Rp 400).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -340,13 +339,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2500,
     requiresSwapImage: true,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('face_swap', params),
+    submitJob: (params) => submitToByteDanceBackend('face_swap', params),
   },
   upscale_4k: {
     id: 'upscale_4k',
-    posbotModelKey: 'upscale_4k',
+    bytedanceModelKey: 'upscale_4k',
     name: 'Upscale 4K (Image Enhance)',
-    provider: 'PosBot Image Enhance',
+    provider: 'ByteDance Image Enhance',
     description: 'Upscales source image_url to crisp 4K resolution (1 Gen / Rp 400).',
     supportedModes: ['image-gen'],
     supportedDurations: [0],
@@ -357,17 +356,17 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     flatGenerateCost: 1,
     maxPromptLength: 2000,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('upscale_4k', params),
+    submitJob: (params) => submitToByteDanceBackend('upscale_4k', params),
   },
 
   // ============================================================================
-  // SEEDANCE 2.5 & POSBOT v1 VIDEO GENERATION MODELS (/api/ai/generate)
+  // SEEDANCE 2.5 & BYTEDANCE MODELARK VIDEO GENERATION MODELS (/api/ai/generate)
   // ============================================================================
   'seedance-2.5-ref-video': {
     id: 'seedance-2.5-ref-video',
-    posbotModelKey: 'seedance_25_15s_r2v',
+    bytedanceModelKey: 'seedance_25_15s_r2v',
     name: 'Seedance 2.5 Ref-Video (15s)',
-    provider: 'PosBot Seedance 2.5 Engine',
+    provider: 'ByteDance Seedance 2.5 Engine',
     description:
       'Flagship Seedance 2.5 multi-reference character, wardrobe, and vehicle LHD/RHD continuity @ 24fps (up to 9 refs, 8,000 chars).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
@@ -381,7 +380,7 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxReferenceImages: 9,
     isBackendConfigured: true,
     submitJob: (params) =>
-      submitToPosBotBackend(
+      submitToByteDanceBackend(
         params.duration >= 30
           ? params.mode === 'ref-video'
             ? 'seedance_25_30s_r2v'
@@ -394,9 +393,9 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
   },
   seedance_25_15s: {
     id: 'seedance_25_15s',
-    posbotModelKey: 'seedance_25_15s',
+    bytedanceModelKey: 'seedance_25_15s',
     name: 'Seedance 2.5 (15s T2V/I2V)',
-    provider: 'PosBot Seedance 2.5 Engine',
+    provider: 'ByteDance Seedance 2.5 Engine',
     description: '15s multi-shot Seedance 2.5 video synthesis; up to 9 reference images & 8,000-char prompt (4 Gen).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
     supportedDurations: [15],
@@ -408,13 +407,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 8000,
     maxReferenceImages: 9,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('seedance_25_15s', params),
+    submitJob: (params) => submitToByteDanceBackend('seedance_25_15s', params),
   },
   seedance_25_30s: {
     id: 'seedance_25_30s',
-    posbotModelKey: 'seedance_25_30s',
+    bytedanceModelKey: 'seedance_25_30s',
     name: 'Seedance 2.5 (30s Extended)',
-    provider: 'PosBot Seedance 2.5 Engine',
+    provider: 'ByteDance Seedance 2.5 Engine',
     description: '30s extended multi-shot narrative sequence; up to 9 reference images & 8,000-char prompt (7 Gen).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
     supportedDurations: [30],
@@ -426,13 +425,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 8000,
     maxReferenceImages: 9,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('seedance_25_30s', params),
+    submitJob: (params) => submitToByteDanceBackend('seedance_25_30s', params),
   },
   seedance_25_30s_r2v: {
     id: 'seedance_25_30s_r2v',
-    posbotModelKey: 'seedance_25_30s_r2v',
+    bytedanceModelKey: 'seedance_25_30s_r2v',
     name: 'Seedance 2.5 (30s R2V)',
-    provider: 'PosBot Seedance 2.5 Engine',
+    provider: 'ByteDance Seedance 2.5 Engine',
     description: '30s Reference-to-Video multi-character & vehicle continuity lock (up to 9 images, 7 Gen).',
     supportedModes: ['ref-video', 'image-to-video'],
     supportedDurations: [30],
@@ -444,13 +443,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 8000,
     maxReferenceImages: 9,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('seedance_25_30s_r2v', params),
+    submitJob: (params) => submitToByteDanceBackend('seedance_25_30s_r2v', params),
   },
   kling_30_5s: {
     id: 'kling_30_5s',
-    posbotModelKey: 'kling_30_5s',
+    bytedanceModelKey: 'kling_30_5s',
     name: 'Kling 3.0 (5s / 10s / 15s)',
-    provider: 'PosBot Kling 3.0 Engine',
+    provider: 'ByteDance Kling 3.0 Engine',
     description:
       'Kling 3.0 cinematic video synthesis with optional start image_url and end_image_url keyframe interpolation (4–6 Gen).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
@@ -470,14 +469,14 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
           : params.duration >= 10
           ? 'kling_30_10s'
           : 'kling_30_5s';
-      return submitToPosBotBackend(key, params);
+      return submitToByteDanceBackend(key, params);
     },
   },
   wan_30_hd: {
     id: 'wan_30_hd',
-    posbotModelKey: 'wan_30_hd',
+    bytedanceModelKey: 'wan_30_hd',
     name: 'Wan 3.0 HD (10,000 Chars)',
-    provider: 'PosBot Wan 3.0 Engine',
+    provider: 'ByteDance Wan 3.0 Engine',
     description: 'High-definition Wan 3.0 T2V, I2V & R2V synthesis supporting 10,000-character screenplays (4 Gen).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
     supportedDurations: [5, 10],
@@ -489,13 +488,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 10000,
     isBackendConfigured: true,
     submitJob: (params) =>
-      submitToPosBotBackend(params.mode === 'ref-video' ? 'wan_30_r2v' : 'wan_30_hd', params),
+      submitToByteDanceBackend(params.mode === 'ref-video' ? 'wan_30_r2v' : 'wan_30_hd', params),
   },
   minimax_h3: {
     id: 'minimax_h3',
-    posbotModelKey: 'minimax_h3',
+    bytedanceModelKey: 'minimax_h3',
     name: 'MiniMax H3 HD',
-    provider: 'PosBot MiniMax Engine',
+    provider: 'ByteDance MiniMax Engine',
     description: 'MiniMax H3 HD expressive character & camera synthesis; 5,000-character prompt limit (4 Gen).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
     supportedDurations: [6, 10],
@@ -507,13 +506,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 5000,
     isBackendConfigured: true,
     submitJob: (params) =>
-      submitToPosBotBackend(params.mode === 'ref-video' ? 'minimax_h3_r2v' : 'minimax_h3', params),
+      submitToByteDanceBackend(params.mode === 'ref-video' ? 'minimax_h3_r2v' : 'minimax_h3', params),
   },
   grok_imagine_2_15s: {
     id: 'grok_imagine_2_15s',
-    posbotModelKey: 'grok_imagine_2_15s',
+    bytedanceModelKey: 'grok_imagine_2_15s',
     name: 'Grok Imagine 2 (15s / 30s)',
-    provider: 'PosBot Grok Video Engine',
+    provider: 'ByteDance Grok Video Engine',
     description: 'Grok Imagine 2 long-form 15s and 30s video generation; 5,000-char prompt limit (4–7 Gen).',
     supportedModes: ['text-to-video', 'image-to-video'],
     supportedDurations: [15, 30],
@@ -525,16 +524,16 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 5000,
     isBackendConfigured: true,
     submitJob: (params) =>
-      submitToPosBotBackend(
+      submitToByteDanceBackend(
         params.duration >= 30 ? 'grok_imagine_2_30s' : 'grok_imagine_2_15s',
         params
       ),
   },
   'veo-3.1-generate-preview': {
     id: 'veo-3.1-generate-preview',
-    posbotModelKey: 'omni_flash_t2v',
+    bytedanceModelKey: 'omni_flash_t2v',
     name: 'Omni Flash / Veo 3.1 Cinema',
-    provider: 'PosBot Omni Flash Engine',
+    provider: 'ByteDance Omni Flash Engine',
     description: 'High-definition cinematic T2V and I2V synthesis with physical camera optics (3 Gen / Rp 1.200).',
     supportedModes: ['text-to-video', 'image-to-video', 'ref-video'],
     supportedDurations: [5, 8],
@@ -546,16 +545,16 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2500,
     isBackendConfigured: true,
     submitJob: (params) =>
-      submitToPosBotBackend(
+      submitToByteDanceBackend(
         params.firstFrameImageUrl ? 'omni_flash_i2v' : 'omni_flash_t2v',
         params
       ),
   },
   kling_30_pro: {
     id: 'kling_30_pro',
-    posbotModelKey: 'kling_30_pro',
+    bytedanceModelKey: 'kling_30_pro',
     name: 'Kling 3.0 Motion Control Pro',
-    provider: 'PosBot Motion Transfer',
+    provider: 'ByteDance Motion Transfer',
     description: 'Transfers choreography from reference video_url onto character image_url (5 Gen / Rp 2.000).',
     supportedModes: ['image-to-video', 'ref-video'],
     supportedDurations: [5, 10],
@@ -567,13 +566,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2500,
     requiresVideoUrl: true,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('kling_30_pro', params),
+    submitJob: (params) => submitToByteDanceBackend('kling_30_pro', params),
   },
   betamotion_1080p_max: {
     id: 'betamotion_1080p_max',
-    posbotModelKey: 'betamotion_1080p_max',
+    bytedanceModelKey: 'betamotion_1080p_max',
     name: 'BetaMotion 1080p Max',
-    provider: 'PosBot Motion Transfer',
+    provider: 'ByteDance Motion Transfer',
     description: 'High-fidelity 1080p motion transfer from reference video_url onto character image_url (7 Gen).',
     supportedModes: ['image-to-video', 'ref-video'],
     supportedDurations: [10],
@@ -585,13 +584,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2500,
     requiresVideoUrl: true,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('betamotion_1080p_max', params),
+    submitJob: (params) => submitToByteDanceBackend('betamotion_1080p_max', params),
   },
   upscale_2k_60fps: {
     id: 'upscale_2k_60fps',
-    posbotModelKey: 'upscale_2k_60fps',
+    bytedanceModelKey: 'upscale_2k_60fps',
     name: 'Upscale Video 2K 60FPS',
-    provider: 'PosBot Video Enhance',
+    provider: 'ByteDance Video Enhance',
     description: 'Upscales source video_url to 2K resolution at smooth 60fps (3 Gen / Rp 1.200).',
     supportedModes: ['ref-video', 'image-to-video'],
     supportedDurations: [10],
@@ -603,13 +602,13 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2500,
     requiresVideoUrl: true,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('upscale_2k_60fps', params),
+    submitJob: (params) => submitToByteDanceBackend('upscale_2k_60fps', params),
   },
   watermark_remover: {
     id: 'watermark_remover',
-    posbotModelKey: 'watermark_remover',
+    bytedanceModelKey: 'watermark_remover',
     name: 'Video Watermark Remover',
-    provider: 'PosBot Video Enhance',
+    provider: 'ByteDance Video Enhance',
     description: 'Cleanly removes overlay watermarks from source video_url (2 Gen / Rp 800).',
     supportedModes: ['ref-video', 'image-to-video'],
     supportedDurations: [10],
@@ -621,7 +620,7 @@ export const VIDEO_PROVIDERS: Record<string, VideoModelProvider> = {
     maxPromptLength: 2500,
     requiresVideoUrl: true,
     isBackendConfigured: true,
-    submitJob: (params) => submitToPosBotBackend('watermark_remover', params),
+    submitJob: (params) => submitToByteDanceBackend('watermark_remover', params),
   },
 };
 

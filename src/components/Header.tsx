@@ -35,10 +35,11 @@ interface HeaderProps {
   onGoToShorts?: () => void;
   onOpenSlideMenu?: () => void;
   onOpenCopyStudio?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  activeSlide = 1,
+  activeSlide = 2,
   activeSection,
   currentUser,
   unreadNotificationsCount = 0,
@@ -63,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSlideMenu,
   onOpenMessages,
   onOpenCopyStudio,
+  onOpenCommandPalette,
 }) => {
   const { t } = useLanguage();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -88,13 +90,12 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, []);
 
-  // When on Slide 1 (Threads feed, activeSlide === 0) or Slide 3 (Cinema, activeSlide === 2), do not render Header
-  if (typeof activeSlide === 'number' && activeSlide !== 1) {
+  // Render Header exclusively inside Slide 02 (Curatorial Archive)
+  if (typeof activeSlide === 'number' && activeSlide !== 2) {
     return null;
   }
 
-  // Refined essential primary navigation links:
-  // Short, familiar, one-word editorial categories representing the platform's core destinations
+  // Essential primary navigation links
   const navLinks = [
     { id: 'social-feed', label: t('explore') },
     { id: 'film', label: t('navFilm') },
@@ -115,11 +116,11 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       className={`sticky top-0 left-0 right-0 z-30 pt-[max(0rem,env(safe-area-inset-top))] transition-colors duration-300 select-none ${
         isScrolled
-          ? 'bg-[#050507]/95 backdrop-blur-md border-b border-white/[0.08] shadow-sm'
-          : 'bg-[#050507]/80 backdrop-blur-sm border-b border-white/[0.04]'
+          ? 'bg-[#050507]/95 backdrop-blur-xl border-b border-white/[0.1] shadow-[0_8px_32px_rgba(0,0,0,0.45)]'
+          : 'bg-[#050507]/80 backdrop-blur-md border-b border-white/[0.06]'
       }`}
     >
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-11 sm:h-12 flex items-center justify-between gap-3">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-12 flex items-center justify-between gap-3">
         {/* LEFT: Wordmark */}
         <div className="flex items-center gap-4 shrink-0">
           <a
@@ -128,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
               e.preventDefault();
               handleLinkClick('hero');
             }}
-            className="group flex items-baseline gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40 rounded-sm"
+            className="group flex items-baseline gap-1.5 cursor-pointer rounded-sm whitespace-nowrap shrink-0"
             title="VAIURE 唯昱尔 — Return to Top"
           >
             <span className="font-display text-sm sm:text-base font-bold tracking-[0.2em] uppercase text-white group-hover:text-white/80 transition-colors">
@@ -141,19 +142,19 @@ export const Header: React.FC<HeaderProps> = ({
           </a>
 
           {/* Subtle Spatial Slide Switcher (01 · 02 · 03 · 04) */}
-          <div className="hidden xl:flex items-center gap-1 pl-3 border-l border-white/10 text-[10px] font-mono text-white/45">
+          <div className="hidden xl:flex items-center gap-1 pl-3 border-l border-white/10 text-[10px] font-mono text-white/45 tabular-nums">
             {onBackToThreads && (
               <button
                 onClick={onBackToThreads}
                 title="Slide 01: Threads Discourse"
-                className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 01
               </button>
             )}
             <span
               title="Slide 02: Curatorial Archive"
-              className="px-1.5 py-0.5 rounded bg-white text-black font-bold"
+              className="px-1.5 py-0.5 rounded bg-white text-black font-bold whitespace-nowrap shrink-0"
             >
               02
             </span>
@@ -161,7 +162,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onGoToCinema}
                 title="Slide 03: Cinema Portfolio"
-                className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 03
               </button>
@@ -170,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onGoToLabs}
                 title="Slide 04: VAIURE Studio & Labs"
-                className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded hover:bg-white/[0.08] hover:text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 04
               </button>
@@ -189,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 key={link.id}
                 onClick={() => handleLinkClick(link.id, link.isShorts)}
-                className={`editorial-link py-1 transition-colors cursor-pointer ${
+                className={`editorial-link py-1 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   isActive
                     ? 'text-white font-semibold editorial-link-active'
                     : 'text-white/55 hover:text-white'
@@ -208,10 +209,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenCopyStudio}
               aria-label="AI Copy Studio"
-              title="VAIURE AI Copy Studio & Editorial Replication Engine (Gemini 3.8 Flash)"
-              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-[11px] font-mono tracking-wider text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/10 border border-white/12 transition-all rounded-sm cursor-pointer active:scale-95"
+              title="VAIURE AI Copy Studio"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] sm:text-[11px] font-mono tracking-wider text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/10 border border-white/12 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 min-h-[36px]"
             >
-              <Sparkles className="w-3.5 h-3.5 text-white/90" />
+              <Sparkles className="w-3.5 h-3.5 text-white/85" />
               <span className="hidden sm:inline">COPY STUDIO</span>
             </button>
           )}
@@ -221,22 +222,22 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onGoToLabs}
               aria-label="VAIURE Studio & Labs"
-              title="Slide 04: VAIURE Filmmaking Studio & Collaborative Labs"
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono tracking-wider text-white bg-white/10 hover:bg-white/20 border border-white/25 transition-all rounded-sm cursor-pointer active:scale-95 shadow-sm"
+              title="Slide 04: Seedance 2.5 Studio & Labs"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] sm:text-[11px] font-mono tracking-wider text-white bg-white/10 hover:bg-white hover:text-black border border-white/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 min-h-[36px]"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-subtle-glow" />
               <span>STUDIO</span>
             </button>
           )}
 
-          {/* Working Search Index Trigger */}
+          {/* Working Search Index / Command Palette Trigger */}
           <button
-            onClick={onOpenIndexDrawer}
+            onClick={onOpenCommandPalette || onOpenIndexDrawer}
             aria-label={t('search')}
-            title={t('search')}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white/65 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40 active:scale-95"
+            title="Search & Command Palette (⌘K)"
+            className="h-9 px-2.5 rounded-full flex items-center justify-center gap-1.5 text-white/70 hover:text-white hover:bg-white/[0.08] border border-transparent hover:border-white/15 transition-colors cursor-pointer active:scale-95 shrink-0"
           >
             <Search className="w-4 h-4" />
+            <span className="hidden xl:inline text-[10px] font-mono text-white/40">⌘K</span>
           </button>
 
           {/* Compact Direct Message Entry Point */}
@@ -245,11 +246,11 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onOpenMessages}
               aria-label="Direct Messages"
               title="Direct Messages // Atelier Dispatches"
-              className="relative w-8 h-8 rounded-full flex items-center justify-center text-white/65 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/40 active:scale-95"
+              className="relative w-9 h-9 rounded-full flex items-center justify-center text-white/65 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer active:scale-95 shrink-0"
             >
               <MessageSquare className="w-4 h-4" />
               {unreadMessagesCount > 0 && (
-                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-white text-black font-mono text-[9px] font-bold flex items-center justify-center leading-none ring-1 ring-black">
+                <span className="absolute top-1 right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-white text-black font-mono text-[9px] font-bold flex items-center justify-center leading-none ring-1 ring-black tabular-nums">
                   {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
                 </span>
               )}
@@ -260,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
           {authState === 'UNAUTHENTICATED' ? (
             <button
               onClick={onOpenAuthModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-white/25 hover:border-white text-[11px] font-mono tracking-wider text-white uppercase transition-colors cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50 active:scale-98"
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-white/25 hover:border-white text-[11px] font-mono tracking-wider text-white uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 min-h-[36px]"
             >
               <Key className="w-3 h-3 text-white/60" />
               <span>{t('signIn')}</span>

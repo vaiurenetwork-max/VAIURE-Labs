@@ -77,12 +77,26 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
   const [isNewThreadOpen, setIsNewThreadOpen] = useState(false);
   const [activeReplyThread, setActiveReplyThread] = useState<ForumThread | null>(null);
   const [activeTab, setActiveTab] = useState<'FOR_YOU' | 'FOLLOWING'>('FOR_YOU');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState<string>('ALL');
+  const [sortBy, setSortBy] = useState<'LATEST' | 'TOP' | 'DISCUSSED'>('LATEST');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [menuThread, setMenuThread] = useState<ForumThread | null>(null);
   const [savedThreadIds, setSavedThreadIds] = useState<string[]>([]);
   const [isNavCompact, setIsNavCompact] = useState(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (lightboxImage) setLightboxImage(null);
+        if (menuThread) setMenuThread(null);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [lightboxImage, menuThread]);
 
   // Clear 10-second navbar inactivity timer
   const clearNavTimer = useCallback(() => {
@@ -225,12 +239,41 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
     }
   };
 
-  const filteredThreads = threads.filter((t) => {
-    if (activeTab === 'FOLLOWING') {
-      return followingUsernames.includes(t.authorUsername) || t.authorUsername === currentUser.username;
-    }
-    return true;
-  });
+  const topicCounts = threads.reduce<Record<string, number>>((acc, item) => {
+    const topicName = item.topic || 'General Discourse';
+    acc[topicName] = (acc[topicName] || 0) + 1;
+    return acc;
+  }, {});
+
+  const availableTopics = ['ALL', ...Object.keys(topicCounts).slice(0, 6)];
+
+  const filteredThreads = threads
+    .filter((item) => {
+      if (activeTab === 'FOLLOWING') {
+        const follows =
+          followingUsernames.includes(item.authorUsername) ||
+          item.authorUsername === currentUser.username;
+        if (!follows) return false;
+      }
+      if (selectedTopic !== 'ALL' && (item.topic || 'General Discourse') !== selectedTopic) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          item.content.toLowerCase().includes(q) ||
+          item.authorUsername.toLowerCase().includes(q) ||
+          (item.authorDisplayName && item.authorDisplayName.toLowerCase().includes(q)) ||
+          (item.topic && item.topic.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'TOP') return (b.likesCount || 0) - (a.likesCount || 0);
+      if (sortBy === 'DISCUSSED') return (b.repliesCount || 0) - (a.repliesCount || 0);
+      return 0;
+    });
 
   const handleScrollToTop = () => {
     const el = document.getElementById('slide-threads-viewport');
@@ -266,15 +309,14 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
 
           {/* Right: Actions Cluster (Search, Language, Menu) */}
           <div className="flex items-center gap-2">
-
             {/* Shorts Button */}
             {onOpenShorts && (
               <button
                 onClick={onOpenShorts}
-                className="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/30 hover:border-red-500/60 text-red-300 hover:text-white text-[10px] font-mono tracking-wider uppercase transition-all flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/15 hover:border-white/40 text-white/85 hover:text-white text-[10px] font-mono tracking-wider uppercase transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 min-h-[36px]"
                 title="Open VAIURE Shorts (Social Video)"
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
                 <span>{t('navShorts')}</span>
               </button>
             )}
@@ -285,11 +327,11 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
                 onClick={onOpenMessages}
                 aria-label="Direct Messages"
                 title="Direct Messages // Atelier Dispatches"
-                className="relative flex w-8 h-8 rounded-full items-center justify-center text-white/70 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/20 transition-all cursor-pointer active:scale-95"
+                className="relative flex w-9 h-9 rounded-full items-center justify-center text-white/70 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/25 transition-all cursor-pointer active:scale-95 shrink-0"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 {unreadMessagesCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[13px] h-[13px] px-1 rounded-full bg-white text-black font-mono text-[8px] font-bold flex items-center justify-center leading-none ring-1 ring-black">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-white text-black font-mono text-[8px] font-bold flex items-center justify-center leading-none ring-1 ring-black tabular-nums">
                     {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
                   </span>
                 )}
@@ -301,7 +343,7 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
               onClick={onOpenSearch}
               aria-label="Search"
               title="Search Archive & Index"
-              className="flex w-8 h-8 rounded-full items-center justify-center text-white/70 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/20 transition-all cursor-pointer active:scale-95"
+              className="flex w-9 h-9 rounded-full items-center justify-center text-white/70 hover:text-white bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/25 transition-all cursor-pointer active:scale-95 shrink-0"
             >
               <Search className="w-3.5 h-3.5" />
             </button>
@@ -312,17 +354,18 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
         </div>
       </header>
 
-      {/* Main Center Stream Container (Scrollable) */}
+      {/* Main Center Stream + Desktop Context Rail Container */}
       <div
         id="slide-threads-viewport"
         className="flex-1 w-full overflow-y-auto overflow-x-hidden min-h-0 select-text"
       >
-        <main className="max-w-[620px] w-full mx-auto pb-16">
+        <div className="max-w-[1040px] mx-auto flex justify-center gap-10 px-0 sm:px-4">
+        <main className="max-w-[620px] w-full pb-20 sm:border-x sm:border-neutral-900">
         {/* Sub-tabs: For You / Following (Native Threads Experience) */}
         <div className="flex border-b border-neutral-900 text-xs font-semibold select-none">
           <button
             onClick={() => setActiveTab('FOR_YOU')}
-            className={`flex-1 py-3 text-center transition-colors relative ${
+            className={`flex-1 py-3.5 text-center transition-colors relative cursor-pointer ${
               activeTab === 'FOR_YOU' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
             }`}
           >
@@ -333,7 +376,7 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('FOLLOWING')}
-            className={`flex-1 py-3 text-center transition-colors relative ${
+            className={`flex-1 py-3.5 text-center transition-colors relative cursor-pointer ${
               activeTab === 'FOLLOWING' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
             }`}
           >
@@ -343,6 +386,67 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
             )}
           </button>
         </div>
+
+        {/* Inline Filter & Sort Strip */}
+        <div className="px-4 py-2.5 border-b border-neutral-900 bg-[#050507] flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-[180px] bg-neutral-950 border border-neutral-800 focus-within:border-white/35 px-2.5 py-1.5 rounded-lg">
+            <Search className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter threads, creators, topics..."
+              className="w-full bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none font-sans"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-neutral-500 hover:text-white text-xs cursor-pointer"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 text-[10px] font-mono">
+            {(['LATEST', 'TOP', 'DISCUSSED'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSortBy(mode)}
+                className={`px-2 py-1 rounded transition-colors cursor-pointer ${
+                  sortBy === mode
+                    ? 'bg-white text-black font-bold'
+                    : 'text-neutral-500 hover:text-white hover:bg-neutral-900'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Topic Filter Pills Row */}
+        {availableTopics.length > 1 && (
+          <div className="px-4 py-2 border-b border-neutral-900 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {availableTopics.map((topic) => (
+              <button
+                key={topic}
+                type="button"
+                onClick={() => setSelectedTopic(topic)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-mono whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                  selectedTopic === topic
+                    ? 'bg-white text-black font-semibold'
+                    : 'bg-neutral-950 border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
+                }`}
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Top Creator Inline Composer Row */}
         <div
@@ -373,11 +477,11 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
               e.stopPropagation();
               setIsNewThreadOpen(true);
             }}
-            className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-mono text-white flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer"
-            title="Upload & Post Image"
+            className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-mono text-white flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer min-h-[36px]"
+            title="Compose & Upload Media"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Upload Media</span>
+            <span>New Thread</span>
           </button>
         </div>
 
@@ -385,12 +489,12 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
         {isLoading && (
           <div className="divide-y divide-neutral-900 p-4 space-y-6">
             {[1, 2, 3].map((n) => (
-              <div key={n} className="flex gap-3 animate-pulse pt-4">
-                <div className="w-10 h-10 rounded-full bg-neutral-900 flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3.5 bg-neutral-900 rounded w-28" />
-                  <div className="h-4 bg-neutral-900 rounded w-4/5" />
-                  <div className="h-4 bg-neutral-900 rounded w-1/2" />
+              <div key={n} className="flex gap-3 pt-4">
+                <div className="w-10 h-10 rounded-full vaiure-shimmer bg-neutral-900 flex-shrink-0" />
+                <div className="flex-1 space-y-2.5">
+                  <div className="h-3.5 vaiure-shimmer bg-neutral-900 rounded w-28" />
+                  <div className="h-4 vaiure-shimmer bg-neutral-900 rounded w-4/5" />
+                  <div className="h-4 vaiure-shimmer bg-neutral-900 rounded w-1/2" />
                 </div>
               </div>
             ))}
@@ -404,26 +508,46 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
             </div>
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-white tracking-tight">
-                {activeTab === 'FOLLOWING' ? t('noThreadsFollowing') : t('noThreadsYet')}
+                {searchQuery || selectedTopic !== 'ALL'
+                  ? 'No matching threads'
+                  : activeTab === 'FOLLOWING'
+                  ? t('noThreadsFollowing')
+                  : t('noThreadsYet')}
               </h3>
               <p className="text-xs text-neutral-500 font-sans max-w-xs mx-auto leading-relaxed">
-                {activeTab === 'FOLLOWING'
+                {searchQuery || selectedTopic !== 'ALL'
+                  ? 'Try clearing your topic or search query to view all creator discourse.'
+                  : activeTab === 'FOLLOWING'
                   ? t('noThreadsFollowingDesc')
                   : t('beFirstToStart')}
               </p>
             </div>
-            <button
-              onClick={() => {
-                if (!currentUser.id) {
-                  onOpenAuthModal?.();
-                  return;
-                }
-                setIsNewThreadOpen(true);
-              }}
-              className="px-5 py-2 bg-white text-black font-semibold text-xs rounded-full hover:bg-neutral-200 transition-colors shadow-md cursor-pointer"
-            >
-              {t('startAThread')}
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              {(searchQuery || selectedTopic !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedTopic('ALL');
+                  }}
+                  className="px-4 py-2 border border-neutral-700 hover:border-white text-xs font-mono text-white rounded-full transition-colors cursor-pointer"
+                >
+                  Reset Filters
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (!currentUser.id) {
+                    onOpenAuthModal?.();
+                    return;
+                  }
+                  setIsNewThreadOpen(true);
+                }}
+                className="px-5 py-2 bg-white text-black font-semibold text-xs rounded-full hover:bg-neutral-200 transition-colors shadow-md cursor-pointer"
+              >
+                {t('startAThread')}
+              </button>
+            </div>
           </div>
         )}
 
@@ -638,6 +762,81 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
           })}
         </div>
         </main>
+
+        {/* Desktop Context Rail (xl+) — Live Discourse Topics & Studio Shortcuts */}
+        <aside className="hidden xl:block w-[300px] shrink-0 py-6 space-y-5 sticky top-0 self-start">
+          <div className="p-4 border border-neutral-900 bg-[#08080b] rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono tracking-[0.2em] text-neutral-400 uppercase">
+                Active Topics
+              </span>
+              <span className="text-[10px] font-mono text-neutral-500 tabular-nums">
+                {threads.length} THREADS
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              {(Object.entries(topicCounts) as [string, number][])
+                .sort((a, b) => Number(b[1]) - Number(a[1]))
+                .slice(0, 6)
+                .map(([topic, count]) => (
+                  <button
+                    key={topic}
+                    type="button"
+                    onClick={() => setSelectedTopic(selectedTopic === topic ? 'ALL' : topic)}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                      selectedTopic === topic
+                        ? 'bg-white text-black font-semibold'
+                        : 'text-neutral-300 hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <span className="truncate">{topic}</span>
+                    <span className={`text-[10px] font-mono tabular-nums ${selectedTopic === topic ? 'text-black/70' : 'text-neutral-500'}`}>
+                      {count}
+                    </span>
+                  </button>
+                ))}
+              {Object.keys(topicCounts).length === 0 && (
+                <p className="text-xs text-neutral-500 py-2">Start a thread to populate active discourse topics.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="p-4 border border-neutral-900 bg-[#08080b] rounded-xl space-y-2.5">
+            <span className="text-[10px] font-mono tracking-[0.2em] text-neutral-400 uppercase block">
+              Jump To Workspace
+            </span>
+            <button
+              type="button"
+              onClick={onOpenSlideTwo}
+              className="w-full px-3 py-2 rounded-lg border border-neutral-800 hover:border-white/30 bg-black/50 text-left text-xs font-mono text-neutral-300 hover:text-white flex items-center justify-between transition-colors cursor-pointer"
+            >
+              <span>02 / Archive</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            {onOpenSlideThree && (
+              <button
+                type="button"
+                onClick={onOpenSlideThree}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-800 hover:border-white/30 bg-black/50 text-left text-xs font-mono text-neutral-300 hover:text-white flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span>03 / Cinema</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onOpenLabs && (
+              <button
+                type="button"
+                onClick={onOpenLabs}
+                className="w-full px-3 py-2 rounded-lg border border-neutral-800 hover:border-white/30 bg-black/50 text-left text-xs font-mono text-neutral-300 hover:text-white flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span>04 / Seedance 2.5</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </aside>
+        </div>
       </div>
 
       {/* Bottom Navigation Area: Anchored footer with 10s auto compact pop-in icon & click pop-out */}

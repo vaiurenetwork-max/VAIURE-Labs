@@ -83,6 +83,15 @@ export const VxImageInputPanel: React.FC<VxImageInputPanelProps> = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, [midjourneyParams, onParamsChange, onPrimaryImageChange]);
 
+  useEffect(() => {
+    if (!showSamplesModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSamplesModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showSamplesModal]);
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -188,7 +197,6 @@ export const VxImageInputPanel: React.FC<VxImageInputPanelProps> = ({
       {/* Panel Header */}
       <div className="px-4 py-3 border-b border-white/[0.08] bg-black/40 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400/90 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
           <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-white/90 font-semibold">
             PANEL A · IMAGE INPUT
           </span>
@@ -268,8 +276,7 @@ export const VxImageInputPanel: React.FC<VxImageInputPanelProps> = ({
             {activeModelLabel && (
               <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-cyan-400/[0.06] border border-cyan-400/20 text-[10px] font-mono">
                 <span className="text-white/60 uppercase">ACTIVE BACKEND:</span>
-                <span className="text-cyan-300 font-semibold flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-cyan-300 font-semibold">
                   {activeModelLabel}
                 </span>
               </div>

@@ -5,7 +5,9 @@
  */
 
 import {
+  auth,
   db,
+  onAuthStateChanged,
   collection,
   doc,
   setDoc,
@@ -64,51 +66,66 @@ export function subscribeToRooms(
   onUpdate: (rooms: CollaborativeRoom[]) => void,
   onError?: (err: any) => void
 ): () => void {
-  // Pre-load local cache or demo data
   const localRooms = getLocal<CollaborativeRoom[]>('rooms', DEMO_ROOMS);
   onUpdate(localRooms);
 
-  try {
-    const roomsRef = collection(db, ROOMS_COLLECTION);
-    const q = query(roomsRef, orderBy('updatedAt', 'desc'), limit(50));
+  let unsubSnapshot: (() => void) | null = null;
+  let disposed = false;
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const fetchedRooms: CollaborativeRoom[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as CollaborativeRoom;
-            fetchedRooms.push({ ...data, id: docSnap.id });
-          });
+  const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    if (disposed) return;
+    if (unsubSnapshot) {
+      unsubSnapshot();
+      unsubSnapshot = null;
+    }
+    if (!firebaseUser) {
+      onUpdate(localRooms);
+      return;
+    }
 
-          // Merge fetched rooms with demo rooms so discovery is always rich
-          const existingIds = new Set(fetchedRooms.map((r) => r.id));
-          const merged = [
-            ...fetchedRooms,
-            ...DEMO_ROOMS.filter((dr) => !existingIds.has(dr.id)),
-          ];
-          setLocal('rooms', merged);
-          onUpdate(merged);
-        } else {
-          // If Firestore collection is empty, seed demo rooms into local view
-          setLocal('rooms', DEMO_ROOMS);
-          onUpdate(DEMO_ROOMS);
+    try {
+      const roomsRef = collection(db, ROOMS_COLLECTION);
+      const q = query(roomsRef, orderBy('updatedAt', 'desc'), limit(50));
+
+      unsubSnapshot = onSnapshot(
+        q,
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const fetchedRooms: CollaborativeRoom[] = [];
+            snapshot.forEach((docSnap) => {
+              const data = docSnap.data() as CollaborativeRoom;
+              fetchedRooms.push({ ...data, id: docSnap.id });
+            });
+
+            const existingIds = new Set(fetchedRooms.map((r) => r.id));
+            const merged = [
+              ...fetchedRooms,
+              ...DEMO_ROOMS.filter((dr) => !existingIds.has(dr.id)),
+            ];
+            setLocal('rooms', merged);
+            onUpdate(merged);
+          } else {
+            setLocal('rooms', DEMO_ROOMS);
+            onUpdate(DEMO_ROOMS);
+          }
+        },
+        (error) => {
+          console.warn('Rooms snapshot error (using local cache):', error.message);
+          onUpdate(localRooms);
+          onError?.(error);
         }
-      },
-      (error) => {
-        console.warn('Rooms snapshot error (using local cache):', error.message);
-        handleFirestoreError(error, OperationType.GET, ROOMS_COLLECTION);
-        onError?.(error);
-      }
-    );
+      );
+    } catch (err) {
+      console.warn('Fallback to local rooms storage:', err);
+      onUpdate(localRooms);
+    }
+  });
 
-    return unsubscribe;
-  } catch (err) {
-    console.warn('Fallback to local rooms storage:', err);
-    onUpdate(localRooms);
-    return () => {};
-  }
+  return () => {
+    disposed = true;
+    unsubAuth();
+    if (unsubSnapshot) unsubSnapshot();
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SocialPost, UserProfile } from '../../types/social';
 import { X, Search, ArrowRight, User } from 'lucide-react';
 
@@ -20,6 +20,15 @@ export const IndexDrawer: React.FC<IndexDrawerProps> = ({
   onSelectUserProfile,
 }) => {
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -53,16 +62,24 @@ export const IndexDrawer: React.FC<IndexDrawerProps> = ({
   const hasResults = matchingCreators.length > 0 || matchingPosts.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-xl h-full bg-[#08080a] border-l border-white/15 flex flex-col text-white shadow-2xl">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex justify-end bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl h-full bg-[#08080a] border-l border-white/15 flex flex-col text-white shadow-2xl"
+      >
         {/* Top Header */}
-        <div className="p-6 border-b border-white/10 flex items-center justify-between">
+        <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between">
           <span className="text-xs font-mono tracking-widest text-white/50 uppercase">
             ARCHIVE SEARCH
           </span>
           <button
+            type="button"
             onClick={onClose}
-            className="text-white/60 hover:text-white p-1"
+            aria-label="Close Archive Search"
+            className="min-w-[44px] min-h-[44px] -mr-2 flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

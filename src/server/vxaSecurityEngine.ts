@@ -9,6 +9,8 @@
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import {
   VxaUserWallet,
   DynamicSigningKey,
@@ -22,6 +24,36 @@ import {
   SecurityEventLog,
   AdminFinancialOverview,
 } from '../types/vxaSecurity';
+import { BACKUP_ROOT_DIR } from './backupService';
+import { bruteForceGuard } from './securityMiddleware';
+
+const VXA_DB_FILE = path.join(BACKUP_ROOT_DIR, 'vxa_ledger_db.json');
+
+function loadOrCreateVxaVaultSecret(): string {
+  const envSecret = (process.env.VXA_VAULT_SECRET || '').trim();
+  if (envSecret.length >= 32) return envSecret;
+  const secretFile = path.join(BACKUP_ROOT_DIR, '.vxa_deposit_secret');
+  try {
+    if (!fs.existsSync(BACKUP_ROOT_DIR)) {
+      fs.mkdirSync(BACKUP_ROOT_DIR, { recursive: true, mode: 0o700 });
+    }
+    if (fs.existsSync(secretFile)) {
+      const existing = fs.readFileSync(secretFile, 'utf8').trim();
+      if (existing.length >= 32) return existing;
+    }
+    const generated = crypto.randomBytes(48).toString('hex');
+    fs.writeFileSync(secretFile, generated, { encoding: 'utf8', mode: 0o600 });
+    return generated;
+  } catch {
+    return crypto.randomBytes(48).toString('hex');
+  }
+}
+
+const VXA_VAULT_SECRET = loadOrCreateVxaVaultSecret();
+
+function hashPinScrypt(pin: string, salt: string): string {
+  return crypto.scryptSync(pin, salt, 32, { N: 16384, r: 8, p: 1 }).toString('hex');
+}
 
 // ============================================================================
 // 1. DYNAMIC 120-SECOND CRYPTOGRAPHIC SIGNING KEY MANAGER
@@ -167,6 +199,7 @@ class CryptographicKeyManager {
         this.rotateKey('SCHEDULED_120S');
       }
     }, 5000);
+    this.rotationTimer.unref();
   }
 
   public destroy() {
@@ -187,8 +220,27 @@ class DoubleEntryLedgerEngine {
   private lastHash: string = GENESIS_HASH;
 
   constructor() {
-    // Seed system opening balances in ledger
+    this.loadOrSeed();
+  }
+
+  private loadOrSeed() {
+    try {
+      if (fs.existsSync(VXA_DB_FILE)) {
+        const parsed = JSON.parse(fs.readFileSync(VXA_DB_FILE, 'utf8'));
+        if (Array.isArray(parsed?.ledger) && parsed.ledger.length > 0) {
+          this.ledger = parsed.ledger;
+          this.lastHash = this.ledger[this.ledger.length - 1].hash || GENESIS_HASH;
+          return;
+        }
+      }
+    } catch {
+      // Fallback to genesis seed
+    }
     this.postOpeningBalance();
+  }
+
+  public getRawEntriesForPersist(): DoubleEntryJournalEntry[] {
+    return this.ledger;
   }
 
   private postOpeningBalance() {
@@ -420,11 +472,64 @@ class VxaWalletRepository {
   private idempotencyStore: Set<string> = new Set();
 
   constructor() {
-    this.seedDemoUser();
+    this.loadState();
+  }
+
+  private loadState(): void {
+    try {
+      if (fs.existsSync(VXA_DB_FILE)) {
+        const raw = JSON.parse(fs.readFileSync(VXA_DB_FILE, 'utf8'));
+        if (raw && typeof raw === 'object') {
+          for (const [k, v] of Object.entries(raw.wallets || {})) {
+            this.wallets.set(k, v as VxaUserWallet);
+          }
+          for (const [k, v] of Object.entries(raw.transactions || {})) {
+            this.transactions.set(k, v as VxaTransaction);
+          }
+          for (const [k, v] of Object.entries(raw.settlements || {})) {
+            this.settlements.set(k, v as SettlementTrackerRecord);
+          }
+          if (Array.isArray(raw.securityEvents)) {
+            this.securityEvents = raw.securityEvents;
+          }
+          if (Array.isArray(raw.idempotencyKeys)) {
+            this.idempotencyStore = new Set(raw.idempotencyKeys);
+          }
+        }
+      }
+    } catch {
+      // Proceed with clean repository
+    }
+    if (this.wallets.size === 0 && process.env.NODE_ENV !== 'production') {
+      this.seedDemoUser();
+    }
+  }
+
+  private persistState(): void {
+    try {
+      if (!fs.existsSync(BACKUP_ROOT_DIR)) {
+        fs.mkdirSync(BACKUP_ROOT_DIR, { recursive: true, mode: 0o700 });
+      }
+      const payload = {
+        wallets: Object.fromEntries(this.wallets.entries()),
+        transactions: Object.fromEntries(this.transactions.entries()),
+        settlements: Object.fromEntries(this.settlements.entries()),
+        securityEvents: this.securityEvents.slice(0, 200),
+        idempotencyKeys: Array.from(this.idempotencyStore).slice(-5000),
+        ledger: ledgerEngine.getRawEntriesForPersist(),
+        updatedAt: new Date().toISOString(),
+      };
+      const tmp = `${VXA_DB_FILE}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
+      fs.renameSync(tmp, VXA_DB_FILE);
+    } catch {
+      // Non-fatal in read-only env
+    }
   }
 
   private seedDemoUser() {
     const demoUserId = 'efayour@gmail.com';
+    const devSalt = crypto.randomBytes(16).toString('hex');
     const wallet: VxaUserWallet = {
       id: `wlt_${crypto.randomUUID()}`,
       userId: demoUserId,
@@ -437,7 +542,7 @@ class VxaWalletRepository {
         promotionalCredits: 0,
       },
       vxaBalances: {
-        availableMinor: 50, // 50 VXA = Rp50,000
+        availableMinor: 50,
         pendingMinor: 0,
         reservedMinor: 0,
       },
@@ -450,14 +555,69 @@ class VxaWalletRepository {
         totalWithdrawnIdr: 0,
         totalWithdrawalsCount: 0,
       },
-      stepUpPinEnabled: true,
-      stepUpPinHash: crypto.createHash('sha256').update('123456' + 'salt_demo').digest('hex'),
-      stepUpPinSalt: 'salt_demo',
+      // Do not hardcode static weak salt in persisted state; PIN must be configured securely via setStepUpPin
+      stepUpPinEnabled: false,
+      stepUpPinHash: undefined,
+      stepUpPinSalt: devSalt,
       createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
       updatedAt: new Date().toISOString(),
       lastSecurityVerificationAt: new Date().toISOString(),
     };
     this.wallets.set(demoUserId, wallet);
+    this.persistState();
+  }
+
+  public issueDepositToken(params: {
+    userId: string;
+    amountIdr: number;
+    depositRef: string;
+    paymentMethod: string;
+  }): string {
+    const exp = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
+    const payload = `${params.userId}|${params.amountIdr}|${params.depositRef}|${params.paymentMethod}|${exp}`;
+    const sig = crypto
+      .createHmac('sha256', VXA_VAULT_SECRET)
+      .update(payload)
+      .digest('hex');
+    return Buffer.from(`${payload}|${sig}`, 'utf8').toString('base64url');
+  }
+
+  public verifyDepositToken(
+    token: string,
+    expected: { userId: string; amountIdr: number; depositRef: string }
+  ): { valid: boolean; reason?: string } {
+    try {
+      const raw = Buffer.from(token, 'base64url').toString('utf8');
+      const parts = raw.split('|');
+      if (parts.length !== 6) return { valid: false, reason: 'Malformed deposit authorization token.' };
+      const [uid, amountStr, depRef, method, expStr, sig] = parts;
+      if (uid !== expected.userId || depRef !== expected.depositRef || Number(amountStr) !== expected.amountIdr) {
+        return { valid: false, reason: 'Deposit token mismatch.' };
+      }
+      const exp = Number(expStr);
+      if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) {
+        return { valid: false, reason: 'Deposit authorization token has expired.' };
+      }
+      const expectedSig = crypto
+        .createHmac('sha256', VXA_VAULT_SECRET)
+        .update(`${uid}|${amountStr}|${depRef}|${method}|${expStr}`)
+        .digest('hex');
+      if (
+        sig.length !== expectedSig.length ||
+        !crypto.timingSafeEqual(Buffer.from(sig, 'utf8'), Buffer.from(expectedSig, 'utf8'))
+      ) {
+        return { valid: false, reason: 'Invalid deposit authorization signature.' };
+      }
+      const consumeKey = `depref:${depRef}`;
+      if (this.idempotencyStore.has(consumeKey)) {
+        return { valid: false, reason: 'Deposit authorization token has already been used.' };
+      }
+      this.idempotencyStore.add(consumeKey);
+      this.persistState();
+      return { valid: true };
+    } catch {
+      return { valid: false, reason: 'Invalid deposit authorization token.' };
+    }
   }
 
   public getOrCreateWallet(userId: string): VxaUserWallet {
@@ -496,6 +656,7 @@ class VxaWalletRepository {
     };
 
     this.wallets.set(userId, newWallet);
+    this.persistState();
     return newWallet;
   }
 
@@ -505,33 +666,79 @@ class VxaWalletRepository {
     }
     const wallet = this.getOrCreateWallet(userId);
     const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.createHash('sha256').update(pin + salt).digest('hex');
+    const hash = `scrypt:${hashPinScrypt(pin, salt)}`;
 
     wallet.stepUpPinEnabled = true;
     wallet.stepUpPinHash = hash;
     wallet.stepUpPinSalt = salt;
     wallet.updatedAt = new Date().toISOString();
+    bruteForceGuard.reset(`vxa_pin:${userId}`);
+    this.persistState();
     return true;
   }
 
   public verifyStepUpPin(userId: string, pin: string): boolean {
+    const lock = bruteForceGuard.checkLocked(`vxa_pin:${userId}`);
+    if (lock.locked) {
+      throw new Error(`Too many incorrect PIN attempts. Locked for ${lock.retryAfterSec}s.`);
+    }
+
     const wallet = this.getOrCreateWallet(userId);
     if (!wallet.stepUpPinEnabled || !wallet.stepUpPinHash || !wallet.stepUpPinSalt) {
       return true; // No PIN configured yet
     }
-    const checkHash = crypto.createHash('sha256').update(pin + wallet.stepUpPinSalt).digest('hex');
-    const matched = crypto.timingSafeEqual(
-      Buffer.from(checkHash, 'hex'),
-      Buffer.from(wallet.stepUpPinHash, 'hex')
-    );
-    if (!matched) {
+    if (!/^\d{6}$/.test(pin || '')) {
+      bruteForceGuard.recordFailure(`vxa_pin:${userId}`);
       this.logSecurityEvent({
         severity: 'HIGH',
         category: 'AUTH_FAILURE',
         userId,
-        details: 'Incorrect step-up PIN verification attempt.',
+        details: 'Malformed or invalid step-up PIN verification attempt.',
         resolved: false,
       });
+      return false;
+    }
+
+    let matched = false;
+    if (wallet.stepUpPinHash.startsWith('scrypt:')) {
+      const storedHex = wallet.stepUpPinHash.slice('scrypt:'.length);
+      const checkHex = hashPinScrypt(pin, wallet.stepUpPinSalt);
+      if (storedHex.length === checkHex.length) {
+        matched = crypto.timingSafeEqual(Buffer.from(checkHex, 'hex'), Buffer.from(storedHex, 'hex'));
+      }
+    } else if (wallet.stepUpPinSalt !== 'salt_demo') {
+      const checkHex = crypto.createHash('sha256').update(pin + wallet.stepUpPinSalt).digest('hex');
+      if (checkHex.length === wallet.stepUpPinHash.length) {
+        matched = crypto.timingSafeEqual(
+          Buffer.from(checkHex, 'hex'),
+          Buffer.from(wallet.stepUpPinHash, 'hex')
+        );
+      }
+      if (matched) {
+        // Transparently upgrade legacy SHA-256 PIN to scrypt
+        const newSalt = crypto.randomBytes(16).toString('hex');
+        wallet.stepUpPinSalt = newSalt;
+        wallet.stepUpPinHash = `scrypt:${hashPinScrypt(pin, newSalt)}`;
+        this.persistState();
+      }
+    }
+
+    if (!matched) {
+      const res = bruteForceGuard.recordFailure(`vxa_pin:${userId}`, 5, 15 * 60_000);
+      this.logSecurityEvent({
+        severity: res.locked ? 'CRITICAL' : 'HIGH',
+        category: 'AUTH_FAILURE',
+        userId,
+        details: res.locked
+          ? 'Step-up PIN locked out after 5 failed attempts.'
+          : 'Incorrect step-up PIN verification attempt.',
+        resolved: false,
+      });
+      if (res.locked) {
+        throw new Error(`Too many incorrect PIN attempts. Account PIN locked for ${res.retryAfterSec}s.`);
+      }
+    } else {
+      bruteForceGuard.reset(`vxa_pin:${userId}`);
     }
     return matched;
   }
@@ -546,10 +753,11 @@ class VxaWalletRepository {
     paymentMethod: string;
     idempotencyKey?: string;
   }): { transaction: VxaTransaction; wallet: VxaUserWallet } {
-    const { userId, amountIdr, paymentMethod } = params;
+    const { userId, paymentMethod } = params;
+    const amountIdr = Math.trunc(params.amountIdr);
 
-    if (amountIdr < 10_000) {
-      throw new Error('Minimum deposit is Rp10,000.');
+    if (!Number.isSafeInteger(amountIdr) || amountIdr < 10_000 || amountIdr > 500_000_000) {
+      throw new Error('Deposit amount must be a valid integer between Rp10,000 and Rp500,000,000.');
     }
 
     const idempotencyKey = params.idempotencyKey || `dep_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -559,13 +767,15 @@ class VxaWalletRepository {
     this.idempotencyStore.add(idempotencyKey);
 
     const wallet = this.getOrCreateWallet(userId);
+    if (wallet.status === 'FROZEN' || wallet.status === 'RESTRICTED') {
+      this.idempotencyStore.delete(idempotencyKey);
+      throw new Error('Wallet is currently frozen or restricted.');
+    }
 
     // Exact integer math: 1 VXA = Rp1,000
     const vxaAmount = Math.floor(amountIdr / 1000);
     const txId = `tx_dep_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // 1. Post to double-entry ledger:
-    // Debit Gateway Receivable (Asset), Credit User VXA Liability (Liability)
     const journal = ledgerEngine.recordEntry({
       referenceType: 'DEPOSIT_ISSUANCE',
       referenceId: txId,
@@ -578,7 +788,6 @@ class VxaWalletRepository {
       description: `Verified deposit: +${vxaAmount} VXA via ${paymentMethod} (Rp${amountIdr.toLocaleString('id-ID')})`,
     });
 
-    // 2. Atomically update wallet
     wallet.vxaBalances.availableMinor += vxaAmount;
     wallet.depositStats.totalDepositedIdr += amountIdr;
     wallet.depositStats.totalDepositsCount += 1;
@@ -610,6 +819,7 @@ class VxaWalletRepository {
     };
 
     this.transactions.set(txId, transaction);
+    this.persistState();
     return { transaction, wallet };
   }
 
@@ -623,13 +833,17 @@ class VxaWalletRepository {
     pin?: string;
     idempotencyKey?: string;
   }): { transaction: VxaTransaction; settlement: SettlementTrackerRecord; wallet: VxaUserWallet } {
-    const { userId, amountVxa, destination, pin } = params;
+    const { userId, destination, pin } = params;
+    const amountVxa = Math.trunc(params.amountVxa);
 
-    if (amountVxa < 10) {
-      throw new Error('Minimum withdrawal is 10 VXA (Rp10,000).');
+    if (!Number.isSafeInteger(amountVxa) || amountVxa < 10 || amountVxa > 100_000) {
+      throw new Error('Withdrawal amount must be an integer between 10 VXA and 100,000 VXA.');
     }
 
     const wallet = this.getOrCreateWallet(userId);
+    if (wallet.status === 'FROZEN' || wallet.status === 'RESTRICTED') {
+      throw new Error('Wallet has administrative restrictions and cannot withdraw.');
+    }
 
     // 1. Verify Step-Up PIN if enabled
     if (wallet.stepUpPinEnabled && pin) {
@@ -652,20 +866,15 @@ class VxaWalletRepository {
     }
     this.idempotencyStore.add(idempotencyKey);
 
-    // 3. Risk Engine Scoring
     const risk = this.evaluateRiskScore(userId, amountVxa);
-
     const amountIdr = amountVxa * 1000;
     const txId = `tx_wth_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // 4. ATOMIC BALANCE RESERVATION:
-    // Move from availableMinor into reservedMinor (prevents double-spending)
+    // Atomic balance reservation
     wallet.vxaBalances.availableMinor -= amountVxa;
     wallet.vxaBalances.reservedMinor += amountVxa;
     wallet.updatedAt = new Date().toISOString();
 
-    // 5. Post to double-entry ledger:
-    // Debit User VXA Liability (releasing circulating), Credit User Reserved VXA Liability
     const journal = ledgerEngine.recordEntry({
       referenceType: 'WITHDRAWAL_RESERVE',
       referenceId: txId,
@@ -725,12 +934,10 @@ class VxaWalletRepository {
 
     this.transactions.set(txId, transaction);
     this.settlements.set(txId, settlement);
+    this.persistState();
     return { transaction, settlement, wallet };
   }
 
-  // ==========================================================================
-  // SETTLEMENT WORKFLOW: APPROVE / SETTLE / REJECT
-  // ==========================================================================
   public processSettlementAction(params: {
     withdrawalId: string;
     action: 'APPROVE' | 'REJECT';
@@ -742,20 +949,23 @@ class VxaWalletRepository {
     if (!tx || !settlement) {
       throw new Error(`Withdrawal ${params.withdrawalId} not found.`);
     }
+    if (settlement.currentStatus === 'SETTLED' || settlement.currentStatus === 'REJECTED') {
+      throw new Error(`Settlement ${params.withdrawalId} is already in terminal state (${settlement.currentStatus}).`);
+    }
 
     const wallet = this.getOrCreateWallet(tx.userId);
     const amountIdr = tx.amountMinor * 1000;
 
     if (params.action === 'APPROVE') {
-      // 1. Release from reserved balance
-      wallet.vxaBalances.reservedMinor = Math.max(0, wallet.vxaBalances.reservedMinor - tx.amountMinor);
+      if (wallet.vxaBalances.reservedMinor < tx.amountMinor) {
+        throw new Error('Reserved balance invariant violation during settlement approval.');
+      }
+      wallet.vxaBalances.reservedMinor -= tx.amountMinor;
       wallet.withdrawalStats.totalWithdrawnIdr += amountIdr;
       wallet.withdrawalStats.totalWithdrawalsCount += 1;
       wallet.withdrawalStats.lastWithdrawalAt = new Date().toISOString();
       wallet.updatedAt = new Date().toISOString();
 
-      // 2. Double-entry posting:
-      // Debit User Reserved VXA Liability, Credit Cash Settlement Clearing (Asset payout)
       ledgerEngine.recordEntry({
         referenceType: 'WITHDRAWAL_SETTLEMENT',
         referenceId: tx.id,
@@ -778,14 +988,13 @@ class VxaWalletRepository {
         if (!s.timestamp) s.timestamp = new Date().toISOString();
       });
     } else {
-      // REVERSAL ON REJECTION/FAILURE:
-      // Restore reserved balance back to available balance!
-      wallet.vxaBalances.reservedMinor = Math.max(0, wallet.vxaBalances.reservedMinor - tx.amountMinor);
+      if (wallet.vxaBalances.reservedMinor < tx.amountMinor) {
+        throw new Error('Reserved balance invariant violation during settlement reversal.');
+      }
+      wallet.vxaBalances.reservedMinor -= tx.amountMinor;
       wallet.vxaBalances.availableMinor += tx.amountMinor;
       wallet.updatedAt = new Date().toISOString();
 
-      // Double-entry reversal journal:
-      // Debit User Reserved VXA Liability, Credit User VXA Liability
       ledgerEngine.recordEntry({
         referenceType: 'WITHDRAWAL_REVERSAL',
         referenceId: tx.id,
@@ -811,41 +1020,44 @@ class VxaWalletRepository {
       });
     }
 
+    this.logSecurityEvent({
+      severity: 'MEDIUM',
+      category: 'SETTLEMENT_DECISION',
+      userId: tx.userId,
+      details: `Admin ${params.adminEmail || 'unknown'} executed ${params.action} on settlement ${tx.id}`,
+      resolved: true,
+    });
+    this.persistState();
     return { transaction: tx, settlement, wallet };
   }
 
-  // ==========================================================================
-  // CONVERT VXA TO VAIURE CREDITS
-  // 1 VXA = 1,000 IDR; 1 Credit = 600 IDR retail reference
-  // 6 VXA = 10 Credits (exact integer value parity)
-  // ==========================================================================
-  public convertVxaToCredits(userId: string, vxaAmount: number): {
+  public convertVxaToCredits(userId: string, rawVxaAmount: number): {
     wallet: VxaUserWallet;
     creditsReceived: number;
     transaction: VxaTransaction;
   } {
-    if (vxaAmount < 6) {
-      throw new Error('Minimum conversion is 6 VXA.');
+    const vxaAmount = Math.trunc(rawVxaAmount);
+    if (!Number.isSafeInteger(vxaAmount) || vxaAmount < 6 || vxaAmount > 100_000) {
+      throw new Error('Conversion amount must be an integer between 6 VXA and 100,000 VXA.');
     }
 
     const wallet = this.getOrCreateWallet(userId);
+    if (wallet.status === 'FROZEN' || wallet.status === 'RESTRICTED') {
+      throw new Error('Wallet is frozen or restricted.');
+    }
     if (wallet.vxaBalances.availableMinor < vxaAmount) {
       throw new Error(`Insufficient available VXA. Available: ${wallet.vxaBalances.availableMinor} VXA.`);
     }
 
-    // Rate: 1 VXA (Rp1,000) / Rp600 = ~1.666 credits; 6 VXA = 10 credits
     const creditsReceived = Math.floor((vxaAmount * 1000) / 600);
     const amountIdr = vxaAmount * 1000;
     const txId = `tx_cnv_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // Deduct VXA and allocate purchased utility credits
     wallet.vxaBalances.availableMinor -= vxaAmount;
     wallet.creditBalances.purchasedCredits += creditsReceived;
     wallet.creditBalances.totalCredits += creditsReceived;
     wallet.updatedAt = new Date().toISOString();
 
-    // Double-entry posting:
-    // Debit User VXA Liability (converted out), Credit User Credits Utility Liability
     const journal = ledgerEngine.recordEntry({
       referenceType: 'VXA_TO_CREDITS_CONVERT',
       referenceId: txId,
@@ -882,6 +1094,7 @@ class VxaWalletRepository {
     };
 
     this.transactions.set(txId, transaction);
+    this.persistState();
     return { wallet, creditsReceived, transaction };
   }
 
@@ -919,7 +1132,8 @@ class VxaWalletRepository {
       timestamp: new Date().toISOString(),
     };
     this.securityEvents.unshift(fullEvent);
-    if (this.securityEvents.length > 50) this.securityEvents.pop();
+    if (this.securityEvents.length > 200) this.securityEvents.pop();
+    this.persistState();
     return fullEvent;
   }
 

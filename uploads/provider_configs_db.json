@@ -1,0 +1,297 @@
+{
+  "providers": {
+    "bytedance": {
+      "providerId": "bytedance",
+      "displayName": "ByteDance Official",
+      "clientName": "BytePlus ModelArk v3",
+      "enabled": true,
+      "baseUrl": "https://ark.ap-southeast.bytepluses.com/api/v3",
+      "autoFallbackEnabled": false,
+      "pollIntervalMs": 5000,
+      "maxPollTimeoutMs": 1200000,
+      "creditsPerUsd": 27,
+      "enforceWalletOnUsdProviders": true,
+      "safetyCheckerLockedOn": true,
+      "safetyNotice": "ByteDance ModelArk safety filters are active and enforced by BytePlus API.",
+      "models": [
+        {
+          "providerId": "bytedance",
+          "modelId": "seedance_25_15s",
+          "displayName": "Seedance 2.5 720p (15s)",
+          "submitEndpoint": "/api/v3/contents/generations/tasks",
+          "resultEndpointTemplate": "/api/v3/contents/generations/tasks/{request_id}",
+          "enabled": true,
+          "category": "Video",
+          "supportsImageToVideo": true,
+          "supportsTextToVideo": true,
+          "requiresStartImage": false,
+          "supportsLastImage": true,
+          "supportsReferencePlates": true,
+          "maxReferenceImages": 30,
+          "supportsDraftMode": false,
+          "supportsAudio": true,
+          "supportsCameraFixed": true,
+          "supportsHighBitrate": false,
+          "resolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "durations": [
+            5,
+            10,
+            15
+          ],
+          "enabledResolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "enabledDurations": [
+            5,
+            10,
+            15
+          ],
+          "pricingCurrency": "CREDITS",
+          "appMarkupPercent": 0,
+          "appMarkupFlatUsd": 0,
+          "safetyCheckerLockedOn": true,
+          "safetyNotice": "Governed by ByteDance BytePlus ModelArk safety policy.",
+          "notes": "Existing ByteDance ModelArk Seedance 2.5 official 15s integration."
+        },
+        {
+          "providerId": "bytedance",
+          "modelId": "seedance_25_30s",
+          "displayName": "Seedance 2.5 720p (30s)",
+          "submitEndpoint": "/api/v3/contents/generations/tasks",
+          "resultEndpointTemplate": "/api/v3/contents/generations/tasks/{request_id}",
+          "enabled": true,
+          "category": "Video",
+          "supportsImageToVideo": true,
+          "supportsTextToVideo": true,
+          "requiresStartImage": false,
+          "supportsLastImage": true,
+          "supportsReferencePlates": true,
+          "maxReferenceImages": 30,
+          "supportsDraftMode": false,
+          "supportsAudio": true,
+          "supportsCameraFixed": true,
+          "supportsHighBitrate": false,
+          "resolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "durations": [
+            15,
+            20,
+            30
+          ],
+          "enabledResolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "enabledDurations": [
+            15,
+            20,
+            30
+          ],
+          "pricingCurrency": "CREDITS",
+          "appMarkupPercent": 0,
+          "appMarkupFlatUsd": 0,
+          "safetyCheckerLockedOn": true,
+          "safetyNotice": "Governed by ByteDance BytePlus ModelArk safety policy.",
+          "notes": "Existing ByteDance ModelArk Seedance 2.5 extended 30s integration."
+        },
+        {
+          "providerId": "bytedance",
+          "modelId": "seedance_25_15s_r2v",
+          "displayName": "Seedance 2.5 R2V (15s)",
+          "submitEndpoint": "/api/v3/contents/generations/tasks",
+          "resultEndpointTemplate": "/api/v3/contents/generations/tasks/{request_id}",
+          "enabled": true,
+          "category": "Motion / R2V",
+          "supportsImageToVideo": true,
+          "supportsTextToVideo": false,
+          "requiresStartImage": false,
+          "supportsLastImage": true,
+          "supportsReferencePlates": true,
+          "maxReferenceImages": 30,
+          "supportsDraftMode": false,
+          "supportsAudio": true,
+          "supportsCameraFixed": true,
+          "supportsHighBitrate": false,
+          "resolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "durations": [
+            5,
+            10,
+            15
+          ],
+          "enabledResolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "enabledDurations": [
+            5,
+            10,
+            15
+          ],
+          "pricingCurrency": "CREDITS",
+          "appMarkupPercent": 0,
+          "appMarkupFlatUsd": 0,
+          "safetyCheckerLockedOn": true,
+          "safetyNotice": "Governed by ByteDance BytePlus ModelArk safety policy.",
+          "notes": "Omni Reference-to-Video locking up to 30 plates."
+        },
+        {
+          "providerId": "bytedance",
+          "modelId": "seedance_25_30s_r2v",
+          "displayName": "Seedance 2.5 R2V (30s)",
+          "submitEndpoint": "/api/v3/contents/generations/tasks",
+          "resultEndpointTemplate": "/api/v3/contents/generations/tasks/{request_id}",
+          "enabled": true,
+          "category": "Motion / R2V",
+          "supportsImageToVideo": true,
+          "supportsTextToVideo": false,
+          "requiresStartImage": false,
+          "supportsLastImage": true,
+          "supportsReferencePlates": true,
+          "maxReferenceImages": 30,
+          "supportsDraftMode": false,
+          "supportsAudio": true,
+          "supportsCameraFixed": true,
+          "supportsHighBitrate": false,
+          "resolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "durations": [
+            15,
+            20,
+            30
+          ],
+          "enabledResolutions": [
+            "480p",
+            "720p",
+            "1080p"
+          ],
+          "enabledDurations": [
+            15,
+            20,
+            30
+          ],
+          "pricingCurrency": "CREDITS",
+          "appMarkupPercent": 0,
+          "appMarkupFlatUsd": 0,
+          "safetyCheckerLockedOn": true,
+          "safetyNotice": "Governed by ByteDance BytePlus ModelArk safety policy.",
+          "notes": "Extended 30s Reference-to-Video locking up to 30 plates."
+        }
+      ],
+      "updatedAt": "2026-11-20T18:18:19.013Z"
+    },
+    "muapi": {
+      "providerId": "muapi",
+      "displayName": "MUAPI",
+      "clientName": "vaiurenetwoek",
+      "enabled": true,
+      "baseUrl": "https://api.muapi.ai/api/v1",
+      "autoFallbackEnabled": false,
+      "pollIntervalMs": 3000,
+      "maxPollTimeoutMs": 1200000,
+      "creditsPerUsd": 27,
+      "enforceWalletOnUsdProviders": true,
+      "safetyCheckerLockedOn": true,
+      "safetyNotice": "MUAPI safety checker is locked ON and cannot be bypassed via client settings.",
+      "models": [
+        {
+          "providerId": "muapi",
+          "modelId": "muapi/seedance-2.5-spicy-image-to-video",
+          "displayName": "Seedance 2.5 Spicy",
+          "clientName": "vaiurenetwoek",
+          "submitEndpoint": "https://api.muapi.ai/api/v1/seedance-2.5-spicy-image-to-video",
+          "resultEndpointTemplate": "https://api.muapi.ai/api/v1/predictions/{request_id}/result",
+          "enabled": true,
+          "category": "Image-to-Video",
+          "supportsImageToVideo": true,
+          "supportsTextToVideo": false,
+          "requiresStartImage": true,
+          "supportsLastImage": true,
+          "supportsReferencePlates": false,
+          "maxReferenceImages": 2,
+          "supportsDraftMode": true,
+          "supportsAudio": true,
+          "supportsCameraFixed": true,
+          "supportsHighBitrate": true,
+          "resolutions": [
+            "480p",
+            "720p",
+            "1080p",
+            "4K"
+          ],
+          "durations": [
+            5,
+            10,
+            20,
+            30
+          ],
+          "enabledResolutions": [
+            "480p",
+            "720p",
+            "1080p",
+            "4K"
+          ],
+          "enabledDurations": [
+            5,
+            10,
+            20,
+            30
+          ],
+          "pricingCurrency": "USD",
+          "usdPricingMatrix": {
+            "480p": {
+              "5": 0.94,
+              "10": 1.87,
+              "20": 3.74,
+              "30": 5.61
+            },
+            "720p": {
+              "5": 1.87,
+              "10": 3.74,
+              "20": 7.48,
+              "30": 11.22
+            },
+            "1080p": {
+              "5": 4.67,
+              "10": 9.35,
+              "20": 18.7,
+              "30": 28.05
+            },
+            "4K": {
+              "5": 9.35,
+              "10": 18.7,
+              "20": 37.4,
+              "30": 56.1
+            }
+          },
+          "appMarkupPercent": 0,
+          "appMarkupFlatUsd": 0,
+          "safetyCheckerLockedOn": true,
+          "safetyNotice": "MUAPI safety checker is locked ON and enforced server-side per account/API configuration. Safety checks cannot be bypassed.",
+          "notes": "MUAPI Seedance 2.5 Spicy Image-to-Video (480p/720p/1080p/4K · 5s/10s/20s/30s · Draft & Finalize 1080p workflow)."
+        }
+      ],
+      "apiKeyHeader": "x-api-key",
+      "updatedAt": "2026-11-22T12:12:21.392Z",
+      "sandboxMode": true
+    }
+  },
+  "updatedAt": "2026-11-22T12:12:21.392Z"
+}

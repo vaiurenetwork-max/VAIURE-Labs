@@ -1,7 +1,7 @@
 /**
  * VAIURE Studio — Audio & Dialogue Workspace
  * Dialogue lines, atmospheric acoustic room tone, and cinematic score tracks
- * connected to PosBot v1 AI Voice (google_tts), AI Music, and Lip-Sync engines.
+ * connected to Studio AI Voice (google_tts), AI Music, and Lip-Sync engines.
  */
 
 import React, { useState, useRef } from 'react';
@@ -19,6 +19,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { StudioProject } from '../../../types/studio';
+import { getAuthHeaders } from '../../../lib/authHeaders';
 
 interface AudioWorkspaceProps {
   project: StudioProject;
@@ -118,7 +119,7 @@ export const AudioWorkspace: React.FC<AudioWorkspaceProps> = ({ project }) => {
 
   const handleSynthesize = async () => {
     setErrorMessage(null);
-    setStatusMessage('Submitting to PosBot Audio Engine...');
+    setStatusMessage('Submitting to Studio Audio Engine...');
     setIsGenerating(true);
 
     try {
@@ -162,9 +163,10 @@ export const AudioWorkspace: React.FC<AudioWorkspaceProps> = ({ project }) => {
         categoryLabel = 'Lip-Sync Composite';
       }
 
+      const authHeaders = await getAuthHeaders();
       const submitRes = await fetch('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
       const submitData = await submitRes.json();
@@ -180,7 +182,9 @@ export const AudioWorkspace: React.FC<AudioWorkspaceProps> = ({ project }) => {
         for (let attempt = 1; attempt <= 60; attempt++) {
           setStatusMessage(`Synthesizing Job ${jobCode} (Poll #${attempt})...`);
           await new Promise((r) => setTimeout(r, 2500));
-          const pollRes = await fetch(`/api/ai/jobs/${encodeURIComponent(jobCode)}`);
+          const pollRes = await fetch(`/api/ai/jobs/${encodeURIComponent(jobCode)}`, {
+            headers: await getAuthHeaders({}, false),
+          });
           const pollData = await pollRes.json();
           const out = pollData.result_url || pollData.outputUrl;
           if (pollData.status === 'completed' && out) {
@@ -274,7 +278,7 @@ export const AudioWorkspace: React.FC<AudioWorkspaceProps> = ({ project }) => {
           </div>
         </div>
 
-        {/* PosBot Audio / Music / Lip-Sync Synthesis Console */}
+        {/* Studio Audio / Music / Lip-Sync Synthesis Console */}
         <div className="p-4 rounded-xl border border-white/10 bg-[#0A0A0F] space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-400">
@@ -285,7 +289,7 @@ export const AudioWorkspace: React.FC<AudioWorkspaceProps> = ({ project }) => {
                 : 'Character Lip-Sync Alignment'}
             </span>
             <span className="text-[10px] font-mono text-white/40">
-              PosBot v1 Audio Pipeline
+              Studio Audio Pipeline
             </span>
           </div>
 

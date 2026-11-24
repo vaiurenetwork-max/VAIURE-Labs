@@ -1,0 +1,279 @@
+# seedance-2.5-spicy-image-to-video
+
+> Seedance 2.5 Spicy Image-to-Video is the high-intensity variant of the Seedance 2.5 flagship model. It animates a single image into photorealistic 4K video with bolder, more dramatic, higher-contrast motion than the standard tier — while keeping native audio generation and precise camera trajectory control.
+
+## Overview
+
+- **Endpoint**: `POST https://api.muapi.ai/api/v1/seedance-2.5-spicy-image-to-video`
+- **Model ID**: `seedance-2.5-spicy-image-to-video`
+- **Category**: Image to Video
+- **Variant**: Spicy Image to Video
+- **Family**: seedance-2.5
+- **Cost**: 0.6 credits per call (some models compute cost dynamically based on params)
+
+## API Usage
+
+MuApi uses a **submit-then-poll** pattern: submit a job, get a `request_id`, then poll the predictions endpoint until `status` is `completed`. Optionally pass `?webhook=YOUR_URL` on the submit call to receive a POST callback when the job finishes (skip polling).
+
+**Authentication**: send your MuApi key in the `x-api-key` header. Get one at https://muapi.ai/access-keys.
+
+### 1. Submit a job
+
+```http
+POST https://api.muapi.ai/api/v1/seedance-2.5-spicy-image-to-video
+Content-Type: application/json
+x-api-key: YOUR_API_KEY
+```
+
+**Minimum (required only):**
+
+```json
+{
+  "prompt": "<prompt>",
+  "image_url": "https://example.com/your-image_url"
+}
+```
+
+**Full example (all params):**
+
+```json
+{
+  "prompt": "<prompt>",
+  "image_url": "https://example.com/your-image_url",
+  "last_image": "https://example.com/your-last_image",
+  "resolution": "720p",
+  "duration": 5,
+  "generate_audio": true,
+  "camera_fixed": false,
+  "high_bitrate": false,
+  "draft": false,
+  "draft_request_id": "<draft_request_id>"
+}
+```
+
+**Response:**
+
+```json
+{
+  "request_id": "abc123",
+  "status": "processing"
+}
+```
+
+### 2. Poll for the result
+
+```http
+GET https://api.muapi.ai/api/v1/predictions/{request_id}/result
+x-api-key: YOUR_API_KEY
+```
+
+Possible `status` values: `queued`, `pending`, `processing`, `completed`, `failed`, `cancelled`. Poll every 2-5 seconds until terminal. When `completed`, the result URLs are in the `outputs` array.
+
+**Example response when `completed`:**
+
+```json
+{
+  "id": "abc123",
+  "status": "completed",
+  "outputs": [
+    "https://cdn.muapi.ai/.../output.png"
+  ],
+  "urls": {
+    "get": "https://api.muapi.ai/api/v1/predictions/abc123/result"
+  },
+  "created_at": "2026-05-08T12:34:56Z",
+  "has_nsfw_contents": []
+}
+```
+
+### cURL
+
+```bash
+1. Submit
+REQUEST_ID=$(curl -s -X POST https://api.muapi.ai/api/v1/seedance-2.5-spicy-image-to-video \
+  -H "x-api-key: $MUAPI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"<prompt>","image_url":"https://example.com/your-image_url"}' | jq -r .request_id)
+
+2. Poll until completed
+while :; do
+  RESP=$(curl -s https://api.muapi.ai/api/v1/predictions/$REQUEST_ID/result -H "x-api-key: $MUAPI_API_KEY")
+  STATUS=$(echo "$RESP" | jq -r .status)
+  [ "$STATUS" = "completed" ] && echo "$RESP" | jq .outputs && break
+  [ "$STATUS" = "failed" ] && echo "$RESP" && exit 1
+  sleep 3
+done
+```
+
+### Python
+
+```python
+import os, time, requests
+
+API = "https://api.muapi.ai/api/v1"
+headers = {"x-api-key": os.environ["MUAPI_API_KEY"]}
+
+r = requests.post(f"{API}/seedance-2.5-spicy-image-to-video", headers=headers, json={"prompt":"<prompt>","image_url":"https://example.com/your-image_url"})
+request_id = r.json()["request_id"]
+
+while True:
+    res = requests.get(f"{API}/predictions/{request_id}/result", headers=headers).json()
+    if res["status"] == "completed":
+        print(res["outputs"]); break
+    if res["status"] == "failed":
+        raise RuntimeError(res.get("error")); 
+    time.sleep(3)
+```
+
+## Input Schema
+
+The API accepts the following input parameters:
+
+- **`prompt`** (`string`, _required_):
+  Text prompt describing the video motion and style. Spicy mode favors bolder, higher-contrast, more expressive results.
+
+- **`image_url`** (`string`, _required_):
+  URL of the input image to animate into video.
+
+- **`last_image`** (`string`, _optional_):
+  Optional URL of the last frame image for first-last frame control.
+
+- **`resolution`** (`string`, _optional_):
+  Output resolution. Price scales with resolution: 480p is cheapest, 4K is most expensive.
+  - Default: `"720p"`
+  - Options: `"480p"`, `"720p"`, `"1080p"`, `"4k"`
+
+- **`duration`** (`int`, _optional_):
+  The duration of the generated video in seconds.
+  - Default: `5`
+
+- **`generate_audio`** (`boolean`, _optional_):
+  Whether to generate audio for the video.
+  - Default: `true`
+
+- **`camera_fixed`** (`boolean`, _optional_):
+  Whether to fix the camera position.
+  - Default: `false`
+
+- **`high_bitrate`** (`boolean`, _optional_):
+  Enable high bitrate mode for better visual fidelity. Produces larger files.
+  - Default: `false`
+
+- **`draft`** (`boolean`, _optional_):
+  Generate a cheap 480p draft (resolution must be 480p or omitted when true — any other value is rejected). Finalize the draft you keep at 1080p by calling this same endpoint again with draft_request_id set to this request's request_id.
+  - Default: `false`
+
+- **`draft_request_id`** (`string`, _optional_):
+  Finalize an earlier draft (submitted with draft=true) into a full 1080p render. Set to that draft's request_id; prompt, media, duration, aspect ratio and seed are reused from the draft. resolution must be 1080p or omitted, and draft must not be true — anything else is rejected. The draft must be completed and at most 7 days old.
+
+## Output Schema
+
+The polling endpoint returns the following fields:
+
+- **`id`** (`string`): The request ID.
+- **`status`** (`string`): One of `queued`, `pending`, `processing`, `completed`, `failed`, `cancelled`.
+- **`outputs`** (`array`): URLs to generated images/videos/audio. Empty until `status` is `completed`.
+- **`urls.get`** (`string`): Self-link to re-fetch this prediction.
+- **`error`** (`string` | `null`): Error message if `status` is `failed`.
+- **`created_at`** (`string`): ISO-8601 timestamp of when the request was created.
+- **`has_nsfw_contents`** (`array of boolean`): Per-output NSFW detection flags.
+
+## Webhooks (optional)
+
+Append `?webhook=https://your-server/path` to the submit URL. When the job reaches a terminal state, MuApi will POST the same shape as the polling response to your URL — no polling needed.
+
+## Agent Integration
+
+MuApi ships an MCP server and CLI so agents (Claude Code, Cursor, custom) can call this endpoint without writing HTTP code:
+
+```bash
+# Install the CLI
+npm install -g muapi-cli
+
+# Authenticate once
+muapi auth login
+
+# Expose all MuApi models as MCP tools to your agent
+muapi mcp serve
+```
+
+The MCP server exposes tools that wrap submit + poll for every model, including `seedance-2.5-spicy-image-to-video`. See `muapi --help` for category-specific shortcuts (`muapi image generate`, `muapi video from-image`, etc.).
+
+## Related Models
+- [Spicy Image to Video](https://muapi.ai/playground/seedance-2.5-spicy-image-to-video)
+- [Image to Video 1080p](https://muapi.ai/playground/seedance-2.5-image-to-video-1080p)
+- [Video Edit](https://muapi.ai/playground/seedance-2.5-video-edit)
+- [Video Extend 480p](https://muapi.ai/playground/seedance-2.5-video-extend-480p)
+- [Intl Text to Video 1080p](https://muapi.ai/playground/seedance-2.5-intl-text-to-video-1080p)
+- [Intl Image to Video](https://muapi.ai/playground/seedance-2.5-intl-image-to-video)
+- [Intl Image to Video 1080p](https://muapi.ai/playground/seedance-2.5-intl-image-to-video-1080p)
+- [Intl First & Last Frame 1080p](https://muapi.ai/playground/seedance-2.5-intl-first-last-frame-1080p)
+- [Spicy First & Last Frame 1080p](https://muapi.ai/playground/seedance-2.5-spicy-first-last-frame-1080p)
+- [Spicy Omni Reference 480p](https://muapi.ai/playground/seedance-2.5-spicy-omni-reference-480p)
+- [Intl Omni Reference 1080p](https://muapi.ai/playground/seedance-2.5-intl-omni-reference-1080p)
+- [First & Last Frame](https://muapi.ai/playground/seedance-2.5-first-last-frame)
+- [Text to Video 480p](https://muapi.ai/playground/seedance-2.5-text-to-video-480p)
+- [Video Extend](https://muapi.ai/playground/seedance-2.5-video-extend)
+- [Intl Text to Video](https://muapi.ai/playground/seedance-2.5-intl-text-to-video)
+- [Video Extend 1080p](https://muapi.ai/playground/seedance-2.5-video-extend-1080p)
+- [Spicy Omni Reference](https://muapi.ai/playground/seedance-2.5-spicy-omni-reference)
+- [Spicy Video Edit](https://muapi.ai/playground/seedance-2.5-spicy-video-edit)
+- [Text to Video](https://muapi.ai/playground/seedance-2.5-text-to-video)
+- [Image to Video](https://muapi.ai/playground/seedance-2.5-image-to-video)
+- [Spicy Text to Video](https://muapi.ai/playground/seedance-2.5-spicy-text-to-video)
+- [Omni Reference 1080p](https://muapi.ai/playground/seedance-2.5-omni-reference-1080p)
+- [Text to Video 1080p](https://muapi.ai/playground/seedance-2.5-text-to-video-1080p)
+- [Video Edit 4K](https://muapi.ai/playground/seedance-2.5-video-edit-4k)
+- [Image to Video 4K](https://muapi.ai/playground/seedance-2.5-image-to-video-4k)
+- [First & Last Frame 1080p](https://muapi.ai/playground/seedance-2.5-first-last-frame-1080p)
+- [First & Last Frame 4K](https://muapi.ai/playground/seedance-2.5-first-last-frame-4k)
+- [Intl Omni Reference](https://muapi.ai/playground/seedance-2.5-intl-omni-reference)
+- [Image to Video 480p](https://muapi.ai/playground/seedance-2.5-image-to-video-480p)
+- [Video Extend 4K](https://muapi.ai/playground/seedance-2.5-video-extend-4k)
+- [Spicy Text to Video 1080p](https://muapi.ai/playground/seedance-2.5-spicy-text-to-video-1080p)
+- [Spicy Text to Video 4K](https://muapi.ai/playground/seedance-2.5-spicy-text-to-video-4k)
+- [Intl Text to Video 480p](https://muapi.ai/playground/seedance-2.5-intl-text-to-video-480p)
+- [Spicy Image to Video 1080p](https://muapi.ai/playground/seedance-2.5-spicy-image-to-video-1080p)
+- [Intl Image to Video 4K](https://muapi.ai/playground/seedance-2.5-intl-image-to-video-4k)
+- [Intl First & Last Frame 480p](https://muapi.ai/playground/seedance-2.5-intl-first-last-frame-480p)
+- [Intl Text to Video 4K](https://muapi.ai/playground/seedance-2.5-intl-text-to-video-4k)
+- [First & Last Frame 480p](https://muapi.ai/playground/seedance-2.5-first-last-frame-480p)
+- [Intl Image to Video 480p](https://muapi.ai/playground/seedance-2.5-intl-image-to-video-480p)
+- [Spicy Image to Video 480p](https://muapi.ai/playground/seedance-2.5-spicy-image-to-video-480p)
+- [Omni Reference](https://muapi.ai/playground/seedance-2.5-omni-reference)
+- [Omni Reference 480p](https://muapi.ai/playground/seedance-2.5-omni-reference-480p)
+- [Video Edit 480p](https://muapi.ai/playground/seedance-2.5-video-edit-480p)
+- [Video Edit 1080p](https://muapi.ai/playground/seedance-2.5-video-edit-1080p)
+- [Spicy Image to Video 4K](https://muapi.ai/playground/seedance-2.5-spicy-image-to-video-4k)
+- [Intl First & Last Frame](https://muapi.ai/playground/seedance-2.5-intl-first-last-frame)
+- [Spicy First & Last Frame](https://muapi.ai/playground/seedance-2.5-spicy-first-last-frame)
+- [Spicy First & Last Frame 480p](https://muapi.ai/playground/seedance-2.5-spicy-first-last-frame-480p)
+- [Intl First & Last Frame 4K](https://muapi.ai/playground/seedance-2.5-intl-first-last-frame-4k)
+- [Spicy Omni Reference 4K](https://muapi.ai/playground/seedance-2.5-spicy-omni-reference-4k)
+- [Intl Video Edit](https://muapi.ai/playground/seedance-2.5-intl-video-edit)
+- [Spicy Video Edit 480p](https://muapi.ai/playground/seedance-2.5-spicy-video-edit-480p)
+- [Intl Video Edit 1080p](https://muapi.ai/playground/seedance-2.5-intl-video-edit-1080p)
+- [Spicy Text to Video 480p](https://muapi.ai/playground/seedance-2.5-spicy-text-to-video-480p)
+- [Intl Video Edit 4K](https://muapi.ai/playground/seedance-2.5-intl-video-edit-4k)
+- [Spicy Video Edit 4K](https://muapi.ai/playground/seedance-2.5-spicy-video-edit-4k)
+- [Intl Video Extend](https://muapi.ai/playground/seedance-2.5-intl-video-extend)
+- [Spicy Video Extend](https://muapi.ai/playground/seedance-2.5-spicy-video-extend)
+- [Spicy Video Extend 480p](https://muapi.ai/playground/seedance-2.5-spicy-video-extend-480p)
+- [Intl Video Extend 480p](https://muapi.ai/playground/seedance-2.5-intl-video-extend-480p)
+- [Spicy Video Extend 1080p](https://muapi.ai/playground/seedance-2.5-spicy-video-extend-1080p)
+- [Intl Video Extend 1080p](https://muapi.ai/playground/seedance-2.5-intl-video-extend-1080p)
+- [Intl Video Extend 4K](https://muapi.ai/playground/seedance-2.5-intl-video-extend-4k)
+- [Spicy Video Extend 4K](https://muapi.ai/playground/seedance-2.5-spicy-video-extend-4k)
+- [Intl Omni Reference 480p](https://muapi.ai/playground/seedance-2.5-intl-omni-reference-480p)
+- [Spicy First & Last Frame 4K](https://muapi.ai/playground/seedance-2.5-spicy-first-last-frame-4k)
+- [Spicy Omni Reference 1080p](https://muapi.ai/playground/seedance-2.5-spicy-omni-reference-1080p)
+- [Intl Omni Reference 4K](https://muapi.ai/playground/seedance-2.5-intl-omni-reference-4k)
+- [Spicy Video Edit 1080p](https://muapi.ai/playground/seedance-2.5-spicy-video-edit-1080p)
+- [Intl Video Edit 480p](https://muapi.ai/playground/seedance-2.5-intl-video-edit-480p)
+- [Text to Video 4K](https://muapi.ai/playground/seedance-2.5-text-to-video-4k)
+- [Omni Reference 4K](https://muapi.ai/playground/seedance-2.5-omni-reference-4k)
+
+## Resources
+- [Playground Page](https://muapi.ai/playground/seedance-2.5-spicy-image-to-video)
+- [API Reference](https://muapi.ai/playground/seedance-2.5-spicy-image-to-video/api)
+- [Global llms.txt](https://muapi.ai/llms.txt)

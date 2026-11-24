@@ -6,6 +6,7 @@ interface Slide0MotionHeroProps {
   onViewCampaigns?: () => void;
   onEnterThreads?: () => void;
   onEnterStudio?: () => void;
+  onPrefetchDestination?: (target: string) => void;
   isActive?: boolean;
 }
 
@@ -16,6 +17,7 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
   onOpenMenu,
   onSeeCampaign,
   onViewCampaigns,
+  onPrefetchDestination,
   isActive = true,
 }) => {
   const stageRef = useRef<HTMLElement | null>(null);
@@ -606,7 +608,7 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
         }
         .vaiure-slide0-stage .copy--bl {
           left:calc(34.5 * var(--u));
-          bottom:calc(39.5 * var(--u));
+          bottom:calc(68 * var(--u));
         }
         .vaiure-slide0-stage .copy--br {
           right:calc(45 * var(--u));
@@ -651,6 +653,9 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
           position:relative;
           width:calc(17 * var(--u));
           height:calc(8.3 * var(--u));
+          min-width:44px;
+          min-height:44px;
+          padding:0;
           background:none;
           border:0;
           cursor:pointer;
@@ -660,17 +665,18 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
         .vaiure-slide0-stage .menu::after {
           content:"";
           position:absolute;
-          left:0;
-          right:0;
+          left:50%;
+          width:calc(17 * var(--u));
+          transform:translateX(-50%);
           height:max(1px,calc(1 * var(--u)));
           background:var(--ink);
         }
-        .vaiure-slide0-stage .menu::before { top:0; }
-        .vaiure-slide0-stage .menu::after { bottom:0; }
+        .vaiure-slide0-stage .menu::before { top:calc(50% - 4.15 * var(--u)); }
+        .vaiure-slide0-stage .menu::after { bottom:calc(50% - 4.15 * var(--u)); }
         .vaiure-slide0-stage .ctas {
           position:absolute;
           left:calc(35 * var(--u));
-          bottom:calc(98 * var(--u));
+          bottom:calc(126 * var(--u));
           display:flex;
           flex-direction:column;
           gap:calc(9 * var(--u));
@@ -681,6 +687,7 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
           justify-content:center;
           width:calc(142.4 * var(--u));
           height:calc(45 * var(--u));
+          min-height:44px;
           background:var(--panel);
           color:var(--ink);
           text-decoration:none;
@@ -718,8 +725,8 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
           }
           .vaiure-slide0-stage .copy--tl { left:calc(20 * var(--u)); top:calc(96 * var(--u)); }
           .vaiure-slide0-stage .copy--tr { right:calc(20 * var(--u)); top:calc(96 * var(--u)); }
-          .vaiure-slide0-stage .copy--bl { left:calc(20 * var(--u)); bottom:calc(24 * var(--u)); }
-          .vaiure-slide0-stage .ctas { left:calc(20 * var(--u)); bottom:calc(76 * var(--u)); }
+          .vaiure-slide0-stage .copy--bl { left:calc(20 * var(--u)); bottom:calc(74 * var(--u)); }
+          .vaiure-slide0-stage .ctas { left:calc(20 * var(--u)); bottom:calc(126 * var(--u)); }
           .vaiure-slide0-stage .copy--br { right:calc(20 * var(--u)); bottom:calc(24 * var(--u)); }
         }
         @media (prefers-reduced-motion:reduce){
@@ -935,8 +942,12 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
               className="menu"
               type="button"
               aria-label="Open menu"
+              onPointerEnter={() => onPrefetchDestination?.('menu-all')}
+              onFocus={() => onPrefetchDestination?.('menu-all')}
+              onTouchStart={() => onPrefetchDestination?.('menu-all')}
               onClick={(e) => {
                 e.stopPropagation();
+                onPrefetchDestination?.('menu-all');
                 onOpenMenu?.();
               }}
             />
@@ -967,6 +978,8 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
             <a
               className="btn"
               href="#campaign"
+              onPointerEnter={() => onPrefetchDestination?.('slide-3')}
+              onFocus={() => onPrefetchDestination?.('slide-3')}
               onClick={(e) => {
                 e.preventDefault();
                 onSeeCampaign?.();
@@ -977,6 +990,8 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
             <a
               className="btn"
               href="#campaigns"
+              onPointerEnter={() => onPrefetchDestination?.('slide-2')}
+              onFocus={() => onPrefetchDestination?.('slide-2')}
               onClick={(e) => {
                 e.preventDefault();
                 onViewCampaigns?.();

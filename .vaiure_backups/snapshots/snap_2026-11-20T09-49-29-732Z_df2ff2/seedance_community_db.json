@@ -1,0 +1,145 @@
+{
+  "groups": {},
+  "memberships": {},
+  "joinRequests": {},
+  "invitations": {},
+  "posts": {},
+  "comments": {},
+  "savedPostIds": {},
+  "announcements": {},
+  "events": {},
+  "moderationLogs": {},
+  "giftCatalog": [
+    {
+      "id": "gift-spark",
+      "name": "Silver Spark",
+      "description": "Clean studio appreciation spark for posts and live moments.",
+      "category": "BASIC",
+      "creditPrice": 1,
+      "iconKey": "SPARK",
+      "animationStyle": "PULSE",
+      "enabled": true,
+      "sortOrder": 1,
+      "updatedAt": "2026-11-20T09:42:01.990Z"
+    },
+    {
+      "id": "gift-reel",
+      "name": "35mm Reel",
+      "description": "Classic cinema reel tribute for standout Seedance direction.",
+      "category": "BASIC",
+      "creditPrice": 5,
+      "iconKey": "REEL",
+      "animationStyle": "PULSE",
+      "enabled": true,
+      "sortOrder": 2,
+      "updatedAt": "2026-11-20T09:42:01.990Z"
+    },
+    {
+      "id": "gift-prism",
+      "name": "Monolith Prism",
+      "description": "Refractive prism salute for exemplary visual craft.",
+      "category": "PREMIUM",
+      "creditPrice": 15,
+      "iconKey": "PRISM",
+      "animationStyle": "RADIANT",
+      "enabled": true,
+      "sortOrder": 3,
+      "updatedAt": "2026-11-20T09:42:01.990Z"
+    },
+    {
+      "id": "gift-flame",
+      "name": "Obsidian Flame",
+      "description": "Animated burst recognizing breakthrough physics or motion workflows.",
+      "category": "SPECIAL_ANIMATED",
+      "creditPrice": 35,
+      "iconKey": "FLAME",
+      "animationStyle": "CINEMA_BURST",
+      "enabled": true,
+      "sortOrder": 4,
+      "updatedAt": "2026-11-20T09:42:01.990Z"
+    },
+    {
+      "id": "gift-orb",
+      "name": "Seedance Orb",
+      "description": "Animated orbital pulse for live studio sessions and premieres.",
+      "category": "SPECIAL_ANIMATED",
+      "creditPrice": 75,
+      "iconKey": "ORB",
+      "animationStyle": "CINEMA_BURST",
+      "enabled": true,
+      "sortOrder": 5,
+      "updatedAt": "2026-11-20T09:42:01.990Z"
+    },
+    {
+      "id": "gift-crown",
+      "name": "Auteur Crown",
+      "description": "Exclusive event honor reserved for premiering directors and challenges.",
+      "category": "EXCLUSIVE_EVENT",
+      "creditPrice": 150,
+      "iconKey": "CROWN",
+      "animationStyle": "SUPERNOVA",
+      "enabled": true,
+      "sortOrder": 6,
+      "updatedAt": "2026-11-20T09:42:01.990Z"
+    }
+  ],
+  "giftTransactions": [],
+  "notifications": [],
+  "reports": [],
+  "categories": [
+    {
+      "id": "cat-filmmaking",
+      "name": "AI Filmmaking",
+      "description": "Narrative shorts, directorial studies, and Seedance 2.5 cinema.",
+      "enabled": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "cat-workflows",
+      "name": "Workflows & Prompts",
+      "description": "Reusable Seedance 2.5 multi-scene workflows, prompts, and reference rigs.",
+      "enabled": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "cat-characters",
+      "name": "Character Consistency",
+      "description": "Multi-plate character locking, costume continuity, and cast bible design.",
+      "enabled": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "cat-worldbuilding",
+      "name": "Worldbuilding & 3D",
+      "description": "Architectural environments, spatial set design, and scene pre-visualization.",
+      "enabled": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "cat-camera",
+      "name": "Camera & Physics",
+      "description": "Complex fluid, cloth, collision, and lens choreography experiments.",
+      "enabled": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "cat-critique",
+      "name": "Critique & Live Sessions",
+      "description": "Creator workshops, live breakdowns, and collaborative feedback groups.",
+      "enabled": true,
+      "sortOrder": 6
+    }
+  ],
+  "policies": {
+    "id": "default-community-policies",
+    "requireEmailVerificationToCreateGroup": false,
+    "maxGroupsPerUser": 25,
+    "allowPrivateGroups": true,
+    "allowVirtualGifts": true,
+    "globalBlockedKeywords": [],
+    "communityGuidelinesText": "Respect fellow Seedance creators, honor private group confidentiality, attribute remixed workflows clearly, and keep live critique constructive.",
+    "updatedAt": "2026-11-20T09:42:01.990Z",
+    "updatedBy": "system"
+  },
+  "profiles": {}
+}

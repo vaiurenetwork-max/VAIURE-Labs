@@ -3,6 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     // Hardened Primitives
     function incoming() {
       return request.resource.data;
@@ -16,6 +21,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -26,14 +35,38 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email in ['rachvan420@gmail.com', 'vaiurenetwork@gmail.com', 'efayour@gmail.com'] ||
-        (request.auth.token.keys().hasAny(['role']) && request.auth.token.role in ['ADMIN', 'SUPER_ADMIN']) ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') in ['ADMIN', 'SUPER_ADMIN'] ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', '') in ['ADMIN', 'SUPER_ADMIN']
-        ))
+        (request.auth.token.email_verified == true &&
+          request.auth.token.email in ['rachvan420@gmail.com', 'vaiurenetwork@gmail.com', 'efayour@gmail.com']) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
+    }
+
+    // Safe non-privileged account roles for self-registration
+    function isNonPrivilegedAccountRole(roleVal) {
+      return roleVal in ['USER', 'CREATOR', 'ARTIST', 'FILMMAKER', 'PHOTOGRAPHER', 'STUDIO', 'BRAND'];
+    }
+
+    // Community Group RBAC Helpers (Master Gate via /groups/{groupId}/members/{uid})
+    function isGroupMember(groupId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.status == 'ACTIVE';
+    }
+
+    function isGroupStaff(groupId) {
+      return isGroupMember(groupId)
+        && get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['OWNER', 'ADMIN', 'MODERATOR'];
+    }
+
+    function isGroupOwnerOrAdmin(groupId) {
+      return isGroupMember(groupId)
+        && get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['OWNER', 'ADMIN'];
+    }
+
+    function isGroupPublic(groupId) {
+      return exists(/databases/$(database)/documents/groups/$(groupId))
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.visibility == 'PUBLIC'
+        && get(/databases/$(database)/documents/groups/$(groupId)).data.status == 'ACTIVE';
     }
 
     // Validation Helpers
@@ -41,7 +74,21 @@ service cloud.firestore {
       return data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
         && data.username is string && data.username.size() >= 2 && data.username.size() <= 50
         && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100
-        && data.email is string && data.email.size() <= 150;
+        && data.email is string && data.email.size() <= 150
+        && (!data.keys().hasAny(['bio']) || (data.bio is string && data.bio.size() <= 600))
+        && (!data.keys().hasAny(['location']) || (data.location is string && data.location.size() <= 120))
+        && (!data.keys().hasAny(['website']) || (data.website is string && data.website.size() <= 240));
+    }
+
+    function isValidPublicProfile(data) {
+      return data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && !data.keys().hasAny(['email', 'phone', 'address', 'fymBalance', 'suspensionReason', 'deletionReason', 'passwordHash'])
+        && (!data.keys().hasAny(['username']) || (data.username is string && data.username.size() >= 2 && data.username.size() <= 50))
+        && (!data.keys().hasAny(['displayName']) || (data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100))
+        && (!data.keys().hasAny(['bio']) || (data.bio is string && data.bio.size() <= 600))
+        && (!data.keys().hasAny(['followersCount']) || (data.followersCount is number && data.followersCount >= 0))
+        && (!data.keys().hasAny(['followingCount']) || (data.followingCount is number && data.followingCount >= 0))
+        && (!data.keys().hasAny(['postsCount']) || (data.postsCount is number && data.postsCount >= 0));
     }
 
     function isValidUsername(data) {
@@ -70,18 +117,11 @@ service cloud.firestore {
         && data.title is string && data.title.size() > 0 && data.title.size() <= 100;
     }
 
-    function isValidMessage(data) {
-      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
-        && data.conversationId is string && data.conversationId.size() > 0 && data.conversationId.size() <= 128
-        && data.senderId is string && data.senderId.size() > 0 && data.senderId.size() <= 128
-        && data.text is string && data.text.size() <= 2000;
-    }
-
     function isValidAuditLog(data) {
       return data.logId is string && data.logId.size() > 0 && data.logId.size() <= 128
         && data.actorUid is string && data.actorUid.size() > 0 && data.actorUid.size() <= 128
         && data.action is string && data.action.size() > 0 && data.action.size() <= 100
-        && data.timestamp is string;
+        && data.timestamp is string && data.timestamp.size() <= 64;
     }
 
     function isValidShort(data) {
@@ -97,198 +137,420 @@ service cloud.firestore {
         && data.content is string && data.content.size() > 0 && data.content.size() <= 1000;
     }
 
-    // 2. Users Collection
+    function isValidForumThread(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && (!data.keys().hasAny(['title']) || (data.title is string && data.title.size() <= 240))
+        && (!data.keys().hasAny(['content']) || (data.content is string && data.content.size() <= 8000));
+    }
+
+    function isValidAgentMemory(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId is string && data.userId == request.auth.uid
+        && data.category in ['character', 'style', 'storyline', 'instruction', 'prompt_history']
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 160
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 4000
+        && data.enabled is bool;
+    }
+
+    function isValidAgentConversation(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId is string && data.userId == request.auth.uid
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200;
+    }
+
+    function isValidLivestream(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.hostUserId is string && data.hostUserId.size() > 0 && data.hostUserId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 160
+        && data.visibility in ['PUBLIC', 'PRIVATE']
+        && data.status in ['LIVE', 'ENDED'];
+    }
+
+    function isValidLiveRoom(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 160
+        && data.creatorUserId is string && data.creatorUserId.size() > 0 && data.creatorUserId.size() <= 128
+        && data.visibility in ['PUBLIC', 'PRIVATE', 'INVITE_ONLY']
+        && data.status in ['ACTIVE', 'CLOSED'];
+    }
+
+    function isValidGroup(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 80
+        && data.visibility in ['PUBLIC', 'PRIVATE']
+        && data.status in ['ACTIVE', 'ARCHIVED', 'SUSPENDED']
+        && data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() <= 128;
+    }
+
+    function isValidGroupMembership(data) {
+      return data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 128
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.role in ['OWNER', 'ADMIN', 'MODERATOR', 'MEMBER']
+        && data.status in ['ACTIVE', 'BANNED'];
+    }
+
+    function isValidGroupPost(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.postType in ['IMAGE', 'VIDEO', 'WORKFLOW', 'TEXT', 'LIVESTREAM']
+        && data.status in ['PUBLISHED', 'PENDING_APPROVAL', 'REMOVED']
+        && data.groupVisibility in ['PUBLIC', 'PRIVATE'];
+    }
+
+    function isValidGroupComment(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 128
+        && data.postId is string && data.postId.size() > 0 && data.postId.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 2000;
+    }
+
+    function isValidGroupAnnouncement(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 4000;
+    }
+
+    function isValidGroupEvent(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.groupId is string && data.groupId.size() > 0 && data.groupId.size() <= 128
+        && data.creatorId is string && data.creatorId.size() > 0 && data.creatorId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.eventType in ['MEETING', 'CREATIVE_CHALLENGE', 'LIVESTREAM_EVENT', 'COMPETITION'];
+    }
+
+    function isValidCommunityReport(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.reporterId is string && data.reporterId == request.auth.uid
+        && data.targetType in ['POST', 'COMMENT', 'GROUP', 'USER', 'LIVESTREAM']
+        && data.targetId is string && data.targetId.size() > 0 && data.targetId.size() <= 128
+        && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 500
+        && data.status in ['OPEN', 'REVIEWED', 'ACTION_TAKEN', 'DISMISSED'];
+    }
+
+    function isValidCommunityUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100
+        && (!data.keys().hasAny(['bio']) || (data.bio is string && data.bio.size() <= 600));
+    }
+
+    function isCurator() {
+      return isAdmin() || (
+        isSignedIn() && exists(/databases/$(database)/documents/curators/$(request.auth.uid))
+      );
+    }
+
+    function isValidGenerationJob(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId is string && data.userId.size() > 0 && data.userId.size() <= 128
+        && data.prompt is string && data.prompt.size() <= 5000
+        && data.status is string && data.status.size() > 0 && data.status.size() <= 32
+        && (!data.keys().hasAny(['provider']) || (data.provider is string && data.provider.size() <= 64))
+        && (!data.keys().hasAny(['resolution']) || (data.resolution in ['480p', '720p', '1080p', '4K']));
+    }
+
+    function isValidUserCreation(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() <= 128
+        && data.sourceJobId is string && data.sourceJobId.size() > 0 && data.sourceJobId.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.mediaType in ['IMAGE', 'VIDEO']
+        && data.primaryAssetId is string && data.primaryAssetId.size() > 0 && data.primaryAssetId.size() <= 128
+        && data.visibility in ['private', 'public']
+        && data.publicationStatus is string && data.publicationStatus.size() <= 40;
+    }
+
+    function isValidCurationSubmission(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.creationId is string && data.creationId.size() > 0 && data.creationId.size() <= 128
+        && data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() <= 128
+        && data.proposedTitle is string && data.proposedTitle.size() > 0 && data.proposedTitle.size() <= 120
+        && data.category is string && data.category.size() > 0 && data.category.size() <= 80
+        && data.status in ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED', 'WITHDRAWN', 'REVISION_REQUESTED'];
+    }
+
+    function isValidCreationComment(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.publishedCreationId is string && data.publishedCreationId.size() > 0 && data.publishedCreationId.size() <= 128
+        && data.authorId is string && data.authorId.size() > 0 && data.authorId.size() <= 128
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 1500;
+    }
+
+    // 1. Public Creator Profiles (PII-isolated directory: NO email/phone/private fields allowed)
+    match /publicProfiles/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if true;
+      allow create: if isValidId(userId) && isOwner(userId) && isValidPublicProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && (isAdmin() || (
+          (!incoming().keys().hasAny(['role']) || isNonPrivilegedAccountRole(incoming().role))
+          && (!incoming().keys().hasAny(['accountType']) || isNonPrivilegedAccountRole(incoming().accountType))
+          && (!incoming().keys().hasAny(['verified']) || incoming().verified == false)
+          && (!incoming().keys().hasAny(['isVerified']) || incoming().isVerified == false)
+          && !incoming().keys().hasAny(['specialBadge'])
+        ));
+      allow update: if isValidId(userId) && isValidPublicProfile(incoming()) && (
+        isAdmin() ||
+        (isOwner(userId)
+          && incoming().uid == existing().uid
+          && !incoming().diff(existing()).affectedKeys().hasAny(['uid', 'role', 'accountType', 'status', 'verified', 'isVerified', 'specialBadge', 'isBanned', 'createdAt'])) ||
+        (isSignedIn()
+          && incoming().uid == existing().uid
+          && incoming().diff(existing()).affectedKeys().hasOnly(['followersCount', 'followingCount', 'postsCount', 'updatedAt']))
+      );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 2. Private Users Collection (Strict PII Isolation: Owner or Admin Read ONLY)
     match /users/{userId} {
-      allow read: if true;
-      allow create: if isSignedIn() && isValidUser(incoming());
-      // Ordinary owners can update normal profile fields; status & role changes require admin or server
-      allow update: if (isOwner(userId) && isValidUser(incoming()) && incoming().uid == existing().uid
-        && (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'accountType', 'status']) || isAdmin()))
-        || (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['followersCount', 'followingCount', 'postsCount', 'onlineStatus', 'lastActiveAt', 'updatedAt']))
-        || isAdmin();
-      allow delete: if isAdmin();
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId) && isSignedIn() && isOwner(userId) && isValidUser(incoming())
+        && incoming().uid == request.auth.uid
+        && (isAdmin() || (
+          (!incoming().keys().hasAny(['role']) || isNonPrivilegedAccountRole(incoming().role))
+          && (!incoming().keys().hasAny(['accountType']) || isNonPrivilegedAccountRole(incoming().accountType))
+          && (!incoming().keys().hasAny(['verified']) || incoming().verified == false)
+          && (!incoming().keys().hasAny(['isVerified']) || incoming().isVerified == false)
+          && (!incoming().keys().hasAny(['isBanned']) || incoming().isBanned == false)
+          && !incoming().keys().hasAny(['specialBadge', 'fymBalance', 'suspensionReason', 'status'])
+        ));
+      allow update: if isValidId(userId) && (
+        isAdmin() ||
+        (isOwner(userId) && isValidUser(incoming()) && incoming().uid == existing().uid
+          && !incoming().diff(existing()).affectedKeys().hasAny([
+            'uid', 'role', 'accountType', 'status', 'verified', 'isVerified',
+            'specialBadge', 'isBanned', 'suspensionReason', 'fymBalance', 'createdAt'
+          ]))
+      );
+      allow delete: if isValidId(userId) && isAdmin();
 
-      // Active User Sessions
       match /sessions/{sessionId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow get: if isValidId(userId) && isValidId(sessionId) && (isOwner(userId) || isAdmin());
+        allow list: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
       }
 
-      // User Uploads Media Log
       match /uploads/{uploadId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow get: if isValidId(userId) && isValidId(uploadId) && (isOwner(userId) || isAdmin());
+        allow list: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
       }
 
-      // User Settings & Privacy Preferences
       match /settings/{settingId} {
-        allow read, write: if isOwner(userId) || isAdmin();
+        allow get: if isValidId(userId) && isValidId(settingId) && (isOwner(userId) || isAdmin());
+        allow list: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
       }
 
-      // Collections subcollection
       match /collections/{collectionId} {
-        allow read: if isOwner(userId) || (resource != null && resource.data.isPrivate == false);
-        allow create: if isOwner(userId) && isValidCollection(incoming());
-        allow update: if isOwner(userId) && isValidCollection(incoming());
-        allow delete: if isOwner(userId);
+        allow get: if isValidId(userId) && isValidId(collectionId) && (isOwner(userId) || (resource != null && resource.data.isPrivate == false) || isAdmin());
+        allow list: if isOwner(userId) || resource.data.isPrivate == false || isAdmin();
+        allow create, update: if isValidId(userId) && isValidId(collectionId) && isOwner(userId) && isValidCollection(incoming());
+        allow delete: if isValidId(userId) && isValidId(collectionId) && isOwner(userId);
       }
 
-      // Saved posts subcollection
       match /savedPosts/{postId} {
         allow read, write: if isOwner(userId);
       }
 
-      // Followers / Following subcollections
+      match /savedGroupPosts/{postId} {
+        allow get: if isValidId(userId) && isValidId(postId) && isOwner(userId);
+        allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow create, update: if isValidId(userId) && isValidId(postId) && isOwner(userId)
+          && incoming().userId == request.auth.uid;
+        allow delete: if isValidId(userId) && isValidId(postId) && isOwner(userId);
+      }
+
       match /followers/{followerUid} {
-        allow read: if true;
-        allow create, delete: if isOwner(followerUid) || isAdmin();
+        allow read: if isSignedIn();
+        allow create, delete: if isValidId(userId) && isValidId(followerUid) && (isOwner(followerUid) || isAdmin());
       }
 
       match /following/{targetUid} {
-        allow read: if true;
-        allow create, delete: if isOwner(userId) || isAdmin();
+        allow read: if isSignedIn();
+        allow create, delete: if isValidId(userId) && isValidId(targetUid) && (isOwner(userId) || isAdmin());
       }
 
-      // Notifications subcollection
       match /notifications/{notificationId} {
         allow read, update, delete: if isOwner(userId) || isAdmin();
-        allow create: if isSignedIn();
+        allow create: if isValidId(userId) && isValidId(notificationId) && isSignedIn()
+          && incoming().actorId == request.auth.uid;
       }
     }
 
     // 3. Unique Username Reservation
     match /usernames/{username} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidUsername(incoming());
-      allow update, delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isValidId(username) && isSignedIn() && isValidUsername(incoming()) && incoming().uid == request.auth.uid;
+      allow update, delete: if isValidId(username) && isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
     // 4. Archival Social Posts
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidPost(incoming());
-      allow update: if isSignedIn() && (
+      allow create: if isValidId(postId) && isSignedIn() && isValidPost(incoming()) && incoming().authorUid == request.auth.uid;
+      allow update: if isValidId(postId) && isSignedIn() && (
         (existing().authorUid == request.auth.uid && isValidPost(incoming()) && incoming().authorUid == existing().authorUid) ||
-        // Counter updates from community actions
-        incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'repostsCount', 'savesCount', 'viewsCount', 'updatedAt']) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'repostsCount', 'savesCount', 'viewsCount', 'updatedAt'])
+          && (!incoming().keys().hasAny(['likesCount']) || (incoming().likesCount is number && incoming().likesCount >= 0))
+          && (!incoming().keys().hasAny(['commentsCount']) || (incoming().commentsCount is number && incoming().commentsCount >= 0))
+          && (!incoming().keys().hasAny(['repostsCount']) || (incoming().repostsCount is number && incoming().repostsCount >= 0))
+          && (!incoming().keys().hasAny(['savesCount']) || (incoming().savesCount is number && incoming().savesCount >= 0))
+          && (!incoming().keys().hasAny(['viewsCount']) || (incoming().viewsCount is number && incoming().viewsCount >= 0))) ||
         isAdmin()
       );
-      allow delete: if isSignedIn() && (existing().authorUid == request.auth.uid || isAdmin());
+      allow delete: if isValidId(postId) && isSignedIn() && (existing().authorUid == request.auth.uid || isAdmin());
 
-      // Likes subcollection
       match /likes/{userId} {
         allow read: if true;
-        allow create, delete: if isOwner(userId);
+        allow create, delete: if isValidId(postId) && isValidId(userId) && isOwner(userId);
       }
 
-      // Comments subcollection
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isSignedIn() && isValidComment(incoming()) && incoming().authorId == request.auth.uid;
-        allow update: if isSignedIn() && (
-          (existing().authorId == request.auth.uid && isValidComment(incoming())) ||
-          incoming().diff(existing()).affectedKeys().hasOnly(['likesCount'])
+        allow create: if isValidId(postId) && isValidId(commentId) && isSignedIn() && isValidComment(incoming()) && incoming().authorId == request.auth.uid;
+        allow update: if isValidId(postId) && isValidId(commentId) && isSignedIn() && (
+          (existing().authorId == request.auth.uid && isValidComment(incoming()) && incoming().authorId == existing().authorId) ||
+          (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount']) && incoming().likesCount is number && incoming().likesCount >= 0)
         );
-        allow delete: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+        allow delete: if isValidId(postId) && isValidId(commentId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
       }
     }
 
-    // 5. Direct Message Conversations & Threads
+    // 5. Direct Message Conversations & Threads (Strictly Participant-Isolated)
     match /conversations/{conversationId} {
-      allow read, write: if isSignedIn();
+      allow get: if isValidId(conversationId) && isSignedIn() && (
+        request.auth.uid in resource.data.participantUids || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        request.auth.uid in resource.data.participantUids || isAdmin()
+      );
+      allow create: if isValidId(conversationId) && isSignedIn()
+        && incoming().participantUids is list
+        && incoming().participantUids.size() >= 1
+        && incoming().participantUids.size() <= 10
+        && request.auth.uid in incoming().participantUids;
+      allow update: if isValidId(conversationId) && isSignedIn()
+        && request.auth.uid in existing().participantUids
+        && incoming().participantUids == existing().participantUids;
+      allow delete: if isValidId(conversationId) && isAdmin();
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow get: if isValidId(conversationId) && isValidId(messageId) && isSignedIn() && (
+          resource.data.senderId == request.auth.uid ||
+          resource.data.recipientId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/conversations/$(conversationId)) &&
+            request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantUids) ||
+          isAdmin()
+        );
+        allow list: if isSignedIn() && (
+          resource.data.senderId == request.auth.uid ||
+          resource.data.recipientId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isValidId(conversationId) && isValidId(messageId) && isSignedIn()
+          && incoming().senderId == request.auth.uid
+          && incoming().recipientId is string && incoming().recipientId.size() <= 128
+          && incoming().text is string && incoming().text.size() <= 4000;
+        allow update: if isValidId(conversationId) && isValidId(messageId) && isSignedIn()
+          && existing().recipientId == request.auth.uid
+          && incoming().senderId == existing().senderId
+          && incoming().recipientId == existing().recipientId
+          && incoming().diff(existing()).affectedKeys().hasOnly(['readAt', 'status']);
+        allow delete: if isValidId(conversationId) && isValidId(messageId) && isAdmin();
       }
     }
 
-    // 5.5 Forum Threads & Creator Thoughts
+    // 5.5 Forum Threads & Creator Thoughts (Owner-Scoped Mutations)
     match /forumThreads/{threadId} {
       allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow create: if isValidId(threadId) && isSignedIn() && isValidForumThread(incoming())
+        && incoming().authorId == request.auth.uid;
+      allow update: if isValidId(threadId) && isSignedIn() && (
+        (existing().authorId == request.auth.uid && incoming().authorId == existing().authorId) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'repliesCount', 'viewsCount', 'updatedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isValidId(threadId) && isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
 
       match /replies/{replyId} {
         allow read: if true;
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+        allow create: if isValidId(threadId) && isValidId(replyId) && isSignedIn()
+          && incoming().authorId == request.auth.uid
+          && incoming().content is string && incoming().content.size() > 0 && incoming().content.size() <= 4000;
+        allow update: if isValidId(threadId) && isValidId(replyId) && isSignedIn() && (
+          (existing().authorId == request.auth.uid && incoming().authorId == existing().authorId) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'updatedAt']) ||
+          isAdmin()
+        );
+        allow delete: if isValidId(threadId) && isValidId(replyId) && isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
       }
     }
 
     // 6. Curatorial Open Call Submissions
     match /submissions/{submissionId} {
-      allow create: if true;
+      allow create: if isValidId(submissionId) && isSignedIn();
       allow read, update, delete: if isAdmin();
     }
 
-    // 6.5 Shorts - Short-Form Vertical Social Video Platform
+    // 6.5 Shorts
     match /shorts/{shortId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidShort(incoming());
-      allow update: if isSignedIn() && (
+      allow create: if isValidId(shortId) && isSignedIn() && isValidShort(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if isValidId(shortId) && isSignedIn() && (
         (existing().authorId == request.auth.uid && isValidShort(incoming()) && incoming().authorId == existing().authorId) ||
         incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'commentsCount', 'sharesCount', 'savesCount', 'viewsCount', 'updatedAt']) ||
         isAdmin()
       );
-      allow delete: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(shortId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isSignedIn() && isValidShortComment(incoming()) && incoming().authorId == request.auth.uid;
-        allow update: if isSignedIn() && (
-          (existing().authorId == request.auth.uid && isValidShortComment(incoming())) ||
+        allow create: if isValidId(shortId) && isValidId(commentId) && isSignedIn() && isValidShortComment(incoming()) && incoming().authorId == request.auth.uid;
+        allow update: if isValidId(shortId) && isValidId(commentId) && isSignedIn() && (
+          (existing().authorId == request.auth.uid && isValidShortComment(incoming()) && incoming().authorId == existing().authorId) ||
           incoming().diff(existing()).affectedKeys().hasOnly(['likesCount'])
         );
-        allow delete: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+        allow delete: if isValidId(shortId) && isValidId(commentId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
       }
     }
 
-    // 7. Wallets: Users can read their own wallet, writes are protected
+    // 7. Wallets (Owner Read ONLY; Admin/Server-Only Write — never let client mutate balances)
     match /wallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isSignedIn() && (
-        isOwner(userId) ||
-        isAdmin() ||
-        // Auto-provisioning wallet for recipient receiving a transfer or grant
-        (incoming().uid == userId && incoming().availableBalance >= 0)
-      );
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        // Owner updating their wallet (debit, convert, or top up)
-        isOwner(userId) ||
-        // Recipient wallet receiving transfer funds
-        (incoming().diff(existing()).affectedKeys().hasOnly(['availableBalance', 'totalReceived', 'updatedAt']) &&
-         incoming().availableBalance >= existing().availableBalance)
-      );
-      allow delete: if isAdmin();
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
-    // 8. Wallet Transactions: Users can read and record their transactions
+    // 8. Wallet Transactions (Immutable Owner Read, Admin-Only Write)
     match /walletTransactions/{transactionId} {
-      allow read: if isSignedIn() && (
+      allow get: if isValidId(transactionId) && isSignedIn() && (
         resource.data.uid == request.auth.uid ||
         (resource.data.keys().hasAny(['recipientUid']) && resource.data.recipientUid == request.auth.uid) ||
         (resource.data.keys().hasAny(['senderUid']) && resource.data.senderUid == request.auth.uid) ||
         isAdmin()
       );
-      allow create: if isSignedIn() && (
-        incoming().uid == request.auth.uid ||
-        (incoming().keys().hasAny(['recipientUid']) && incoming().recipientUid == request.auth.uid) ||
-        (incoming().keys().hasAny(['senderUid']) && incoming().senderUid == request.auth.uid) ||
+      allow list: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
         isAdmin()
       );
-      allow update, delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
-    // 9. Top-Up Intents: Users can create and manage their top-up records
+    // 9. Top-Up Intents (Owner Read ONLY, Admin-Only Write)
     match /topUps/{topUpId} {
-      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (incoming().uid == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (isOwner(resource.data.uid) || isAdmin());
-      allow delete: if isAdmin();
+      allow get: if isValidId(topUpId) && isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
     }
 
-    // 10. Currency Configurations & Exchange Rates (Public read, admin/server write)
+    // 10. Currency Configurations & Exchange Rates
     match /currencyConfigurations/{currencyCode} {
       allow read: if true;
       allow write: if isAdmin();
@@ -299,14 +561,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 11. Admin Audit Logs (Admin only, tamper-proof, append-only, non-repudiable)
+    // 11. Admin Audit Logs (Append-only)
     match /adminAuditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isAdmin() && isValidAuditLog(incoming()) && incoming().logId == logId;
+      allow create: if isValidId(logId) && isAdmin() && isValidAuditLog(incoming()) && incoming().logId == logId;
       allow update, delete: if false;
     }
 
-    // 12. System Settings & Feature Flags (Public read, admin write)
+    // 12. System Settings & Feature Flags
     match /systemSettings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -317,161 +579,726 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // 13. Security Events
+    // 13. Security Events (Admin Only — prevent log forging/flooding)
     match /securityEvents/{eventId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // 14. Support Tickets
     match /supportTickets/{ticketId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isValidId(ticketId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(ticketId) && isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isValidId(ticketId) && isSignedIn() && (
+        isAdmin() ||
+        (existing().userId == request.auth.uid && incoming().userId == existing().userId && incoming().diff(existing()).affectedKeys().hasOnly(['message', 'status', 'updatedAt']))
+      );
       allow delete: if isAdmin();
     }
 
-    // 15. System Admins Registry
+    // 15. System Admins Registry (Self or Admin Get, Admin List & Write)
     match /admins/{adminId} {
-      allow read: if isSignedIn();
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 
     // 16. Newsletter Subscribers
     match /newsletterSubscribers/{subId} {
       allow read: if isAdmin();
-      allow create, update: if incoming().email is string && incoming().email.size() > 3;
-      allow delete: if isAdmin();
+      allow create: if isValidId(subId) && isSignedIn() && incoming().email is string && incoming().email.size() > 3 && incoming().email.size() <= 150;
+      allow update, delete: if isAdmin();
     }
 
     // 17. Connection Test Probe
     match /test/{docId} {
-      allow read: if true;
+      allow get: if docId == 'connection';
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 
     // 18. Share & Attribution Links
     match /shareLinks/{linkId} {
-      allow read: if true;
-      allow create, update: if true;
+      allow read: if isSignedIn();
+      allow create: if isValidId(linkId) && isSignedIn() && incoming().createdBy == request.auth.uid;
+      allow update: if isValidId(linkId) && isSignedIn() && (existing().createdBy == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // 19. Threads (Alias for Creator Thoughts / Dispatches)
+    // 19. Threads
     match /threads/{threadId} {
       allow read: if true;
-      allow create, update: if isSignedIn();
-      allow delete: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow create: if isValidId(threadId) && isSignedIn() && isValidForumThread(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if isValidId(threadId) && isSignedIn() && (
+        (existing().authorId == request.auth.uid && incoming().authorId == existing().authorId) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'repliesCount', 'viewsCount', 'updatedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isValidId(threadId) && isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
 
-    // 20. Collaborative Rooms & SharedWorks Canvas
+    // 20. Collaborative Rooms & SharedWorks Canvas (Owner/Participant Protected)
     match /collaborativeRooms/{roomId} {
-      allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if (isSignedIn() && resource.data.ownerId == request.auth.uid) || isAdmin();
+      allow get: if isValidId(roomId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isValidId(roomId) && isSignedIn() && incoming().ownerId == request.auth.uid;
+      allow update: if isValidId(roomId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['participantsCount', 'updatedAt', 'lastActivityAt']) ||
+        isAdmin()
+      );
+      allow delete: if isValidId(roomId) && isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
 
       match /canvasItems/{itemId} {
-        allow read, write: if true;
+        allow read: if isSignedIn();
+        allow write: if isValidId(roomId) && isValidId(itemId) && isSignedIn();
       }
 
       match /participants/{participantId} {
-        allow read, write: if true;
+        allow read: if isSignedIn();
+        allow write: if isValidId(roomId) && isValidId(participantId) && (isOwner(participantId) || isAdmin());
       }
 
       match /activities/{activityId} {
-        allow read, write: if true;
+        allow read: if isSignedIn();
+        allow create: if isValidId(roomId) && isValidId(activityId) && isSignedIn();
+        allow update, delete: if isAdmin();
       }
 
       match /cursors/{cursorId} {
-        allow read, write: if true;
+        allow read: if isSignedIn();
+        allow write: if isValidId(roomId) && isValidId(cursorId) && (isOwner(cursorId) || isAdmin());
       }
     }
 
-    // 21. Live Multiplayer Presence & Spatial Ambient Reactions
+    // 21. Live Multiplayer Presence & Reactions
     match /livePresence/{presenceId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isSignedIn() || isAdmin();
+      allow read: if isSignedIn();
+      allow create, update: if isValidId(presenceId) && isSignedIn() && incoming().userId == request.auth.uid;
+      allow delete: if isValidId(presenceId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
     }
 
     match /liveReactions/{reactionId} {
-      allow read: if true;
-      allow create: if true;
+      allow read: if isSignedIn();
+      allow create: if isValidId(reactionId) && isSignedIn() && incoming().userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    // 22. Shared 3D Scenes (Slide 5 Fu Labs Co-Op)
+    // 22. Shared 3D Scenes
     match /sharedScenes/{sceneId} {
       allow read: if true;
-      allow create, update: if true;
-      allow delete: if (isSignedIn() && resource.data.authorId == request.auth.uid) || isAdmin();
+      allow create: if isValidId(sceneId) && isSignedIn() && incoming().authorId == request.auth.uid;
+      allow update: if isValidId(sceneId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(sceneId) && isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
 
-    // 23. Shared Prompt Matrix (Slide 6 VX Co-Op)
+    // 23. Shared Prompt Matrix
     match /sharedPrompts/{promptId} {
       allow read: if true;
-      allow create, update: if true;
-      allow delete: if (isSignedIn() && resource.data.authorId == request.auth.uid) || isAdmin();
+      allow create: if isValidId(promptId) && isSignedIn() && incoming().authorId == request.auth.uid;
+      allow update: if isValidId(promptId) && isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(promptId) && isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
     }
 
-    // 24. Seedance 2.5 Membership Plans & Pricing
+    // 24. Seedance 2.5 Membership Plans & Pricing (Public Read, Admin Write Only)
     match /membershipPlans/{planId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // 25. Seedance User Subscriptions
+    // 25. Seedance Dynamic Generation Cost Config (Public Read, Admin Write Only)
+    match /generationCostConfigs/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // 26. Seedance User Subscriptions (Owner Read, Admin-Only Create/Plan Change)
     match /subscriptions/{subId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create, update: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isValidId(subId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isValidId(subId) && isSignedIn() && (
+        (existing().userId == request.auth.uid
+          && incoming().userId == existing().userId
+          && incoming().diff(existing()).affectedKeys().hasOnly(['autoRenew', 'cancelAtPeriodEnd', 'updatedAt'])) ||
+        isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
-    // 26. Seedance Credit Packages
+    // 27. Seedance Credit Packages
     match /creditPackages/{packageId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // 27. Seedance Credit Wallets
+    // 28. Seedance Credit Wallets (Owner Read, Admin/Server Write)
     match /creditWallets/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin();
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
-    // 28. Seedance Credit Transactions (Immutable Ledger)
+    // 29. Seedance Credit Transactions (Immutable Owner Read, Admin Write)
     match /creditTransactions/{transactionId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
+      allow get: if isValidId(transactionId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
     }
 
-    // 29. Seedance Generation Jobs
+    // 30. Unified Seedance & MUAPI Generation Jobs (Owner Real-Time Sync & Admin Governance)
     match /generationJobs/{jobId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      allow get: if isValidId(jobId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(jobId) && isSignedIn()
+        && isValidGenerationJob(incoming())
+        && (incoming().userId == request.auth.uid || isAdmin());
+      allow update: if isValidId(jobId) && isSignedIn()
+        && isValidGenerationJob(incoming())
+        && incoming().userId == existing().userId
+        && (existing().userId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(jobId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
     }
 
-    // 30. Seedance Community Videos
+    // 30b. Public-Safe Provider Configurations (Signed-in Read, Admin Write Only, Never Secrets)
+    match /providerConfigs/{providerId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isValidId(providerId) && isAdmin()
+        && !incoming().keys().hasAny(['apiKey', 'secret', 'xApiKey', 'api_key']);
+      allow delete: if isValidId(providerId) && isAdmin();
+    }
+
+    // 31. Seedance Community Videos
     match /communityVideos/{videoId} {
       allow read: if true;
-      allow create: if true;
-      allow update: if true;
-      allow delete: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if isValidId(videoId) && isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isValidId(videoId) && isSignedIn() && (
+        (existing().userId == request.auth.uid && incoming().userId == existing().userId) ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['likesCount', 'viewsCount', 'updatedAt']) ||
+        isAdmin()
+      );
+      allow delete: if isValidId(videoId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // 31. BytePlus API Stock Balance & Financial Analytics
+    // 32. Personal AI Agent Creative Memories (Strictly User-Isolated)
+    match /agentMemories/{memoryId} {
+      allow get: if isValidId(memoryId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(memoryId) && isVerifiedUser() && isValidAgentMemory(incoming());
+      allow update: if isValidId(memoryId) && isVerifiedUser()
+        && existing().userId == request.auth.uid
+        && isValidAgentMemory(incoming())
+        && incoming().userId == existing().userId;
+      allow delete: if isValidId(memoryId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 33. Personal AI Agent Conversations (Strictly User-Isolated)
+    match /agentConversations/{conversationId} {
+      allow get: if isValidId(conversationId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(conversationId) && isVerifiedUser() && isValidAgentConversation(incoming());
+      allow update: if isValidId(conversationId) && isVerifiedUser()
+        && existing().userId == request.auth.uid
+        && isValidAgentConversation(incoming())
+        && incoming().userId == existing().userId;
+      allow delete: if isValidId(conversationId) && isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 34. Livestreams (Public or Host/Admin Visibility)
+    match /livestreams/{streamId} {
+      allow get: if isValidId(streamId) && (
+        resource.data.visibility == 'PUBLIC' ||
+        (isSignedIn() && (resource.data.hostUserId == request.auth.uid || isAdmin()))
+      );
+      allow list: if resource.data.visibility == 'PUBLIC'
+        || (isSignedIn() && (resource.data.hostUserId == request.auth.uid || isAdmin()));
+      allow create: if isValidId(streamId) && isSignedIn() && isValidLivestream(incoming()) && incoming().hostUserId == request.auth.uid;
+      allow update: if isValidId(streamId) && isSignedIn() && (
+        (existing().hostUserId == request.auth.uid && isValidLivestream(incoming()) && incoming().hostUserId == existing().hostUserId) ||
+        isAdmin()
+      );
+      allow delete: if isValidId(streamId) && isSignedIn() && (existing().hostUserId == request.auth.uid || isAdmin());
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/livestreams/$(streamId)).data.visibility == 'PUBLIC' ||
+          get(/databases/$(database)/documents/livestreams/$(streamId)).data.hostUserId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isValidId(messageId) && isSignedIn() && incoming().userId == request.auth.uid
+          && incoming().text is string && incoming().text.size() > 0 && incoming().text.size() <= 1000
+          && (
+            get(/databases/$(database)/documents/livestreams/$(streamId)).data.visibility == 'PUBLIC' ||
+            get(/databases/$(database)/documents/livestreams/$(streamId)).data.hostUserId == request.auth.uid ||
+            isAdmin()
+          );
+        allow delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 35. Multiplayer Call — Live Rooms (Public or Creator/Participant Isolation)
+    match /liveRooms/{roomId} {
+      allow get: if isValidId(roomId) && (
+        resource.data.visibility == 'PUBLIC' ||
+        (isSignedIn() && (
+          resource.data.creatorUserId == request.auth.uid ||
+          exists(/databases/$(database)/documents/liveRooms/$(roomId)/participants/$(request.auth.uid)) ||
+          isAdmin()
+        ))
+      );
+      allow list: if resource.data.visibility == 'PUBLIC'
+        || (isSignedIn() && (resource.data.creatorUserId == request.auth.uid || isAdmin()));
+      allow create: if isValidId(roomId) && isSignedIn() && isValidLiveRoom(incoming()) && incoming().creatorUserId == request.auth.uid;
+      allow update: if isValidId(roomId) && isSignedIn() && (
+        (existing().creatorUserId == request.auth.uid && isValidLiveRoom(incoming()) && incoming().creatorUserId == existing().creatorUserId) ||
+        isAdmin()
+      );
+      allow delete: if isValidId(roomId) && isSignedIn() && (existing().creatorUserId == request.auth.uid || isAdmin());
+
+      match /participants/{participantId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/liveRooms/$(roomId)).data.visibility == 'PUBLIC' ||
+          get(/databases/$(database)/documents/liveRooms/$(roomId)).data.creatorUserId == request.auth.uid ||
+          isOwner(participantId) ||
+          isAdmin()
+        );
+        allow create, update: if isValidId(participantId) && isSignedIn()
+          && (
+            (isOwner(participantId) && get(/databases/$(database)/documents/liveRooms/$(roomId)).data.visibility == 'PUBLIC')
+            || get(/databases/$(database)/documents/liveRooms/$(roomId)).data.creatorUserId == request.auth.uid
+            || isAdmin()
+          );
+        allow delete: if isValidId(participantId) && isSignedIn()
+          && (isOwner(participantId)
+            || get(/databases/$(database)/documents/liveRooms/$(roomId)).data.creatorUserId == request.auth.uid
+            || isAdmin());
+      }
+    }
+
+    // 36. BytePlus API Stock Balance & Financial Analytics (Admin Only)
     match /apiStock/{stockId} {
       allow read, write: if isAdmin();
     }
 
     match /financialAnalytics/{docId} {
       allow read, write: if isAdmin();
+    }
+
+    // ============================================================================
+    // COMMUNITY & GROUPS ECOSYSTEM RULES (SECTIONS 37 - 48)
+    // ============================================================================
+
+    // 37. Community Groups & Private Group Isolation
+    match /groups/{groupId} {
+      allow get: if isValidId(groupId) && (
+        (resource.data.visibility == 'PUBLIC' && resource.data.status == 'ACTIVE') ||
+        isGroupMember(groupId) ||
+        isAdmin()
+      );
+      allow list: if (resource.data.visibility == 'PUBLIC' && resource.data.status == 'ACTIVE')
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid)
+        || isAdmin();
+      allow create: if isValidId(groupId) && isSignedIn() && isValidGroup(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().status == 'ACTIVE';
+      allow update: if isValidId(groupId) && isSignedIn() && isValidGroup(incoming()) && (
+        isAdmin() ||
+        (isGroupOwnerOrAdmin(groupId)
+          && incoming().id == existing().id
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'description', 'category', 'visibility', 'joinMode',
+            'coverImageUrl', 'iconImageUrl', 'rulesText', 'status', 'ownerId', 'updatedAt'
+          ])
+          && (incoming().ownerId == existing().ownerId || existing().ownerId == request.auth.uid))
+      );
+      allow delete: if isValidId(groupId) && isSignedIn() && (existing().ownerId == request.auth.uid || isAdmin());
+
+      // 37a. Group Memberships & Independent Per-Group Roles
+      match /members/{memberUid} {
+        allow get: if isValidId(groupId) && isValidId(memberUid) && (
+          isGroupPublic(groupId) || isGroupMember(groupId) || isOwner(memberUid) || isAdmin()
+        );
+        allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+        allow create: if isValidId(groupId) && isValidId(memberUid) && isSignedIn()
+          && isValidGroupMembership(incoming()) && (
+            isAdmin() ||
+            isGroupOwnerOrAdmin(groupId) ||
+            (isOwner(memberUid) && incoming().userId == request.auth.uid && incoming().role == 'MEMBER' && isGroupPublic(groupId))
+          );
+        allow update: if isValidId(groupId) && isValidId(memberUid) && isSignedIn()
+          && isValidGroupMembership(incoming())
+          && incoming().userId == existing().userId
+          && incoming().groupId == existing().groupId
+          && (isAdmin() || isGroupOwnerOrAdmin(groupId));
+        allow delete: if isValidId(groupId) && isValidId(memberUid) && isSignedIn() && (
+          isOwner(memberUid) || isGroupOwnerOrAdmin(groupId) || isAdmin()
+        );
+      }
+
+      // 37b. Group Join Requests
+      match /joinRequests/{requestId} {
+        allow get: if isValidId(groupId) && isValidId(requestId) && isSignedIn() && (
+          resource.data.userId == request.auth.uid || isGroupStaff(groupId) || isAdmin()
+        );
+        allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+        allow create: if isValidId(groupId) && isValidId(requestId) && isSignedIn()
+          && incoming().userId == request.auth.uid
+          && incoming().groupId == groupId
+          && incoming().status == 'PENDING';
+        allow update: if isValidId(groupId) && isValidId(requestId) && isSignedIn() && (
+          isGroupStaff(groupId) || isAdmin()
+        );
+        allow delete: if isValidId(groupId) && isValidId(requestId) && isSignedIn() && (
+          existing().userId == request.auth.uid || isGroupStaff(groupId) || isAdmin()
+        );
+      }
+
+      // 37c. Group Posts (Images, AI Videos, Seedance Workflows, Text Updates)
+      match /posts/{postId} {
+        allow get: if isValidId(groupId) && isValidId(postId) && (
+          isGroupPublic(groupId) || isGroupMember(groupId) || isAdmin()
+        );
+        allow list: if resource.data.groupVisibility == 'PUBLIC'
+          || (isSignedIn() && resource.data.authorId == request.auth.uid)
+          || isAdmin();
+        allow create: if isValidId(groupId) && isValidId(postId) && isSignedIn()
+          && isValidGroupPost(incoming())
+          && incoming().authorId == request.auth.uid
+          && incoming().groupId == groupId
+          && isGroupMember(groupId);
+        allow update: if isValidId(groupId) && isValidId(postId) && isSignedIn()
+          && isValidGroupPost(incoming())
+          && incoming().authorId == existing().authorId
+          && incoming().groupId == existing().groupId
+          && (
+            isAdmin() ||
+            isGroupStaff(groupId) ||
+            (existing().authorId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'body', 'updatedAt']))
+          );
+        allow delete: if isValidId(groupId) && isValidId(postId) && isSignedIn() && (
+          existing().authorId == request.auth.uid || isGroupStaff(groupId) || isAdmin()
+        );
+
+        match /comments/{commentId} {
+          allow get: if isValidId(groupId) && isValidId(postId) && isValidId(commentId) && (
+            isGroupPublic(groupId) || isGroupMember(groupId) || isAdmin()
+          );
+          allow list: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+          allow create: if isValidId(groupId) && isValidId(postId) && isValidId(commentId) && isSignedIn()
+            && isValidGroupComment(incoming())
+            && incoming().authorId == request.auth.uid
+            && incoming().groupId == groupId
+            && incoming().postId == postId
+            && isGroupMember(groupId);
+          allow update: if isValidId(groupId) && isValidId(postId) && isValidId(commentId) && isSignedIn()
+            && isValidGroupComment(incoming())
+            && existing().authorId == request.auth.uid
+            && incoming().authorId == existing().authorId
+            && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'updatedAt']);
+          allow delete: if isValidId(groupId) && isValidId(postId) && isValidId(commentId) && isSignedIn() && (
+            existing().authorId == request.auth.uid || isGroupStaff(groupId) || isAdmin()
+          );
+        }
+      }
+
+      // 37d. Group Announcements
+      match /announcements/{announcementId} {
+        allow get: if isValidId(groupId) && isValidId(announcementId) && (
+          isGroupPublic(groupId) || isGroupMember(groupId) || isAdmin()
+        );
+        allow list: if isSignedIn() && (resource.data.authorId == request.auth.uid || isAdmin());
+        allow create: if isValidId(groupId) && isValidId(announcementId) && isSignedIn()
+          && isValidGroupAnnouncement(incoming())
+          && incoming().authorId == request.auth.uid
+          && isGroupStaff(groupId);
+        allow update, delete: if isValidId(groupId) && isValidId(announcementId) && isSignedIn() && (
+          isGroupStaff(groupId) || isAdmin()
+        );
+      }
+
+      // 37e. Group Events & Challenges
+      match /events/{eventId} {
+        allow get: if isValidId(groupId) && isValidId(eventId) && (
+          isGroupPublic(groupId) || isGroupMember(groupId) || isAdmin()
+        );
+        allow list: if isSignedIn() && (resource.data.creatorId == request.auth.uid || isAdmin());
+        allow create: if isValidId(groupId) && isValidId(eventId) && isSignedIn()
+          && isValidGroupEvent(incoming())
+          && incoming().creatorId == request.auth.uid
+          && isGroupStaff(groupId);
+        allow update, delete: if isValidId(groupId) && isValidId(eventId) && isSignedIn() && (
+          isGroupStaff(groupId) || isAdmin()
+        );
+      }
+
+      // 37f. Group Moderation Audit Logs (Append-only by group staff or platform admin)
+      match /moderationLogs/{logId} {
+        allow get: if isValidId(groupId) && isValidId(logId) && (isGroupStaff(groupId) || isAdmin());
+        allow list: if isSignedIn() && (resource.data.actorId == request.auth.uid || isAdmin());
+        allow create: if isValidId(groupId) && isValidId(logId) && isSignedIn() && (
+          isGroupStaff(groupId) || isAdmin()
+        );
+        allow update, delete: if false;
+      }
+    }
+
+    // 38. Group Invitations
+    match /groupInvitations/{invitationId} {
+      allow get: if isValidId(invitationId) && isSignedIn() && (
+        resource.data.inviteeId == request.auth.uid || resource.data.inviterId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.inviteeId == request.auth.uid || resource.data.inviterId == request.auth.uid || isAdmin()
+      );
+      allow create: if isValidId(invitationId) && isSignedIn()
+        && incoming().inviterId == request.auth.uid
+        && incoming().status == 'PENDING'
+        && isGroupMember(incoming().groupId);
+      allow update: if isValidId(invitationId) && isSignedIn() && (
+        existing().inviteeId == request.auth.uid || existing().inviterId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isValidId(invitationId) && isSignedIn() && (
+        existing().inviterId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // 39. Virtual Gift Catalog (Public Read, Platform Admin Write Only)
+    match /giftCatalog/{giftId} {
+      allow get: if isValidId(giftId);
+      allow list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 40. Virtual Gift Transactions (Immutable Sender/Recipient Read, Admin/Server Write)
+    match /giftTransactions/{transactionId} {
+      allow get: if isValidId(transactionId) && isSignedIn() && (
+        resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || resource.data.recipientId == request.auth.uid || isAdmin()
+      );
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 41. Community Notifications
+    match /communityNotifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isSignedIn() && (
+        resource.data.recipientId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.recipientId == request.auth.uid || isAdmin());
+      allow create: if isAdmin();
+      allow update: if isValidId(notificationId) && isSignedIn()
+        && existing().recipientId == request.auth.uid
+        && incoming().recipientId == existing().recipientId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+      allow delete: if isValidId(notificationId) && isSignedIn() && (
+        existing().recipientId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // 42. Community Moderation Reports
+    match /communityReports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (
+        resource.data.reporterId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
+      allow create: if isValidId(reportId) && isSignedIn() && isValidCommunityReport(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // 43. Community Categories & Platform Policies
+    match /communityCategories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /communityPolicies/{policyId} {
+      allow get: if isValidId(policyId);
+      allow list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 44. Community User Profiles
+    match /communityUserProfiles/{userId} {
+      allow get: if isValidId(userId) && isSignedIn();
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update: if isValidId(userId) && isOwner(userId) && isValidCommunityUserProfile(incoming());
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    // 45. Authorized Curators Registry (Admin Managed Only)
+    match /curators/{curatorUid} {
+      allow get: if isValidId(curatorUid) && isSignedIn() && (isOwner(curatorUid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update, delete: if isValidId(curatorUid) && isAdmin();
+    }
+
+    // 46. User Private Creations (Strict Owner Privacy — NEVER public listing)
+    match /userCreations/{creationId} {
+      allow get: if isValidId(creationId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(creationId) && isSignedIn()
+        && isValidUserCreation(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().visibility == 'private'
+        && incoming().publicationStatus in ['private', 'not_submitted'];
+      allow update: if isValidId(creationId) && isSignedIn()
+        && isValidUserCreation(incoming())
+        && incoming().ownerId == existing().ownerId
+        && (
+          isCurator() ||
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'tags', 'projectId', 'projectName', 'collectionIds', 'updatedAt']))
+        );
+      allow delete: if isValidId(creationId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // 47. Creation Media Assets (Owner or Curator-for-Review Only; Public Reads Serve Clean Published References)
+    match /creationAssets/{assetId} {
+      allow get: if isValidId(assetId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isCurator()
+      );
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(assetId) && isSignedIn()
+        && incoming().ownerId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isValidId(assetId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // 48. Personal Creation Collections & Items (Strictly Owner Private)
+    match /creationCollections/{collectionId} {
+      allow get: if isValidId(collectionId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(collectionId) && isSignedIn()
+        && incoming().ownerId == request.auth.uid
+        && incoming().name is string && incoming().name.size() > 0 && incoming().name.size() <= 80;
+      allow update: if isValidId(collectionId) && isSignedIn()
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId;
+      allow delete: if isValidId(collectionId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /collectionItems/{itemId} {
+      allow get: if isValidId(itemId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(itemId) && isSignedIn() && incoming().ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(itemId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // 49. Curation Submissions (Owner Submit/Withdraw & Curator/Admin Review Only)
+    match /curationSubmissions/{submissionId} {
+      allow get: if isValidId(submissionId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isCurator()
+      );
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(submissionId) && isSignedIn()
+        && isValidCurationSubmission(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().status == 'SUBMITTED';
+      allow update: if isValidId(submissionId) && isSignedIn()
+        && isValidCurationSubmission(incoming())
+        && incoming().ownerId == existing().ownerId
+        && (
+          isCurator() ||
+          (existing().ownerId == request.auth.uid && incoming().status == 'WITHDRAWN')
+        );
+      allow delete: if isAdmin();
+    }
+
+    // 50. Curation Reviews Audit Log (Curator/Admin Only, Append-Only)
+    match /curationReviews/{reviewId} {
+      allow get: if isValidId(reviewId) && isCurator();
+      allow list: if isAdmin();
+      allow create: if isValidId(reviewId) && isCurator()
+        && incoming().reviewerId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // 51. Public Curated Creations (Public Read ONLY when status == 'PUBLISHED')
+    match /publishedCreations/{publishedId} {
+      allow get: if isValidId(publishedId) && (
+        resource.data.status == 'PUBLISHED' ||
+        (isSignedIn() && (resource.data.ownerId == request.auth.uid || isCurator()))
+      );
+      allow list: if resource.data.status == 'PUBLISHED' || (isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin()));
+      allow create: if isValidId(publishedId) && isCurator() && incoming().status == 'PUBLISHED';
+      allow update: if isValidId(publishedId) && isSignedIn() && (
+        isCurator() ||
+        (existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().creationId == existing().creationId
+          && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'tags', 'creativeCredits', 'commentsEnabled', 'showCreatorProfile', 'showAiModel', 'showPromptAndParams', 'status', 'updatedAt']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 52. Creation Reactions, Comments, Favorites, Tags & Analytics
+    match /creationReactions/{reactionId} {
+      allow get: if isValidId(reactionId);
+      allow list: if true;
+      allow create: if isValidId(reactionId) && isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(reactionId) && isSignedIn() && (
+        existing().userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /creationComments/{commentId} {
+      allow get: if isValidId(commentId);
+      allow list: if true;
+      allow create: if isValidId(commentId) && isSignedIn()
+        && isValidCreationComment(incoming())
+        && incoming().authorId == request.auth.uid;
+      allow update: if isValidId(commentId) && isSignedIn()
+        && isValidCreationComment(incoming())
+        && existing().authorId == request.auth.uid
+        && incoming().authorId == existing().authorId
+        && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'updatedAt']);
+      allow delete: if isValidId(commentId) && isSignedIn() && (
+        existing().authorId == request.auth.uid || isCurator()
+      );
+    }
+
+    match /creatorFavorites/{favoriteId} {
+      allow get: if isValidId(favoriteId) && isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(favoriteId) && isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(favoriteId) && isSignedIn() && (
+        existing().userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /creationTags/{tagId} {
+      allow get: if isValidId(tagId);
+      allow list: if true;
+      allow create, update, delete: if isCurator();
+    }
+
+    match /creationAnalytics/{analyticsId} {
+      allow get: if isValidId(analyticsId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
     }
   }
 }

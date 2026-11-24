@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SocialPost } from '../types/social';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Layers } from 'lucide-react';
 import { useLanguage } from '../services/i18n';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { VaiureEmptyState } from './ui/VaiurePrimitives';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -121,6 +122,9 @@ export const FashionSection: React.FC<FashionSectionProps> = ({ posts, onSelectP
           className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-8 mb-12 gap-6 relative"
         >
           <div>
+            <span className="text-[10px] font-mono tracking-[0.25em] text-white/40 uppercase block mb-2 tabular-nums">
+              SECTION 04 · {filteredPosts.length} WORKS
+            </span>
             <h2 className="text-4xl sm:text-6xl lg:text-7xl font-serif font-light text-white tracking-tight uppercase leading-[0.95]">
               {t('navFashion')}
             </h2>
@@ -145,11 +149,20 @@ export const FashionSection: React.FC<FashionSectionProps> = ({ posts, onSelectP
           </div>
         </div>
 
-        {/* Real Dynamic Grid or Minimal Empty State */}
+        {/* Real Dynamic Grid or Actionable Empty State */}
         {filteredPosts.length === 0 ? (
-          <div className="py-24 text-center border border-white/10 text-white/40 font-mono text-xs tracking-widest uppercase">
-            {t('noWorkYet')}
-          </div>
+          <VaiureEmptyState
+            icon={<Layers className="w-5 h-5" />}
+            eyebrow="FASHION & COUTURE"
+            title={t('noWorkYet')}
+            description={
+              selectedCategory !== 'ALL'
+                ? `No works archived under ${selectedCategory} yet.`
+                : 'Digital couture and algorithmic fashion editorials published to the archive will appear here.'
+            }
+            actionLabel={selectedCategory !== 'ALL' ? 'VIEW ALL FASHION' : undefined}
+            onAction={selectedCategory !== 'ALL' ? () => setSelectedCategory('ALL') : undefined}
+          />
         ) : (
           <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredPosts.map((post) => (
@@ -157,7 +170,7 @@ export const FashionSection: React.FC<FashionSectionProps> = ({ posts, onSelectP
                 key={post.id}
                 onClick={() => onSelectPost(post)}
                 data-cursor="VIEW"
-                className="group cursor-pointer border border-white/10 hover:border-white/30 transition-all flex flex-col will-change-transform"
+                className="group cursor-pointer border border-white/[0.09] bg-[#0a0a0d] hover:border-white/30 transition-all flex flex-col will-change-transform"
               >
                 <div className="relative aspect-[3/4] overflow-hidden bg-neutral-900">
                   {post.media[0]?.url ? (
@@ -173,7 +186,7 @@ export const FashionSection: React.FC<FashionSectionProps> = ({ posts, onSelectP
                     </span>
                   </div>
                 </div>
-                <div className="p-5 border-t border-white/10 space-y-1">
+                <div className="p-5 border-t border-white/[0.08] space-y-1">
                   <span className="text-[10px] font-mono tracking-widest text-white/40 uppercase">
                     {post.category}
                   </span>

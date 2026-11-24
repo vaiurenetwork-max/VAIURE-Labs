@@ -14,19 +14,18 @@ import {
   PayoutDestination,
 } from '../types/vxaSecurity';
 
-function getAuthHeaders(userId?: string, userEmail?: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (userId) headers['x-user-id'] = userId;
-  if (userEmail) headers['x-user-email'] = userEmail;
-  return headers;
+import { getAuthHeaders as getVerifiedAuthHeaders } from '../lib/authHeaders';
+
+const depositTokenCache = new Map<string, string>();
+
+async function getAuthHeaders(_userId?: string, _userEmail?: string): Promise<Record<string, string>> {
+  return getVerifiedAuthHeaders({}, true);
 }
 
 export const vxaSecurityService = {
   getWallet: async (userId?: string): Promise<VxaUserWallet> => {
     const res = await fetch('/api/vxa/wallet', {
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch VXA wallet.');
@@ -35,7 +34,7 @@ export const vxaSecurityService = {
 
   getTransactions: async (userId?: string): Promise<VxaTransaction[]> => {
     const res = await fetch('/api/vxa/transactions', {
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch transactions.');
@@ -44,7 +43,7 @@ export const vxaSecurityService = {
 
   getSettlements: async (userId?: string): Promise<SettlementTrackerRecord[]> => {
     const res = await fetch('/api/vxa/settlements', {
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch settlements.');
@@ -57,6 +56,7 @@ export const vxaSecurityService = {
     userId?: string
   ): Promise<{
     depositRef: string;
+    depositToken?: string;
     amountIdr: number;
     vxaEquivalent: number;
     paymentMethod: string;
@@ -66,11 +66,14 @@ export const vxaSecurityService = {
   }> => {
     const res = await fetch('/api/vxa/deposit/create', {
       method: 'POST',
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
       body: JSON.stringify({ amountIdr, paymentMethod }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to initiate deposit.');
+    if (data.depositRef && data.depositToken) {
+      depositTokenCache.set(data.depositRef, data.depositToken);
+    }
     return data;
   },
 
@@ -79,15 +82,18 @@ export const vxaSecurityService = {
     paymentMethod: string,
     depositRef: string,
     idempotencyKey?: string,
-    userId?: string
+    userId?: string,
+    explicitDepositToken?: string
   ): Promise<{ transaction: VxaTransaction; wallet: VxaUserWallet; message: string }> => {
+    const depositToken = explicitDepositToken || depositTokenCache.get(depositRef);
     const res = await fetch('/api/vxa/deposit/confirm', {
       method: 'POST',
-      headers: getAuthHeaders(userId),
-      body: JSON.stringify({ amountIdr, paymentMethod, depositRef, idempotencyKey }),
+      headers: await getAuthHeaders(userId),
+      body: JSON.stringify({ amountIdr, paymentMethod, depositRef, depositToken, idempotencyKey }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Deposit verification failed.');
+    depositTokenCache.delete(depositRef);
     return data;
   },
 
@@ -100,7 +106,7 @@ export const vxaSecurityService = {
   ): Promise<{ transaction: VxaTransaction; settlement: SettlementTrackerRecord; wallet: VxaUserWallet; message: string }> => {
     const res = await fetch('/api/vxa/withdraw/request', {
       method: 'POST',
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
       body: JSON.stringify({ amountVxa, destination, pin, idempotencyKey }),
     });
     const data = await res.json();
@@ -114,7 +120,7 @@ export const vxaSecurityService = {
   ): Promise<{ creditsReceived: number; wallet: VxaUserWallet; transaction: VxaTransaction; message: string }> => {
     const res = await fetch('/api/vxa/convert', {
       method: 'POST',
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
       body: JSON.stringify({ vxaAmount }),
     });
     const data = await res.json();
@@ -123,7 +129,9 @@ export const vxaSecurityService = {
   },
 
   getKeyStatus: async (): Promise<KeyRegistryStatus> => {
-    const res = await fetch('/api/vxa/security/key-status');
+    const res = await fetch('/api/vxa/security/key-status', {
+      headers: await getVerifiedAuthHeaders({}, false),
+    });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch key rotation status.');
     return data.status;
@@ -132,7 +140,7 @@ export const vxaSecurityService = {
   triggerKeyRotation: async (adminEmail?: string): Promise<{ activeKid: string; message: string }> => {
     const res = await fetch('/api/vxa/security/key-rotate', {
       method: 'POST',
-      headers: getAuthHeaders(undefined, adminEmail),
+      headers: await getAuthHeaders(undefined, adminEmail),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Key rotation failed.');
@@ -142,7 +150,7 @@ export const vxaSecurityService = {
   setStepUpPin: async (pin: string, userId?: string): Promise<boolean> => {
     const res = await fetch('/api/vxa/security/step-up/pin', {
       method: 'POST',
-      headers: getAuthHeaders(userId),
+      headers: await getAuthHeaders(userId),
       body: JSON.stringify({ pin }),
     });
     const data = await res.json();
@@ -151,14 +159,18 @@ export const vxaSecurityService = {
   },
 
   getLedgerEntries: async (): Promise<{ count: number; lastHash: string; entries: DoubleEntryJournalEntry[] }> => {
-    const res = await fetch('/api/vxa/ledger/entries');
+    const res = await fetch('/api/vxa/ledger/entries', {
+      headers: await getVerifiedAuthHeaders({}, false),
+    });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch ledger entries.');
     return data;
   },
 
   verifyLedgerIntegrity: async (): Promise<{ ok: boolean; audit: any; verifiedAt: string }> => {
-    const res = await fetch('/api/vxa/ledger/verify');
+    const res = await fetch('/api/vxa/ledger/verify', {
+      headers: await getVerifiedAuthHeaders({}, false),
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Verification check failed.');
     return data;
@@ -166,7 +178,7 @@ export const vxaSecurityService = {
 
   getAdminOverview: async (adminEmail?: string): Promise<AdminFinancialOverview> => {
     const res = await fetch('/api/vxa/admin/overview', {
-      headers: getAuthHeaders(undefined, adminEmail),
+      headers: await getAuthHeaders(undefined, adminEmail),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch admin overview.');
@@ -175,7 +187,7 @@ export const vxaSecurityService = {
 
   getAdminSettlementQueue: async (adminEmail?: string): Promise<SettlementTrackerRecord[]> => {
     const res = await fetch('/api/vxa/admin/settlement-queue', {
-      headers: getAuthHeaders(undefined, adminEmail),
+      headers: await getAuthHeaders(undefined, adminEmail),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch settlement queue.');
@@ -190,7 +202,7 @@ export const vxaSecurityService = {
   ): Promise<{ transaction: VxaTransaction; settlement: SettlementTrackerRecord }> => {
     const res = await fetch('/api/vxa/admin/settlement-action', {
       method: 'POST',
-      headers: getAuthHeaders(undefined, adminEmail),
+      headers: await getAuthHeaders(undefined, adminEmail),
       body: JSON.stringify({ withdrawalId, action, reason }),
     });
     const data = await res.json();
@@ -200,7 +212,7 @@ export const vxaSecurityService = {
 
   getAdminSecurityEvents: async (adminEmail?: string): Promise<SecurityEventLog[]> => {
     const res = await fetch('/api/vxa/admin/security-events', {
-      headers: getAuthHeaders(undefined, adminEmail),
+      headers: await getAuthHeaders(undefined, adminEmail),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Failed to fetch security events.');
@@ -214,7 +226,7 @@ export const vxaSecurityService = {
     results: Array<{ testName: string; passed: boolean; message: string }>;
   }> => {
     const res = await fetch('/api/vxa/admin/run-tests', {
-      headers: getAuthHeaders(undefined, adminEmail),
+      headers: await getAuthHeaders(undefined, adminEmail),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error || 'Test suite execution failed.');

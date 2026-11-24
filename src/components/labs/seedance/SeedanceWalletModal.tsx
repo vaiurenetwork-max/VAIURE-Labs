@@ -51,9 +51,9 @@ export const SeedanceWalletModal: React.FC<SeedanceWalletModalProps> = ({
     setIsLoading(true);
     try {
       const [bal, sub, txs] = await Promise.all([
-        seedancePlatformService.getWalletBalance(userId),
-        seedancePlatformService.getUserSubscription(userId),
-        seedancePlatformService.getTransactionLedger(userId),
+        seedancePlatformService.getWalletBalance(),
+        seedancePlatformService.getUserSubscription(),
+        seedancePlatformService.getTransactionLedger(),
       ]);
       setBalance(bal);
       setSubscription(sub);

@@ -198,7 +198,9 @@ export interface SecurityEventLog {
     | 'SIGNATURE_MISMATCH'
     | 'DOUBLE_SPEND_ATTEMPT'
     | 'UNBALANCED_JOURNAL'
-    | 'WITHDRAWAL_REVIEW';
+    | 'WITHDRAWAL_REVIEW'
+    | 'SETTLEMENT_DECISION'
+    | 'DEPOSIT_TAMPER_ATTEMPT';
   userId?: string;
   details: string;
   ipHash?: string;

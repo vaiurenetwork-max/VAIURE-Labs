@@ -22,6 +22,7 @@ import {
   handleFirestoreError,
   OperationType,
 } from '../lib/firebase';
+import { getFirebaseIdToken, getAuthHeaders } from '../lib/authHeaders';
 import {
   ForumThread,
   ForumReply,
@@ -46,10 +47,14 @@ export async function uploadAndOptimizeThreadImage(
   formData.append('userId', userId);
   formData.append('threadId', threadId);
 
+  const token = await getFirebaseIdToken();
+
   return new Promise<OptimizedImageItem>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/threads/optimize-image');
-    xhr.setRequestHeader('x-user-id', userId);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
 
     if (xhr.upload && onProgress) {
       xhr.upload.onprogress = (event) => {
@@ -440,9 +445,10 @@ export async function deleteForumThread(threadId: string, authorId?: string): Pr
 
     // Securely trigger backend media asset cleanup for this thread
     try {
-      await fetch(`/api/threads/${threadId}/media?userId=${encodeURIComponent(currentUid)}`, {
+      const headers = await getAuthHeaders({}, false);
+      await fetch(`/api/threads/${encodeURIComponent(threadId)}/media`, {
         method: 'DELETE',
-        headers: { 'x-user-id': currentUid },
+        headers,
       });
     } catch (_cleanupErr) {
       // Ignored non-fatal

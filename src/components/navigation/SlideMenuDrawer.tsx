@@ -20,6 +20,7 @@ import {
   Play,
   User,
   Cpu,
+  PenTool,
 } from 'lucide-react';
 import { VxModelId } from '../../types/vx';
 
@@ -43,8 +44,10 @@ interface SlideMenuDrawerProps {
   onOpenProfile?: () => void;
   onReplayIntro?: () => void;
   onOpenCopyStudio?: () => void;
+  onOpenCommandPalette?: () => void;
   selectedVxModel?: VxModelId;
   onSelectVxModel?: (modelId: VxModelId) => void;
+  onPrefetchDestination?: (target: string) => void;
 }
 
 export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
@@ -67,8 +70,10 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
   onOpenProfile,
   onReplayIntro,
   onOpenCopyStudio,
+  onOpenCommandPalette,
   selectedVxModel = 'gemini-3.8',
   onSelectVxModel,
+  onPrefetchDestination,
 }) => {
   const { t } = useLanguage();
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -90,11 +95,12 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
   if (!isOpen) return null;
 
   const handleGoToSection = (sectionId: string) => {
-    onSelectSlide(2); // switch to Archive slide
+    onPrefetchDestination?.('slide-2');
+    onClose();
+    onSelectSlide(2);
     setTimeout(() => {
       onNavigateArchiveSection(sectionId);
-      onClose();
-    }, 150);
+    }, 60);
   };
 
   const archiveSections = [
@@ -113,25 +119,21 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
       aria-label="Navigation Menu"
       className="fixed inset-0 z-50 flex select-text pointer-events-auto"
     >
-      {/* Editorial backdrop: subtle dimming so background artwork remains visually readable */}
+      {/* Editorial backdrop: lightweight compositing over active video/canvas */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-black/55 backdrop-blur-[4px] transition-opacity duration-300 ease-out"
+        className="fixed inset-0 bg-black/68 transition-opacity duration-150 ease-out"
         aria-hidden="true"
       />
 
-      {/* Floating editorial navigation panel:
-          - Desktop (md+): Floating panel, 280px-300px width, sleek border, luxury aesthetic
-          - Mobile (<md): Clean left drawer, 84vw (max 340px), safe area padded */}
+      {/* Floating editorial navigation panel */}
       <aside
         ref={drawerRef}
         style={{
-          backgroundColor: 'rgba(12, 12, 14, 0.94)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.45)',
+          backgroundColor: 'rgba(11, 11, 14, 0.96)',
+          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.55)',
         }}
-        className="relative z-10 h-full w-[84vw] max-w-[340px] md:w-[280px] lg:w-[290px] border-r border-white/[0.08] flex flex-col text-white transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] animate-in slide-in-from-left duration-300"
+        className="relative z-10 h-full w-[84vw] max-w-[340px] md:w-[280px] lg:w-[290px] border-r border-white/[0.08] flex flex-col text-white transition-transform duration-150 ease-out animate-in slide-in-from-left duration-150"
       >
         {/* Brand Header */}
         <header className="px-5 py-4 border-b border-white/[0.07] flex items-center justify-between shrink-0">
@@ -157,6 +159,9 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
         {/* User Profile Section — Compact horizontal editorial card */}
         <section className="px-5 py-3 border-b border-white/[0.07] bg-white/[0.015] shrink-0">
           <div
+            onMouseEnter={() => {
+              if (currentUser.id && onOpenProfile) onPrefetchDestination?.('profile');
+            }}
             onClick={() => {
               if (currentUser.id && onOpenProfile) {
                 onOpenProfile();
@@ -201,19 +206,34 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
           </div>
         </section>
 
-        {/* Language Selector row */}
-        <section className="px-5 py-3 border-b border-white/[0.07] bg-white/[0.01] shrink-0">
+        {/* Language Selector & Command Palette row */}
+        <section className="px-5 py-3 border-b border-white/[0.07] bg-white/[0.01] shrink-0 space-y-2.5">
           <LanguageSwitcher variant="menu" />
+          {onOpenCommandPalette && (
+            <button
+              type="button"
+              onMouseEnter={() => onPrefetchDestination?.('command-palette')}
+              onFocus={() => onPrefetchDestination?.('command-palette')}
+              onClick={() => {
+                onClose();
+                onOpenCommandPalette();
+              }}
+              className="w-full px-3 py-2 border border-white/15 hover:border-white/40 bg-white/[0.03] hover:bg-white/[0.07] flex items-center justify-between text-[10px] font-mono text-white/75 hover:text-white transition-colors cursor-pointer"
+            >
+              <span>COMMAND PALETTE</span>
+              <span className="px-1.5 py-0.5 bg-white/10 text-white/60 text-[9px]">⌘K</span>
+            </button>
+          )}
         </section>
 
-        {/* Viewport Slide Selector (00 / HERO, 01 / THREADS, 02 / ARCHIVE, 03 / CINEMA, 04 / LABS, 05 / FU LABS) */}
+        {/* Viewport Slide Selector (00 / HERO, 01 / THREADS, 02 / ARCHIVE, 03 / CINEMA, 04 / LABS, 05 / FU LABS, 06 / VX) */}
         <section className="px-5 py-3 border-b border-white/[0.07] space-y-2 shrink-0">
           <div className="flex items-center justify-between">
             <span className="text-[9px] font-mono tracking-[0.2em] text-white/40 uppercase">
               {t('viewportSlide')}
             </span>
-            <span className="text-[9px] font-mono text-white/30">
-              0{currentSlide} / 06
+            <span className="text-[9px] font-mono text-white/30 tabular-nums">
+              0{currentSlide} / 07
             </span>
           </div>
 
@@ -240,6 +260,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-1')}
+              onFocus={() => onPrefetchDestination?.('slide-1')}
               onClick={() => {
                 onSelectSlide(1);
                 onClose();
@@ -259,6 +281,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-2')}
+              onFocus={() => onPrefetchDestination?.('slide-2')}
               onClick={() => {
                 onSelectSlide(2);
                 onClose();
@@ -278,6 +302,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-3')}
+              onFocus={() => onPrefetchDestination?.('slide-3')}
               onClick={() => {
                 onSelectSlide(3);
                 onClose();
@@ -297,6 +323,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-4')}
+              onFocus={() => onPrefetchDestination?.('slide-4')}
               onClick={() => {
                 onSelectSlide(4);
                 onClose();
@@ -316,6 +344,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-5')}
+              onFocus={() => onPrefetchDestination?.('slide-5')}
               onClick={() => {
                 onSelectSlide(5);
                 onClose();
@@ -335,6 +365,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-6')}
+              onFocus={() => onPrefetchDestination?.('slide-6')}
               onClick={() => {
                 onSelectSlide(6);
                 onClose();
@@ -352,24 +384,49 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
               </div>
               <div className="text-[8px] font-mono opacity-50 mt-0.5">06 / VX</div>
             </button>
+
+            <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-7')}
+              onFocus={() => onPrefetchDestination?.('slide-7')}
+              onClick={() => {
+                onSelectSlide(7);
+                onClose();
+              }}
+              title="Slide 07: VaiByte - Canvas Studio"
+              className={`col-span-2 sm:col-span-3 p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                currentSlide === 7
+                  ? 'border-white/90 bg-white text-black font-semibold shadow-sm'
+                  : 'border-white/[0.08] bg-black/30 text-white/70 hover:border-white/20 hover:text-white hover:bg-white/[0.03]'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <PenTool className="w-3 h-3 opacity-85 shrink-0" />
+                <div className="text-[10px] font-sans font-medium truncate leading-tight">
+                  VaiByte — Canvas Studio
+                </div>
+              </div>
+              <div className="text-[8px] font-mono opacity-60 shrink-0 ml-2">07 / CANVAS</div>
+            </button>
           </div>
 
           {/* Quick Jump to Collaborative Ateliers */}
           <button
             type="button"
+            onMouseEnter={() => onPrefetchDestination?.('slide-4')}
+            onFocus={() => onPrefetchDestination?.('slide-4')}
             onClick={() => {
               onSelectSlide(4);
               onClose();
             }}
-            className="w-full mt-2 p-2 rounded-xl bg-gradient-to-r from-emerald-950/40 via-black to-cyan-950/40 border border-white/10 hover:border-emerald-400/40 flex items-center justify-between text-left transition-all cursor-pointer group"
+            className="w-full mt-2 p-2.5 bg-white/[0.03] hover:bg-white/[0.07] border border-white/12 hover:border-white/30 flex items-center justify-between text-left transition-all cursor-pointer group"
           >
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
               <div className="flex flex-col">
-                <span className="text-[10px] font-mono font-bold uppercase text-white/95 group-hover:text-emerald-300 transition-colors">
+                <span className="text-[10px] font-mono font-bold uppercase text-white/95 group-hover:text-white transition-colors">
                   SHAREDWORKS ATELIER · CO-OP
                 </span>
-                <span className="text-[8px] font-mono text-white/40">
+                <span className="text-[8px] font-mono text-white/45">
                   Real-time multi-user canvases & prompts
                 </span>
               </div>
@@ -379,13 +436,13 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
 
           {/* SLIDE 06 · VX REAL-TIME MODEL BACKEND CONTROLLER */}
           {currentSlide === 6 && (
-            <div className="mt-3 p-2.5 rounded-xl bg-black/60 border border-white/10 space-y-1.5 animate-in fade-in duration-200">
+            <div className="mt-3 p-2.5 bg-black/60 border border-white/10 space-y-1.5 animate-silk-fade">
               <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-wider">
                 <span className="flex items-center gap-1.5 text-cyan-300 font-semibold">
                   <Cpu className="w-3 h-3 text-cyan-400" />
                   SLIDE 06 BACKEND ENGINE
                 </span>
-                <span className="text-[8px] text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                <span className="text-[8px] text-emerald-400 font-bold px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20">
                   REAL-TIME
                 </span>
               </div>
@@ -404,9 +461,9 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
                       key={m.id}
                       type="button"
                       onClick={() => onSelectVxModel && onSelectVxModel(m.id)}
-                      className={`p-2 rounded-lg text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      className={`p-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
                         isSelected
-                          ? 'bg-cyan-400 text-black font-bold shadow-[0_0_12px_rgba(34,211,238,0.35)]'
+                          ? 'bg-cyan-400 text-black font-bold'
                           : 'bg-white/[0.04] text-white/70 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
                       }`}
                       title={`Switch to ${m.label} in real-time`}
@@ -414,7 +471,7 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
                       <div className="flex items-center justify-between w-full">
                         <span className="truncate">{m.label}</span>
                         {isSelected && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-black shrink-0" />
                         )}
                       </div>
                       <span
@@ -445,6 +502,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
               return (
                 <button
                   key={sec.id}
+                  onMouseEnter={() => onPrefetchDestination?.('slide-2')}
+                  onFocus={() => onPrefetchDestination?.('slide-2')}
                   onClick={() => handleGoToSection(sec.id)}
                   className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-mono tracking-wider text-white/65 hover:text-white hover:bg-white/[0.04] transition-colors cursor-pointer group"
                 >
@@ -469,6 +528,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             {/* Shorts Primary Social Video Action */}
             {onOpenShorts && (
               <button
+                onMouseEnter={() => onPrefetchDestination?.('shorts')}
+                onFocus={() => onPrefetchDestination?.('shorts')}
                 onClick={() => {
                   onOpenShorts();
                   onClose();
@@ -488,6 +549,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             {/* Direct Messages Dispatch Action */}
             {onOpenMessages && (
               <button
+                onMouseEnter={() => onPrefetchDestination?.('messages')}
+                onFocus={() => onPrefetchDestination?.('messages')}
                 onClick={() => {
                   onOpenMessages();
                   onClose();
@@ -509,6 +572,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             )}
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('submit')}
+              onFocus={() => onPrefetchDestination?.('submit')}
               onClick={() => {
                 onOpenSubmit();
                 onClose();
@@ -523,6 +588,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('wallet')}
+              onFocus={() => onPrefetchDestination?.('wallet')}
               onClick={() => {
                 onOpenWallet();
                 onClose();
@@ -538,6 +605,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
 
             {onOpenCopyStudio && (
               <button
+                onMouseEnter={() => onPrefetchDestination?.('copy-studio')}
+                onFocus={() => onPrefetchDestination?.('copy-studio')}
                 onClick={() => {
                   onOpenCopyStudio();
                   onClose();
@@ -553,6 +622,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             )}
 
             <button
+              onMouseEnter={() => onPrefetchDestination?.('settings')}
+              onFocus={() => onPrefetchDestination?.('settings')}
               onClick={() => {
                 onOpenSettings();
                 onClose();
@@ -584,6 +655,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
 
             {isAdmin && onOpenAdmin && (
               <button
+                onMouseEnter={() => onPrefetchDestination?.('admin')}
+                onFocus={() => onPrefetchDestination?.('admin')}
                 onClick={() => {
                   onOpenAdmin();
                   onClose();
@@ -615,6 +688,8 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
             </button>
           ) : (
             <button
+              onMouseEnter={() => onPrefetchDestination?.('auth')}
+              onFocus={() => onPrefetchDestination?.('auth')}
               onClick={() => {
                 onOpenAuthModal?.();
                 onClose();

@@ -7,10 +7,22 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { GoogleGenAI, Type } from '@google/genai';
 import { localConvertNaturalToSlash, validateTimeline } from '../utils/promptSequenceCompiler';
+import { requireFirebaseAuth } from './firebaseAuthMiddleware';
+import {
+  aiLimiter,
+  assertPublicRemoteUrl,
+  resolveSafeSubpath,
+  validateMagicBytes,
+  sanitizeErrorMessage,
+} from './securityMiddleware';
+import { seedanceCuratedStore } from './seedanceCuratedStore';
 
 export const promptRouter = Router();
+
+const UPLOADS_BASE_DIR = path.resolve(process.cwd(), 'uploads');
 
 const apiKey = process.env.GEMINI_API_KEY || '';
 const ai = new GoogleGenAI({
@@ -44,7 +56,7 @@ Return valid structured JSON according to the supplied schema.`;
  * POST /api/prompt/convert
  * Converts natural-language prompt into structured slash segments
  */
-promptRouter.post('/convert', async (req: Request, res: Response) => {
+promptRouter.post('/convert', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { prompt } = req.body;
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -143,7 +155,7 @@ Prompt:
  * POST /api/prompt/rebuild
  * Reconstructs fluent natural language from structured slash segments
  */
-promptRouter.post('/rebuild', async (req: Request, res: Response) => {
+promptRouter.post('/rebuild', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { segments, originalPrompt } = req.body;
     if (!segments || !Array.isArray(segments) || segments.length === 0) {
@@ -207,18 +219,35 @@ ${originalPrompt || 'None'}`,
  * POST /api/prompt/optimize
  * Optimizes the final compiled prompt for BytePlus Seedance 2.5
  */
-promptRouter.post('/optimize', async (req: Request, res: Response) => {
+promptRouter.post('/optimize', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
-    const { compiledPrompt, durationSeconds, frameRate, aspectRatio } = req.body;
+    const {
+      compiledPrompt,
+      durationSeconds,
+      frameRate,
+      aspectRatio,
+      physicsPriority = true,
+      contentRating = 'standard',
+    } = req.body;
     if (!compiledPrompt || typeof compiledPrompt !== 'string') {
       return res.status(400).json({ error: 'Compiled prompt is required for optimization.' });
     }
 
+    const physicsCues =
+      'Real-time soft-body & cloth airflow dynamics, physically accurate center-of-mass momentum and footstep impulse, micro-debris & volumetric dust eddies, realistic fluid reflections, natural hair strand secondary motion, and 24fps 180-degree optical shutter blur.';
+
     if (!apiKey) {
+      const enhancedLocal = physicsPriority
+        ? `${compiledPrompt.trim().replace(/[.,;]+$/, '')}. ${physicsCues}${
+            contentRating === '18+'
+              ? ' Bold mature noir dramatic atmosphere, visceral lighting contrast.'
+              : ''
+          }`
+        : compiledPrompt;
       return res.json({
-        optimizedPrompt: compiledPrompt,
-        source: 'unmodified',
-        message: 'Optimization requires GEMINI_API_KEY. Preserved local compiled prompt.',
+        optimizedPrompt: enhancedLocal,
+        source: 'local_physics_compiler',
+        message: 'Applied VAIURE Cinematic Complex Physics directive.',
       });
     }
 
@@ -226,7 +255,7 @@ promptRouter.post('/optimize', async (req: Request, res: Response) => {
       model: GEMINI_MODEL,
       config: {
         systemInstruction: PROMPT_ARCHITECT_SYSTEM_INSTRUCTION,
-        temperature: 0.2,
+        temperature: 0.25,
       },
       contents: [
         {
@@ -237,9 +266,19 @@ promptRouter.post('/optimize', async (req: Request, res: Response) => {
 CRITICAL RULES:
 1. Preserve ALL exact timestamps (e.g. [00.0s-03.0s]). Do NOT change or remove timestamps!
 2. Preserve character identity, scene order, and actions.
-3. Enhance visual descriptions with professional cinematic terminology (lens choice, lighting contrast, texture physics).
-4. Do NOT invent new scenes or change the ${durationSeconds || 15}s total duration.
-5. Respect aspect ratio ${aspectRatio || '16:9'} and frame rate ${frameRate || '24fps'}.
+3. Enhance visual descriptions with professional cinematic terminology (anamorphic/spherical lens choice, PBR lighting contrast, subsurface material response).
+4. ${
+                physicsPriority
+                  ? 'RESULTS PRIORITY — COMPLEX PHYSICS: Explicitly weave realistic physical forces into the motion: gravitational weight, cloth/garment fabric tension and wind lag, fluid splash vorticity, multi-object collision inertia, hair micro-dynamics, and reactive particle physics.'
+                  : 'Keep physical motion clean and natural.'
+              }
+5. Tone Rating: ${
+                contentRating === '18+'
+                  ? '18+ Mature Dramatic Cinema (gritty noir realism, intense suspenseful atmosphere, artistic adult thriller aesthetics).'
+                  : 'Standard general cinema.'
+              }
+6. Do NOT invent new scenes or change the ${durationSeconds || 15}s total duration.
+7. Respect aspect ratio ${aspectRatio || '16:9'} and frame rate ${frameRate || '24fps'}.
 
 Compiled Prompt to Optimize:
 """${compiledPrompt}"""`,
@@ -268,13 +307,13 @@ Compiled Prompt to Optimize:
  * POST /api/generation/validate
  * Validates temporal timeline and returns structured validation status
  */
-promptRouter.post('/validate', (req: Request, res: Response) => {
+promptRouter.post('/validate', requireFirebaseAuth, (req: Request, res: Response) => {
   try {
     const { sequences, durationSeconds } = req.body;
     const validation = validateTimeline(sequences || [], Number(durationSeconds) || 8);
     res.json(validation);
   } catch (error: any) {
-    res.status(500).json({ error: error?.message || 'Timeline validation failed.' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Timeline validation failed.') });
   }
 });
 
@@ -282,7 +321,7 @@ promptRouter.post('/validate', (req: Request, res: Response) => {
  * POST /api/generation/seedance
  * Provider adapter for BytePlus Seedance 2.5
  */
-promptRouter.post('/seedance', (req: Request, res: Response) => {
+promptRouter.post('/seedance', requireFirebaseAuth, (req: Request, res: Response) => {
   const byteplusKey = process.env.BYTEPLUS_API_KEY || process.env.SEEDANCE_API_KEY || '';
   const { payload } = req.body;
 
@@ -315,7 +354,7 @@ promptRouter.post('/seedance', (req: Request, res: Response) => {
  * POST /api/prompt/assistant
  * Context-aware AI filmmaking assistant for scripts, cinematography directions, and prompt doctoring
  */
-promptRouter.post('/assistant', async (req: Request, res: Response) => {
+promptRouter.post('/assistant', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const { message, projectContext, selectedShot } = req.body;
     if (!message || typeof message !== 'string') {
@@ -401,7 +440,7 @@ Always return JSON:
  * Generates a cinematic keyframe or concept image using Gemini Image generation
  * or synthesizes a high-resolution WebP procedural cinema slate with optical metadata if API key is unavailable.
  */
-promptRouter.post('/generate-image', async (req: Request, res: Response) => {
+promptRouter.post('/generate-image', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       prompt,
@@ -412,6 +451,8 @@ promptRouter.post('/generate-image', async (req: Request, res: Response) => {
       modelId = 'gemini-3.1-flash-lite-image',
       characterNames = [],
       locationName = '',
+      projectId,
+      projectName,
     } = req.body;
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -448,12 +489,33 @@ promptRouter.post('/generate-image', async (req: Request, res: Response) => {
           if (part.inlineData && part.inlineData.data) {
             const mime = part.inlineData.mimeType || 'image/png';
             const dataUrl = `data:${mime};base64,${part.inlineData.data}`;
+            const numericSeed = seed || Math.floor(Math.random() * 999999);
+            if (req.verifiedUser?.uid) {
+              seedanceCuratedStore.ingestCompletedGeneration({
+                ownerId: req.verifiedUser.uid,
+                ownerName: req.verifiedUser.name,
+                ownerAvatar: req.verifiedUser.picture,
+                sourceJobId: `img-${Date.now()}-${numericSeed}`,
+                sourcePipeline: 'prompt_studio',
+                projectId,
+                projectName,
+                mediaType: 'IMAGE',
+                outputUrls: [dataUrl],
+                aiModel: validModel,
+                modelCategory: 'Image',
+                aspectRatio,
+                resolution,
+                prompt: prompt.trim(),
+                negativePrompt,
+                parameters: { seed: numericSeed, aspectRatio, resolution, locationName },
+              });
+            }
             return res.json({
               success: true,
               imageUrl: dataUrl,
               model: validModel,
               source: 'gemini_imagen',
-              seed: seed || Math.floor(Math.random() * 999999),
+              seed: numericSeed,
               aspectRatio,
               resolution,
               createdAt: new Date().toISOString(),
@@ -509,10 +571,31 @@ promptRouter.post('/generate-image', async (req: Request, res: Response) => {
       <text x="84" y="${dims.h - 68}" fill="rgba(255,255,255,0.45)" font-family="monospace" font-size="16" letter-spacing="2">${safeMeta}</text>
     </svg>`;
 
-    const base64Svg = Buffer.from(svgKeyframe, 'utf-8').toString('base64');
+    const pngBuffer = await sharp(Buffer.from(svgKeyframe, 'utf-8')).png().toBuffer();
+    const fallbackDataUrl = `data:image/png;base64,${pngBuffer.toString('base64')}`;
+    if (req.verifiedUser?.uid) {
+      seedanceCuratedStore.ingestCompletedGeneration({
+        ownerId: req.verifiedUser.uid,
+        ownerName: req.verifiedUser.name,
+        ownerAvatar: req.verifiedUser.picture,
+        sourceJobId: `keyframe-${Date.now()}-${numericSeed}`,
+        sourcePipeline: 'prompt_studio',
+        projectId,
+        projectName,
+        mediaType: 'IMAGE',
+        outputUrls: [fallbackDataUrl],
+        aiModel: validModel,
+        modelCategory: 'Image',
+        aspectRatio,
+        resolution,
+        prompt: prompt.trim(),
+        negativePrompt,
+        parameters: { seed: numericSeed, aspectRatio, resolution, locationName },
+      });
+    }
     return res.json({
       success: true,
-      imageUrl: `data:image/svg+xml;base64,${base64Svg}`,
+      imageUrl: fallbackDataUrl,
       model: validModel,
       source: 'studio_procedural_keyframe',
       message: apiKey
@@ -525,7 +608,7 @@ promptRouter.post('/generate-image', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error in /api/prompt/generate-image:', error);
-    res.status(500).json({ error: error?.message || 'Keyframe image synthesis failed.' });
+    res.status(500).json({ error: sanitizeErrorMessage(error, 'Keyframe image synthesis failed.') });
   }
 });
 
@@ -540,57 +623,80 @@ async function resolveImageToInlineData(
   item: VaiuReferenceInput
 ): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
   try {
-    const raw = item.dataUrl || item.url || '';
+    const raw = (item.dataUrl || item.url || '').trim();
     if (!raw) return null;
 
     if (raw.startsWith('data:')) {
       const m = raw.match(/^data:([a-zA-Z0-9/+.-]+);base64,(.+)$/);
       if (m) {
-        return {
-          inlineData: {
-            mimeType: m[1].toLowerCase(),
-            data: m[2],
-          },
-        };
+        const buf = Buffer.from(m[2], 'base64');
+        if (buf.length <= 10 * 1024 * 1024) {
+          const magic = validateMagicBytes(buf, m[1], ['image']);
+          if (magic.valid && magic.detectedMime) {
+            return {
+              inlineData: {
+                mimeType: magic.detectedMime,
+                data: buf.toString('base64'),
+              },
+            };
+          }
+        }
       }
+      return null;
     }
 
-    if (raw.startsWith('/uploads/') || raw.includes('/uploads/')) {
-      const pathname = raw.startsWith('/') ? raw : new URL(raw, 'https://example.com').pathname;
-      const localPath = path.join(process.cwd(), pathname.replace(/^\/+/, ''));
-      if (fs.existsSync(localPath)) {
-        const buf = fs.readFileSync(localPath);
-        const ext = path.extname(localPath).toLowerCase();
-        const mime =
-          ext === '.png'
-            ? 'image/png'
-            : ext === '.webp'
-            ? 'image/webp'
-            : 'image/jpeg';
-        return {
-          inlineData: {
-            mimeType: mime,
-            data: buf.toString('base64'),
-          },
-        };
+    if (raw.startsWith('/uploads/')) {
+      const cleanPathname = decodeURIComponent(raw.split('?')[0]);
+      const relSegment = cleanPathname.replace(/^\/uploads\/+/, '');
+      const lowerRel = relSegment.toLowerCase();
+      if (
+        !relSegment ||
+        lowerRel.includes('curated_private') ||
+        lowerRel.includes('quarantine') ||
+        lowerRel.endsWith('.json') ||
+        lowerRel.endsWith('.tmp') ||
+        lowerRel.endsWith('.svg')
+      ) {
+        return null;
       }
+      const localPath = resolveSafeSubpath(UPLOADS_BASE_DIR, relSegment);
+      if (localPath && fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+        const buf = fs.readFileSync(localPath);
+        if (buf.length <= 10 * 1024 * 1024) {
+          const magic = validateMagicBytes(buf, undefined, ['image']);
+          if (magic.valid && magic.detectedMime) {
+            return {
+              inlineData: {
+                mimeType: magic.detectedMime,
+                data: buf.toString('base64'),
+              },
+            };
+          }
+        }
+      }
+      return null;
     }
 
     if (/^https?:\/\//i.test(raw)) {
+      const safeUrl = await assertPublicRemoteUrl(raw);
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 6000);
       try {
-        const res = await fetch(raw, { signal: controller.signal });
+        const res = await fetch(safeUrl.toString(), { signal: controller.signal, redirect: 'error' });
         if (res.ok) {
           const contentType = (res.headers.get('content-type') || 'image/jpeg').split(';')[0];
           const arrBuf = await res.arrayBuffer();
           if (arrBuf.byteLength <= 8 * 1024 * 1024) {
-            return {
-              inlineData: {
-                mimeType: contentType,
-                data: Buffer.from(arrBuf).toString('base64'),
-              },
-            };
+            const buf = Buffer.from(arrBuf);
+            const magic = validateMagicBytes(buf, contentType, ['image']);
+            if (magic.valid && magic.detectedMime) {
+              return {
+                inlineData: {
+                  mimeType: magic.detectedMime,
+                  data: buf.toString('base64'),
+                },
+              };
+            }
           }
         }
       } finally {
@@ -815,7 +921,7 @@ ${timelineBlock}`.slice(0, 7900);
  * POST /api/prompt/vaiu-seedance
  * "VAIU" — Seedance 2.5 Exclusive Multimodal Prompt Architect powered by Gemini 4 Argon
  */
-promptRouter.post('/vaiu-seedance', async (req: Request, res: Response) => {
+promptRouter.post('/vaiu-seedance', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       referenceImages = [],
@@ -1000,7 +1106,7 @@ ${
     console.error('Error in /api/prompt/vaiu-seedance:', error);
     return res.status(500).json({
       ok: false,
-      error: error?.message || 'VAIU Seedance 2.5 prompt generation failed.',
+      error: sanitizeErrorMessage(error, 'VAIU Seedance 2.5 prompt generation failed.'),
     });
   }
 });
@@ -1315,7 +1421,7 @@ function buildDeterministicFuLabs3DScene(
  * POST /api/prompt/fulabs-3d-scene
  * Free-Tier Gemini Text-to-3D Greybox Scene Architect
  */
-promptRouter.post('/fulabs-3d-scene', async (req: Request, res: Response) => {
+promptRouter.post('/fulabs-3d-scene', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   try {
     const {
       prompt = '',
@@ -1650,10 +1756,510 @@ Coordinate System Rules:
     console.error('Error in /api/prompt/fulabs-3d-scene:', error);
     return res.status(500).json({
       ok: false,
-      error: error?.message || 'Failed to generate 3D greybox scene from prompt.',
+      error: sanitizeErrorMessage(error, 'Failed to generate 3D greybox scene from prompt.'),
     });
   }
 });
+
+/**
+ * Helper: Resolve a media URL or dataUrl (image or video) into a Gemini inlineData part
+ * Enforces path-traversal protection, private directory exclusion, magic bytes, and public-URL SSRF checks.
+ */
+async function resolveMediaToInlineData(
+  rawInput: string,
+  fallbackMime = 'image/jpeg',
+  maxBytes = 15 * 1024 * 1024
+): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
+  try {
+    const raw = (rawInput || '').trim();
+    if (!raw) return null;
+
+    if (raw.startsWith('data:')) {
+      const m = raw.match(/^data:([a-zA-Z0-9/+.-]+);base64,(.+)$/);
+      if (m) {
+        const buf = Buffer.from(m[2], 'base64');
+        if (buf.length <= maxBytes) {
+          const magic = validateMagicBytes(buf, m[1], ['image', 'video']);
+          if (magic.valid && magic.detectedMime) {
+            return {
+              inlineData: {
+                mimeType: magic.detectedMime,
+                data: buf.toString('base64'),
+              },
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    if (raw.startsWith('/uploads/')) {
+      const cleanPathname = decodeURIComponent(raw.split('?')[0]);
+      const relSegment = cleanPathname.replace(/^\/uploads\/+/, '');
+      const lowerRel = relSegment.toLowerCase();
+      if (
+        !relSegment ||
+        lowerRel.includes('curated_private') ||
+        lowerRel.includes('quarantine') ||
+        lowerRel.endsWith('.json') ||
+        lowerRel.endsWith('.tmp') ||
+        lowerRel.endsWith('.svg')
+      ) {
+        return null;
+      }
+      const localPath = resolveSafeSubpath(UPLOADS_BASE_DIR, relSegment);
+      if (localPath && fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+        const stat = fs.statSync(localPath);
+        if (stat.size <= maxBytes) {
+          const buf = fs.readFileSync(localPath);
+          const magic = validateMagicBytes(buf, undefined, ['image', 'video']);
+          if (magic.valid && magic.detectedMime) {
+            return {
+              inlineData: {
+                mimeType: magic.detectedMime,
+                data: buf.toString('base64'),
+              },
+            };
+          }
+        }
+      }
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(raw)) {
+      const safeUrl = await assertPublicRemoteUrl(raw);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 9000);
+      try {
+        const r = await fetch(safeUrl.toString(), { signal: controller.signal, redirect: 'error' });
+        if (r.ok) {
+          const contentType = (r.headers.get('content-type') || fallbackMime).split(';')[0].trim();
+          const arrBuf = await r.arrayBuffer();
+          if (arrBuf.byteLength <= maxBytes) {
+            const buf = Buffer.from(arrBuf);
+            const magic = validateMagicBytes(buf, contentType, ['image', 'video']);
+            if (magic.valid && magic.detectedMime) {
+              return {
+                inlineData: {
+                  mimeType: magic.detectedMime,
+                  data: buf.toString('base64'),
+                },
+              };
+            }
+          }
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  } catch {
+    // Non-fatal media resolution error
+  }
+  return null;
+}
+
+/**
+ * POST /api/prompt/analyze-media
+ * Reads connected images AND/OR video frames/clips via Gemini multimodal API
+ * to reconstruct a Seedance 2.5 production prompt following ByteDance official syntax.
+ */
+promptRouter.post('/analyze-media', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const {
+      images = [],
+      videos = [],
+      videoFrames = [],
+      userNotes = '',
+      directorStyle = 'Chiaroscuro Noir Auteur',
+      cameraMovement = 'Smooth Push-In (Dolly In)',
+      durationSeconds = 15,
+      physicsPriority = true,
+      contentRating = 'standard',
+    } = req.body || {};
+
+    const safeImages: string[] = Array.isArray(images) ? images.filter((u) => typeof u === 'string' && u.trim()).slice(0, 12) : [];
+    const safeVideos: string[] = Array.isArray(videos) ? videos.filter((u) => typeof u === 'string' && u.trim()).slice(0, 2) : [];
+    const safeVideoFrames: string[] = Array.isArray(videoFrames) ? videoFrames.filter((u) => typeof u === 'string' && u.trim()).slice(0, 8) : [];
+
+    if (safeImages.length === 0 && safeVideos.length === 0 && safeVideoFrames.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Connect or upload at least one image or video to analyze into a Seedance 2.5 prompt.',
+      });
+    }
+
+    const fallbackAnalysis = {
+      ok: true,
+      analyzedPrompt: [
+        safeImages.length > 0 ? `@Image1 subject identity, facial geometry, and garment weave locked across all frames${safeImages.length > 1 ? `; @Image2 environment & lighting palette locked` : ''}.` : '',
+        safeVideos.length > 0 || safeVideoFrames.length > 0 ? `Extract temporal rhythm, blocking momentum, and camera trajectory from @Video1.` : '',
+        userNotes.trim() || `Cinematic dramatic scene directed in ${directorStyle} visual language with tactile realism and continuous temporal flow.`,
+        `Environment sculpted with volumetric depth, practical tungsten/daylight rim highlights, and atmospheric dust suspended in air.`,
+        `Camera executes ${cameraMovement} with single uninterrupted trajectory, 180-degree shutter optical motion blur @ 24fps.`,
+        physicsPriority
+          ? `Real-time complex physics priority: realistic cloth wind drag, natural hair micro-dynamics, gravitational weight transfer, and specular wet-surface reflections.`
+          : '',
+        contentRating === '18+' ? `Mature cinema tone with high-contrast dramatic tension.` : '',
+        `[00.0s-05.0s] Opening establishing lock -> [05.0s-10.0s] Subject dynamic progression -> [10.0s-${Number(durationSeconds) || 15}.0s] Resolving hero close-up.`,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      negativePrompt: 'morphing anatomy, identity drift, flicker, conflicting camera zoom and dolly, static dead frame, plastic skin, watermark',
+      detectedSubjects: safeImages.length > 0 ? 'Primary subject & wardrobe extracted from attached visual plate (@Image1)' : 'Primary subject tracked across video motion frames',
+      environmentAndLighting: 'Controlled directional key light, atmospheric depth haze, calibrated contrast ratio',
+      cameraMotionAnalysis: `${cameraMovement} (single continuous vector)`,
+      physicsDynamics: 'Aerodynamic fabric drape, natural momentum inertia, optical 24fps motion blur',
+      recommendedCameraFixed: cameraMovement.toLowerCase().includes('fixed'),
+      continuityAnchors: ['@Image1 identity & wardrobe lock', 'Single-direction key light azimuth', 'Continuous 24fps shutter cadence'],
+      engineUsed: 'vaiure-seedance-local-analyzer',
+    };
+
+    if (!apiKey) {
+      return res.json(fallbackAnalysis);
+    }
+
+    const mediaParts: Array<{ inlineData: { mimeType: string; data: string } }> = [];
+    for (const img of safeImages.slice(0, 6)) {
+      const part = await resolveMediaToInlineData(img, 'image/jpeg', 8 * 1024 * 1024);
+      if (part) mediaParts.push(part);
+    }
+    for (const frame of safeVideoFrames.slice(0, 6)) {
+      const part = await resolveMediaToInlineData(frame, 'image/jpeg', 6 * 1024 * 1024);
+      if (part) mediaParts.push(part);
+    }
+    if (safeVideoFrames.length === 0) {
+      for (const vid of safeVideos.slice(0, 1)) {
+        const part = await resolveMediaToInlineData(vid, 'video/mp4', 18 * 1024 * 1024);
+        if (part) mediaParts.push(part);
+      }
+    }
+
+    if (mediaParts.length === 0) {
+      return res.json(fallbackAnalysis);
+    }
+
+    const systemInstruction = `You are VaiByte Vision Prompt Reader — a specialized multimodal cinematographer reading reference images and videos to author official ByteDance / BytePlus Seedance 2.5 video generation prompts.
+Apply ByteDance Seedance 2.5 published prompt engineering architecture:
+- Dual-Branch Diffusion Transformer awareness: separate spatial asset anchors from temporal motion cues.
+- Official Formula: [References (@Image1..N / @Video1)] -> [Subject & Action (active physical verbs)] -> [Environment & Lighting] -> [Camera Movement (one clear vector per beat)] -> [Film Stock & Style] -> [Audio & Constraints].
+- Explicitly embed @Image1, @Image2... handles for connected images and @Video1 for connected video motion references.
+- Include timestamped progression beats covering 0s to ${Number(durationSeconds) || 15}s.
+Return valid JSON matching the requested schema.`;
+
+    const userText = `Analyze the attached visual media (${safeImages.length} image plate(s), ${safeVideos.length} video clip(s), ${safeVideoFrames.length} video sample frames) and reverse-engineer a production-grade Seedance 2.5 prompt.
+Creative Constraints:
+- Preferred Scene Director Tone: ${directorStyle}
+- Preferred Camera Movement: ${cameraMovement}
+- Target Duration: ${Number(durationSeconds) || 15} seconds
+- Complex Physics Priority: ${physicsPriority ? 'ENABLED (describe fabric drag, weight, fluid/particle dynamics)' : 'Standard'}
+- Content Rating: ${contentRating}
+- Director/Creator Notes: ${userNotes || 'None provided — infer faithfully from visual evidence.'}`;
+
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        analyzedPrompt: { type: Type.STRING },
+        negativePrompt: { type: Type.STRING },
+        detectedSubjects: { type: Type.STRING },
+        environmentAndLighting: { type: Type.STRING },
+        cameraMotionAnalysis: { type: Type.STRING },
+        physicsDynamics: { type: Type.STRING },
+        recommendedCameraFixed: { type: Type.BOOLEAN },
+        continuityAnchors: { type: Type.ARRAY, items: { type: Type.STRING } },
+      },
+      required: [
+        'analyzedPrompt',
+        'negativePrompt',
+        'detectedSubjects',
+        'environmentAndLighting',
+        'cameraMotionAnalysis',
+        'physicsDynamics',
+        'recommendedCameraFixed',
+        'continuityAnchors',
+      ],
+    };
+
+    const modelsToTry = ['gemini-4-hydrogen', 'gemini-3.8-flash'];
+    for (const mName of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model: mName,
+          contents: [{ role: 'user', parts: [...mediaParts, { text: userText }] }],
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema,
+          },
+        });
+        const text = response.text?.trim();
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed.analyzedPrompt === 'string' && parsed.analyzedPrompt.trim()) {
+            return res.json({
+              ok: true,
+              analyzedPrompt: parsed.analyzedPrompt.trim(),
+              negativePrompt: parsed.negativePrompt || fallbackAnalysis.negativePrompt,
+              detectedSubjects: parsed.detectedSubjects || fallbackAnalysis.detectedSubjects,
+              environmentAndLighting: parsed.environmentAndLighting || fallbackAnalysis.environmentAndLighting,
+              cameraMotionAnalysis: parsed.cameraMotionAnalysis || fallbackAnalysis.cameraMotionAnalysis,
+              physicsDynamics: parsed.physicsDynamics || fallbackAnalysis.physicsDynamics,
+              recommendedCameraFixed: Boolean(parsed.recommendedCameraFixed),
+              continuityAnchors: Array.isArray(parsed.continuityAnchors)
+                ? parsed.continuityAnchors
+                : fallbackAnalysis.continuityAnchors,
+              engineUsed: mName,
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`Analyze-media ${mName} notice:`, err?.message || err);
+      }
+    }
+
+    return res.json(fallbackAnalysis);
+  } catch (error: any) {
+    console.error('Error in /api/prompt/analyze-media:', error);
+    return res.status(500).json({
+      ok: false,
+      error: sanitizeErrorMessage(error, 'Failed to analyze media into Seedance 2.5 prompt.'),
+    });
+  }
+});
+
+/**
+ * POST /api/prompt/continue-scene
+ * Generates a flawless zero-mistake Next Scene Seedance 2.5 prompt anchored to the extracted final frame
+ * of Scene N + director + camera handover trajectory.
+ */
+promptRouter.post('/continue-scene', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const {
+      previousPrompt = '',
+      lastFrameUrl = '',
+      additionalRefUrls = [],
+      nextActionIntent = '',
+      directorStyle = 'Continuous Long-Take Virtuoso',
+      cameraMovement = 'Smooth Push-In (Dolly In)',
+      filmStock = 'Kodak Vision3 500T 5219 (35mm)',
+      durationSeconds = 15,
+      physicsPriority = true,
+      contentRating = 'standard',
+    } = req.body || {};
+
+    const safeNextIntent =
+      String(nextActionIntent || '').trim() ||
+      'Continue the action seamlessly from the exact ending pose, spatial lighting, and camera velocity of the preceding shot with zero jump-cut or visual drift.';
+
+    const fallbackNext = {
+      ok: true,
+      nextScenePrompt: [
+        `@Image1 exact final frame continuity anchor locked as first_frame (identical subject facial geometry, eye direction, posture, wardrobe fabric wrinkles, architectural props, Kelvin color grade, and key-light azimuth).`,
+        safeNextIntent,
+        previousPrompt
+          ? `Direct temporal handover from prior scene context: "${String(previousPrompt).slice(0, 320).trim()}".`
+          : '',
+        `Directed in ${directorStyle} style shot on ${filmStock}.`,
+        `Camera smoothly inherits ending momentum with a single uninterrupted ${cameraMovement} curve, 24fps 180-degree optical shutter blur.`,
+        physicsPriority
+          ? `Physical continuity priority: natural weight shift, zero teleporting objects, sustained inertia on fabric and hair strands, subtle ambient dust particulates matching prior exposure.`
+          : '',
+        contentRating === '18+' ? `Mature cinema tone preserved without softening contrast.` : '',
+        `[00.0s-03.0s] Imperceptible frame-0 match hold evolving smoothly into action -> [03.0s-09.0s] Primary narrative progression -> [09.0s-${Number(durationSeconds) || 15}.0s] Decisive concluding frame ready for next scene bridge.`,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      continuityChecklist: [
+        'Frame-0 Exact Pose & Silhouette Match via @Image1 (first_frame)',
+        'Identical Wardrobe Texture, Props & Environmental Geography',
+        'Locked Light Azimuth & Kelvin Exposure Consistency',
+        `Smooth Camera Momentum Handover (${cameraMovement})`,
+        'Zero-Teleportation Physics Inertia Lock',
+      ],
+      recommendedDuration: Number(durationSeconds) >= 30 ? 30 : 15,
+      recommendedCameraFixed: cameraMovement.toLowerCase().includes('fixed'),
+      engineUsed: 'vaiure-continuity-compiler',
+    };
+
+    if (!apiKey) {
+      return res.json(fallbackNext);
+    }
+
+    const mediaParts: Array<{ inlineData: { mimeType: string; data: string } }> = [];
+    if (typeof lastFrameUrl === 'string' && lastFrameUrl.trim()) {
+      const lastFramePart = await resolveMediaToInlineData(lastFrameUrl, 'image/png', 8 * 1024 * 1024);
+      if (lastFramePart) mediaParts.push(lastFramePart);
+    }
+    if (Array.isArray(additionalRefUrls)) {
+      for (const u of additionalRefUrls.slice(0, 4)) {
+        if (typeof u === 'string' && u.trim()) {
+          const p = await resolveMediaToInlineData(u, 'image/jpeg', 6 * 1024 * 1024);
+          if (p) mediaParts.push(p);
+        }
+      }
+    }
+
+    const systemInstruction = `You are VaiByte Seamless Scene Continuity Architect for ByteDance Seedance 2.5.
+Your sole objective is generating the NEXT SCENE prompt that continues flawlessly with ZERO visual mistakes from the ending frame of the previous shot.
+Rules per ByteDance Seedance 2.5 documentation:
+1. Always bind @Image1 as the exact ending frame (first_frame role) — never allow frame-0 clothing, hair, lighting color, background props, or hand positions to change unexpectedly.
+2. Inspect the attached ending frame image carefully and mirror its exact spatial coordinates (left/right composition, light source side, color palette, lens focal length).
+3. Describe the temporal delta starting from millisecond 0.00s smoothly so there is zero jump-cut or morphing glitch.
+4. Keep ONE primary coherent camera movement aligned with momentum transfer (${cameraMovement}).
+Return valid JSON matching the schema.`;
+
+    const userText = `Design Scene N+1 to continue seamlessly from the attached last-frame image (@Image1).
+- Previous Scene Prompt: ${previousPrompt || 'Inferred solely from the attached frame image.'}
+- Creator Next-Scene Action Intent: ${safeNextIntent}
+- Scene Director Style: ${directorStyle}
+- Camera Movement Handover: ${cameraMovement}
+- Film Stock / Sensor: ${filmStock}
+- Target Duration: ${Number(durationSeconds) || 15}s
+- Complex Physics Priority: ${physicsPriority ? 'Enabled' : 'Standard'}
+- Content Mode: ${contentRating}`;
+
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        nextScenePrompt: { type: Type.STRING },
+        continuityChecklist: { type: Type.ARRAY, items: { type: Type.STRING } },
+        recommendedDuration: { type: Type.INTEGER },
+        recommendedCameraFixed: { type: Type.BOOLEAN },
+      },
+      required: [
+        'nextScenePrompt',
+        'continuityChecklist',
+        'recommendedDuration',
+        'recommendedCameraFixed',
+      ],
+    };
+
+    const modelsToTry = ['gemini-4-hydrogen', 'gemini-3.8-flash'];
+    for (const mName of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model: mName,
+          contents: [
+            {
+              role: 'user',
+              parts: [...mediaParts, { text: userText }],
+            },
+          ],
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema,
+          },
+        });
+        const text = response.text?.trim();
+        if (text) {
+          const parsed = JSON.parse(text);
+          if (parsed && typeof parsed.nextScenePrompt === 'string' && parsed.nextScenePrompt.trim()) {
+            return res.json({
+              ok: true,
+              nextScenePrompt: parsed.nextScenePrompt.trim(),
+              continuityChecklist: Array.isArray(parsed.continuityChecklist)
+                ? parsed.continuityChecklist
+                : fallbackNext.continuityChecklist,
+              recommendedDuration: Number(parsed.recommendedDuration) || fallbackNext.recommendedDuration,
+              recommendedCameraFixed: Boolean(parsed.recommendedCameraFixed),
+              engineUsed: mName,
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`Continue-scene ${mName} notice:`, err?.message || err);
+      }
+    }
+
+    return res.json(fallbackNext);
+  } catch (error: any) {
+    console.error('Error in /api/prompt/continue-scene:', error);
+    return res.status(500).json({
+      ok: false,
+      error: sanitizeErrorMessage(error, 'Failed to synthesize seamless next-scene continuity prompt.'),
+    });
+  }
+});
+
+/**
+ * POST /api/prompt/director-breakdown
+ * Generates AI Scene Director blocking, beat timing, lighting contrast, and optical direction.
+ */
+promptRouter.post('/director-breakdown', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
+  try {
+    const {
+      directorName = 'Chiaroscuro Noir Auteur',
+      directorManifesto = '',
+      sceneConcept = '',
+      cameraMovement = 'Smooth Push-In (Dolly In)',
+      filmStock = 'ARRI Alexa 65 · Panavision Anamorphic',
+      contrastRatio = '8:1',
+      durationSeconds = 15,
+    } = req.body || {};
+
+    const fallback = {
+      ok: true,
+      directorTreatment: `${directorName}: Stage blocking along diagonal depth planes with ${contrastRatio} key-to-fill sculpted illumination on ${filmStock}. Drive actor intention forward through ${cameraMovement} with tactile physical weight and zero decorative motion.`,
+      beatSheet: [
+        `[00.0s-04.5s] Setup & Spatial Anchor — Establish silhouette against negative space with directional rim light.`,
+        `[04.5s-10.0s] Escalation & Physical Transfer — Subject crosses threshold; camera tracks kinetic fabric/environmental physics.`,
+        `[10.0s-${Number(durationSeconds) || 15}.0s] Decisive Beat — Hold intimate emotional eye-line lock before cut.`,
+      ],
+      engineUsed: 'vaiure-director-compiler',
+    };
+
+    if (!apiKey) {
+      return res.json(fallback);
+    }
+
+    const systemInstruction = `You are a master AI Film Director authoring concise, concrete Seedance 2.5 directing treatments.
+Return JSON with "directorTreatment" (single cohesive paragraph in official Seedance prompt style) and "beatSheet" (3 timestamped shots covering ${Number(durationSeconds) || 15}s).`;
+
+    const userText = `Director Persona: ${directorName} (${directorManifesto})
+Concept: ${sceneConcept || 'Cinematic scene driven by attached reference media'}
+Camera Movement: ${cameraMovement}
+Film Stock & Lens: ${filmStock}
+Contrast Ratio: ${contrastRatio}
+Duration: ${Number(durationSeconds) || 15}s`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-4-hydrogen',
+      contents: userText,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            directorTreatment: { type: Type.STRING },
+            beatSheet: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ['directorTreatment', 'beatSheet'],
+        },
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    return res.json({
+      ok: true,
+      directorTreatment: parsed.directorTreatment || fallback.directorTreatment,
+      beatSheet: Array.isArray(parsed.beatSheet) && parsed.beatSheet.length > 0 ? parsed.beatSheet : fallback.beatSheet,
+      engineUsed: 'gemini-4-hydrogen',
+    });
+  } catch (error: any) {
+    return res.status(200).json({
+      ok: true,
+      directorTreatment: `${req.body?.directorName || 'Studio Director'}: ${req.body?.sceneConcept || 'Continuous cinematic staging with sculptural light and calibrated camera trajectory.'}`,
+      beatSheet: [
+        '[00.0s-05.0s] Establish subject & lighting contrast.',
+        '[05.0s-10.0s] Execute continuous camera & physics beat.',
+        '[10.0s-15.0s] Resolve final continuity frame.',
+      ],
+      engineUsed: 'vaiure-director-fallback',
+    });
+  }
+});
+
 
 
 

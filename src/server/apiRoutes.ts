@@ -9,6 +9,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import {
   db,
   doc,
@@ -19,11 +20,9 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   limit,
   increment,
   writeBatch,
-  deleteDoc,
 } from '../lib/firebase';
 import {
   WalletAccount,
@@ -49,6 +48,21 @@ import {
   verifyAuditLogIntegrity,
 } from './auditService';
 import { optimizeThreadImage, cleanupThreadMedia } from './threadImageOptimizer';
+import {
+  requireFirebaseAuth,
+  requireAdmin,
+  optionalFirebaseAuth,
+  isVerifiedAdminEmail,
+} from './firebaseAuthMiddleware';
+import {
+  authLimiter,
+  financialLimiter,
+  uploadLimiter,
+  isSafeIdentifier,
+  resolveSafeSubpath,
+  validateMagicBytes,
+  sanitizeErrorMessage,
+} from './securityMiddleware';
 
 export const apiRouter = Router();
 
@@ -89,13 +103,16 @@ let exchangeCache: {
 // ==========================================
 
 apiRouter.get('/currency/rates', async (req, res) => {
-  const base = ((req.query.base as string) || 'USD').toUpperCase();
+  const base = ((req.query.base as string) || 'USD').toUpperCase().trim();
+  if (!/^[A-Z]{3}$/.test(base)) {
+    return res.status(400).json({ error: 'Invalid currency code. Expected 3-letter ISO code.' });
+  }
   const cacheAge = Date.now() - exchangeCache.fetchedAt;
 
   // Refresh cache if older than 1 hour or different base
   if (cacheAge > 3600000 || exchangeCache.base !== base) {
     try {
-      const response = await fetch(`https://open.er-api.com/v6/latest/${base}`);
+      const response = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(base)}`);
       if (response.ok) {
         const json = await response.json();
         if (json && json.rates) {
@@ -141,12 +158,17 @@ apiRouter.get('/currency/rates', async (req, res) => {
 // 2. WALLET & TOP-UP ENDPOINTS
 // ==========================================
 
-apiRouter.post('/wallet/topup/intent', async (req, res) => {
+apiRouter.post('/wallet/topup/intent', requireFirebaseAuth, financialLimiter, async (req, res) => {
   try {
-    const { uid, currency, amount, paymentMethod } = req.body;
+    const authUser = req.verifiedUser!;
+    const { uid: requestedUid, currency, amount, paymentMethod } = req.body || {};
+    const uid = typeof requestedUid === 'string' && requestedUid.trim() ? requestedUid.trim() : authUser.uid;
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot create a top-up intent for another account.' });
+    }
 
-    if (!uid || !currency || typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ error: 'Valid uid, currency, and positive amount are required.' });
+    if (!currency || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Valid currency and positive finite amount are required.' });
     }
 
     // Check system settings for top-up limits
@@ -208,16 +230,21 @@ apiRouter.post('/wallet/topup/intent', async (req, res) => {
     res.json(intent);
   } catch (err: any) {
     console.error('Top-up intent error:', err);
-    res.status(500).json({ error: err.message || 'Internal server error initializing top-up.' });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Internal server error initializing top-up.') });
   }
 });
 
-apiRouter.post('/wallet/topup/confirm', async (req, res) => {
+apiRouter.post('/wallet/topup/confirm', requireFirebaseAuth, financialLimiter, async (req, res) => {
   try {
-    const { topUpId, uid, paymentReference } = req.body;
+    const authUser = req.verifiedUser!;
+    const { topUpId, uid: requestedUid, paymentReference } = req.body || {};
+    const uid = typeof requestedUid === 'string' && requestedUid.trim() ? requestedUid.trim() : authUser.uid;
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot confirm top-up for another account.' });
+    }
 
-    if (!topUpId || !uid || !paymentReference) {
-      return res.status(400).json({ error: 'topUpId, uid, and paymentReference are required.' });
+    if (!topUpId || !paymentReference) {
+      return res.status(400).json({ error: 'topUpId and paymentReference are required.' });
     }
 
     const topUpRef = doc(db, 'topUps', topUpId);
@@ -312,16 +339,21 @@ apiRouter.post('/wallet/topup/confirm', async (req, res) => {
     res.json({ success: true, transaction });
   } catch (err: any) {
     console.error('Confirm top-up error:', err);
-    res.status(500).json({ error: err.message || 'Payment processing validation error.' });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Payment processing validation error.') });
   }
 });
 
-apiRouter.post('/wallet/convert', async (req, res) => {
+apiRouter.post('/wallet/convert', requireFirebaseAuth, financialLimiter, async (req, res) => {
   try {
-    const { uid, fromCurrency, toCurrency, amount } = req.body;
+    const authUser = req.verifiedUser!;
+    const { uid: requestedUid, fromCurrency, toCurrency, amount } = req.body || {};
+    const uid = typeof requestedUid === 'string' && requestedUid.trim() ? requestedUid.trim() : authUser.uid;
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot convert funds for another account.' });
+    }
 
-    if (!uid || !fromCurrency || !toCurrency || typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ error: 'Valid uid, fromCurrency, toCurrency, and amount are required.' });
+    if (!fromCurrency || !toCurrency || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Valid fromCurrency, toCurrency, and positive amount are required.' });
     }
 
     const walletRef = doc(db, 'wallets', uid);
@@ -388,16 +420,29 @@ apiRouter.post('/wallet/convert', async (req, res) => {
     res.json({ success: true, transaction });
   } catch (err: any) {
     console.error('Wallet convert error:', err);
-    res.status(500).json({ error: err.message || 'Currency conversion execution failed.' });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Currency conversion execution failed.') });
   }
 });
 
-apiRouter.post('/wallet/transfer', async (req, res) => {
+apiRouter.post('/wallet/transfer', requireFirebaseAuth, financialLimiter, async (req, res) => {
   try {
-    const { senderUid, recipientUsername, amount, currency, note, isDirectAdminGrant, actorRole, actorEmail } = req.body;
+    const authUser = req.verifiedUser!;
+    const { senderUid: requestedSenderUid, recipientUsername, amount, currency, note, isDirectAdminGrant } = req.body || {};
+    const senderUid =
+      typeof requestedSenderUid === 'string' && requestedSenderUid.trim()
+        ? requestedSenderUid.trim()
+        : authUser.uid;
 
-    if (!senderUid || !recipientUsername || typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ error: 'Valid sender, recipient, and amount are required.' });
+    if (senderUid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot initiate a transfer on behalf of another user.' });
+    }
+
+    if (Boolean(isDirectAdminGrant) && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Direct treasury grants require verified administrator privileges.' });
+    }
+
+    if (!recipientUsername || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) {
+      return res.status(400).json({ error: 'Valid recipient and positive amount (<= 1,000,000) are required.' });
     }
 
     const cleanRecipient = recipientUsername.toLowerCase().trim().replace(/^@/, '');
@@ -409,7 +454,7 @@ apiRouter.post('/wallet/transfer', async (req, res) => {
     }
 
     const recipientUid = usernameSnap.data().uid;
-    const isDirectGrant = Boolean(isDirectAdminGrant);
+    const isDirectGrant = Boolean(isDirectAdminGrant) && authUser.isAdmin;
 
     if (recipientUid === senderUid && !isDirectGrant) {
       return res.status(400).json({ error: 'Cannot transfer funds to yourself.' });
@@ -539,35 +584,21 @@ apiRouter.post('/wallet/transfer', async (req, res) => {
     res.json({ success: true, transaction });
   } catch (err: any) {
     console.error('Wallet transfer error:', err);
-    res.status(500).json({ error: err.message || 'Transfer execution failed.' });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Transfer execution failed.') });
   }
 });
 
-apiRouter.post('/wallet/topup/free', async (req, res) => {
+apiRouter.post('/wallet/topup/free', requireFirebaseAuth, requireAdmin, financialLimiter, async (req, res) => {
   try {
-    const { uid, currency, amount, adminEmail, actorRole } = req.body;
+    const authUser = req.verifiedUser!;
+    const { uid: requestedUid, currency, amount } = req.body || {};
+    const uid =
+      typeof requestedUid === 'string' && isSafeIdentifier(requestedUid)
+        ? requestedUid.trim()
+        : authUser.uid;
 
-    if (!uid || typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ error: 'Valid super admin UID and amount are required.' });
-    }
-
-    // Verify super admin privilege
-    const isSuperAdmin =
-      actorRole === 'SUPER_ADMIN' ||
-      actorRole === 'ADMIN' ||
-      (adminEmail && adminEmail.toLowerCase() === 'rachvan420@gmail.com');
-
-    if (!isSuperAdmin) {
-      const userSnap = await getDoc(doc(db, 'users', uid));
-      const uData = userSnap.exists() ? userSnap.data() : null;
-      const isPrivileged =
-        uData?.role === 'SUPER_ADMIN' ||
-        uData?.accountType === 'SUPER_ADMIN' ||
-        uData?.email?.toLowerCase() === 'rachvan420@gmail.com';
-
-      if (!isPrivileged) {
-        return res.status(403).json({ error: 'Complimentary top-up is restricted to Super Admin role.' });
-      }
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) {
+      return res.status(400).json({ error: 'Valid positive amount (<= 1,000,000) is required.' });
     }
 
     const completedAt = new Date().toISOString();
@@ -576,7 +607,7 @@ apiRouter.post('/wallet/topup/free', async (req, res) => {
     const transaction: WalletTransaction = {
       transactionId: txId,
       uid,
-      senderUid: uid,
+      senderUid: authUser.uid,
       recipientUid: uid,
       type: 'TOP_UP',
       status: 'COMPLETED',
@@ -585,8 +616,8 @@ apiRouter.post('/wallet/topup/free', async (req, res) => {
       fee: 0, // 100% Free of charge
       netAmount: amount,
       provider: 'VAIURE SUPER ADMIN TREASURY // COMPLIMENTARY OVERRIDE',
-      reference: `SUPERADMIN-FREE-${(adminEmail || 'ROOT').toUpperCase()}`,
-      description: `Super Admin complimentary wallet self top-up (+${amount} ${currency || 'USD'}) — Free of charge`,
+      reference: `SUPERADMIN-FREE-${authUser.email.toUpperCase()}`,
+      description: `Super Admin complimentary wallet top-up (+${amount} ${currency || 'USD'}) — Free of charge`,
       createdAt: completedAt,
       completedAt,
     };
@@ -635,7 +666,7 @@ apiRouter.post('/wallet/topup/free', async (req, res) => {
     res.json({ success: true, transaction });
   } catch (err: any) {
     console.error('Super admin free top-up error:', err);
-    res.status(500).json({ error: err.message || 'Free top-up failed.' });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Free top-up failed.') });
   }
 });
 
@@ -643,40 +674,49 @@ apiRouter.post('/wallet/topup/free', async (req, res) => {
 // 3. SESSIONS & SECURITY ENDPOINTS
 // ==========================================
 
-apiRouter.post('/auth/session/revoke-all', async (req, res) => {
+apiRouter.post('/auth/session/revoke-all', requireFirebaseAuth, authLimiter, async (req, res) => {
   try {
-    const { uid } = req.body;
-    if (!uid) return res.status(400).json({ error: 'uid is required' });
+    const authUser = req.verifiedUser!;
+    const uid =
+      typeof req.body?.uid === 'string' && req.body.uid.trim() ? req.body.uid.trim() : authUser.uid;
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot revoke sessions for another user.' });
+    }
 
     // Record security event
-    const eventId = `sec_${Date.now()}`;
+    const eventId = `sec_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     await setDoc(doc(db, 'securityEvents', eventId), {
       eventId,
       eventType: 'SESSION_REVOCATION_EVERYWHERE',
       severity: 'MEDIUM',
       uid,
+      actorUid: authUser.uid,
       timestamp: new Date().toISOString(),
       status: 'RESOLVED',
-      resolution: 'All user sessions revoked upon explicit user command',
+      resolution: 'All user sessions revoked upon explicit authenticated command',
     });
 
     res.json({ success: true, message: 'All device sessions revoked.' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Session revocation failed.') });
   }
 });
 
-apiRouter.post('/auth/account/delete-request', async (req, res) => {
+apiRouter.post('/auth/account/delete-request', requireFirebaseAuth, authLimiter, async (req, res) => {
   try {
-    const { uid, reason } = req.body;
-    if (!uid) return res.status(400).json({ error: 'uid is required' });
+    const authUser = req.verifiedUser!;
+    const { uid: requestedUid, reason } = req.body || {};
+    const uid = typeof requestedUid === 'string' && requestedUid.trim() ? requestedUid.trim() : authUser.uid;
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot request deletion for another user.' });
+    }
 
     await setDoc(
       doc(db, 'users', uid),
       {
         status: 'DELETION_PENDING',
         deletionRequestedAt: new Date().toISOString(),
-        deletionReason: reason || 'User requested account closure',
+        deletionReason: typeof reason === 'string' ? reason.slice(0, 500) : 'User requested account closure',
         updatedAt: new Date().toISOString(),
       },
       { merge: true }
@@ -684,7 +724,7 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
 
     res.json({ success: true, gracePeriodDays: 30 });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Deletion request failed.') });
   }
 });
 
@@ -692,25 +732,23 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
 // 4. ADMIN & GOVERNANCE ENDPOINTS
 // ==========================================
 
-  apiRouter.post('/admin/bootstrap', async (req, res) => {
+  apiRouter.post('/admin/bootstrap', requireFirebaseAuth, authLimiter, async (req, res) => {
     try {
-      const { uid, email } = req.body;
-      if (!uid || !email) {
-        return res.status(400).json({ error: 'uid and email are required.' });
-      }
+      const authUser = req.verifiedUser!;
+      const uid = authUser.uid;
+      const normalized = authUser.email.toLowerCase().trim();
 
-      const normalized = email.toLowerCase().trim();
-      if (normalized !== 'rachvan420@gmail.com') {
+      if (!isVerifiedAdminEmail(normalized, authUser.emailVerified)) {
         await logAccessDenied(
           { uid, email: normalized, role: 'USER' },
           'ADMIN_BOOTSTRAP_ATTEMPT',
           'SYSTEM',
           uid,
-          'Unauthorized identity attempted super-admin bootstrapping',
+          'Unauthorized or unverified identity attempted super-admin bootstrapping',
           { ip: req.ip, userAgent: req.headers['user-agent'] as string }
         );
         return res.status(403).json({
-          error: 'PRIMARY ADMIN ACCOUNT NOT FOUND. Only the designated platform owner can bootstrap.',
+          error: 'PRIMARY ADMIN ACCOUNT NOT VERIFIED. Only designated verified platform administrators can bootstrap.',
         });
       }
 
@@ -750,35 +788,23 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
       });
     } catch (err: any) {
       console.error('Admin bootstrap error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Admin bootstrap failed.') });
     }
   });
 
-  apiRouter.post('/admin/users/action', async (req, res) => {
+  const ALLOWED_MANAGED_ROLES = new Set(['USER', 'CREATOR', 'MODERATOR', 'FINANCE', 'ADMIN', 'SUPER_ADMIN']);
+
+  apiRouter.post('/admin/users/action', requireFirebaseAuth, requireAdmin, financialLimiter, async (req, res) => {
     try {
-      const { actorUid, targetUid, action, role, reason } = req.body;
+      const authUser = req.verifiedUser!;
+      const actorUid = authUser.uid;
+      const actorEmail = authUser.email;
+      const actorRole: UserRole = 'SUPER_ADMIN';
+      const { targetUid, action, role, reason } = req.body || {};
       const ctx = { ip: req.ip, userAgent: req.headers['user-agent'] as string };
 
-      if (!actorUid || !targetUid || !action || !reason) {
-        return res.status(400).json({ error: 'actorUid, targetUid, action, and reason are required.' });
-      }
-
-      // Verify actor is admin
-      const actorDoc = await getDoc(doc(db, 'users', actorUid));
-      const actorData = actorDoc.data();
-      const actorEmail = actorData?.email || 'admin@ivntri.com';
-      const actorRole = actorData?.role || actorData?.accountType;
-
-      if (actorRole !== 'ADMIN' && actorRole !== 'SUPER_ADMIN') {
-        await logAccessDenied(
-          { uid: actorUid, email: actorEmail, role: actorRole || 'USER' },
-          `USER_${action}`,
-          'USER',
-          targetUid,
-          'Actor lacks required administrative permissions to perform user moderation',
-          ctx
-        );
-        return res.status(403).json({ error: 'Forbidden: Insufficient administrative privileges.' });
+      if (!isSafeIdentifier(targetUid) || !action || !reason) {
+        return res.status(400).json({ error: 'Valid targetUid, action, and reason are required.' });
       }
 
       // Capture before state of target user for non-repudiation
@@ -790,12 +816,12 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
 
       if (action === 'SUSPEND') {
         updates.status = 'SUSPENDED';
-        updates.suspensionReason = reason;
+        updates.suspensionReason = String(reason).slice(0, 500);
         await updateDoc(doc(db, 'users', targetUid), updates);
         auditLogRecord = await logUserSuspension(
           { uid: actorUid, email: actorEmail, role: actorRole },
           targetUid,
-          reason,
+          updates.suspensionReason,
           targetSnapshot,
           ctx
         );
@@ -806,20 +832,24 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
         auditLogRecord = await logUserUnsuspension(
           { uid: actorUid, email: actorEmail, role: actorRole },
           targetUid,
-          reason,
+          String(reason).slice(0, 500),
           targetSnapshot,
           ctx
         );
       } else if (action === 'CHANGE_ROLE' && role) {
-        updates.role = role;
-        updates.accountType = role;
+        const nextRole = String(role).toUpperCase().trim();
+        if (!ALLOWED_MANAGED_ROLES.has(nextRole)) {
+          return res.status(400).json({ error: 'Invalid target role.' });
+        }
+        updates.role = nextRole;
+        updates.accountType = nextRole;
         await updateDoc(doc(db, 'users', targetUid), updates);
         auditLogRecord = await logRoleAssignment(
           { uid: actorUid, email: actorEmail, role: actorRole },
           targetUid,
           targetSnapshot.role || targetSnapshot.accountType || 'USER',
-          role,
-          reason,
+          nextRole as UserRole,
+          String(reason).slice(0, 500),
           targetSnapshot,
           ctx
         );
@@ -833,7 +863,7 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
           action: 'USER_VERIFY',
           targetType: 'USER',
           targetId: targetUid,
-          reason,
+          reason: String(reason).slice(0, 500),
           result: 'SUCCESS',
           targetMetadata: {
             previousVerified: targetSnapshot.verified || false,
@@ -852,7 +882,7 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
           action: 'USER_DISABLE',
           targetType: 'USER',
           targetId: targetUid,
-          reason,
+          reason: String(reason).slice(0, 500),
           result: 'SUCCESS',
           targetMetadata: {
             previousStatus: targetSnapshot.status,
@@ -862,7 +892,7 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
           context: ctx,
         });
       } else {
-        return res.status(400).json({ error: `Unsupported user action: ${action}` });
+        return res.status(400).json({ error: 'Unsupported user action.' });
       }
 
       res.json({
@@ -872,34 +902,21 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
       });
     } catch (err: any) {
       console.error('Admin user action error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Admin user action failed.') });
     }
   });
 
-  apiRouter.post('/admin/wallets/action', async (req, res) => {
+  apiRouter.post('/admin/wallets/action', requireFirebaseAuth, requireAdmin, financialLimiter, async (req, res) => {
     try {
-      const { actorUid, targetUid, action, adjustmentAmount, adjustmentCurrency, reason } = req.body;
+      const authUser = req.verifiedUser!;
+      const actorUid = authUser.uid;
+      const actorEmail = authUser.email;
+      const actorRole: UserRole = 'SUPER_ADMIN';
+      const { targetUid, action, adjustmentAmount, adjustmentCurrency, reason } = req.body || {};
       const ctx = { ip: req.ip, userAgent: req.headers['user-agent'] as string };
 
-      if (!actorUid || !targetUid || !action || !reason) {
-        return res.status(400).json({ error: 'actorUid, targetUid, action, and reason are required.' });
-      }
-
-      const actorDoc = await getDoc(doc(db, 'users', actorUid));
-      const actorData = actorDoc.data();
-      const actorEmail = actorData?.email || 'finance@ivntri.com';
-      const actorRole = actorData?.role || actorData?.accountType;
-
-      if (actorRole !== 'ADMIN' && actorRole !== 'SUPER_ADMIN' && actorRole !== 'FINANCE') {
-        await logAccessDenied(
-          { uid: actorUid, email: actorEmail, role: actorRole || 'USER' },
-          `WALLET_${action}`,
-          'WALLET',
-          targetUid,
-          'Forbidden: Finance or Super Admin privileges required',
-          ctx
-        );
-        return res.status(403).json({ error: 'Forbidden: Finance or Super Admin privileges required.' });
+      if (!isSafeIdentifier(targetUid) || !action || !reason) {
+        return res.status(400).json({ error: 'Valid targetUid, action, and reason are required.' });
       }
 
       const walletRef = doc(db, 'wallets', targetUid);
@@ -908,22 +925,22 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
       let auditLogRecord: AdminAuditLog;
 
       if (action === 'FREEZE') {
-        await updateDoc(walletRef, { status: 'FROZEN', restrictionReason: reason });
+        await updateDoc(walletRef, { status: 'FROZEN', restrictionReason: String(reason).slice(0, 500) });
         auditLogRecord = await logWalletFreezing(
           { uid: actorUid, email: actorEmail, role: actorRole },
           targetUid,
           'FREEZE',
-          reason,
+          String(reason).slice(0, 500),
           walletData,
           ctx
         );
       } else if (action === 'RESTRICT') {
-        await updateDoc(walletRef, { status: 'RESTRICTED', restrictionReason: reason });
+        await updateDoc(walletRef, { status: 'RESTRICTED', restrictionReason: String(reason).slice(0, 500) });
         auditLogRecord = await logWalletFreezing(
           { uid: actorUid, email: actorEmail, role: actorRole },
           targetUid,
           'RESTRICT',
-          reason,
+          String(reason).slice(0, 500),
           walletData,
           ctx
         );
@@ -933,11 +950,16 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
           { uid: actorUid, email: actorEmail, role: actorRole },
           targetUid,
           'UNFREEZE',
-          reason,
+          String(reason).slice(0, 500),
           walletData,
           ctx
         );
-      } else if (action === 'MANUAL_ADJUSTMENT' && typeof adjustmentAmount === 'number') {
+      } else if (
+        action === 'MANUAL_ADJUSTMENT' &&
+        typeof adjustmentAmount === 'number' &&
+        Number.isFinite(adjustmentAmount) &&
+        Math.abs(adjustmentAmount) <= 1_000_000
+      ) {
         const txId = `IVN-${new Date().getFullYear()}-ADJ-${Date.now().toString(36).toUpperCase()}`;
         const completedAt = new Date().toISOString();
         const currentBalance = walletData.availableBalance || 0;
@@ -954,7 +976,7 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
           netAmount: adjustmentAmount,
           provider: 'IVNTRI Financial Audit Adjustment',
           reference: `ADJ-BY-${actorRole}`,
-          description: `Manual adjustment by admin: ${reason}`,
+          description: `Manual adjustment by admin: ${String(reason).slice(0, 300)}`,
           createdAt: completedAt,
           completedAt,
         };
@@ -987,13 +1009,13 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
           adjustmentAmount,
           adjustmentCurrency || 'USD',
           txId,
-          reason,
+          String(reason).slice(0, 500),
           currentBalance,
           newBalance,
           ctx
         );
       } else {
-        return res.status(400).json({ error: `Unsupported wallet action: ${action}` });
+        return res.status(400).json({ error: 'Unsupported or out-of-range wallet action.' });
       }
 
       res.json({
@@ -1003,34 +1025,21 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
       });
     } catch (err: any) {
       console.error('Admin wallet action error:', err);
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Admin wallet action failed.') });
     }
   });
 
-  apiRouter.post('/admin/settings/update', async (req, res) => {
+  apiRouter.post('/admin/settings/update', requireFirebaseAuth, requireAdmin, async (req, res) => {
     try {
-      const { actorUid, settings } = req.body;
+      const authUser = req.verifiedUser!;
+      const actorUid = authUser.uid;
+      const actorEmail = authUser.email;
+      const actorRole: UserRole = 'SUPER_ADMIN';
+      const { settings } = req.body || {};
       const ctx = { ip: req.ip, userAgent: req.headers['user-agent'] as string };
 
-      if (!actorUid || !settings) {
-        return res.status(400).json({ error: 'actorUid and settings are required.' });
-      }
-
-      const actorDoc = await getDoc(doc(db, 'users', actorUid));
-      const actorData = actorDoc.data();
-      const actorEmail = actorData?.email || 'admin@ivntri.com';
-      const actorRole = actorData?.role || actorData?.accountType;
-
-      if (actorRole !== 'ADMIN' && actorRole !== 'SUPER_ADMIN') {
-        await logAccessDenied(
-          { uid: actorUid, email: actorEmail, role: actorRole || 'USER' },
-          'SYSTEM_SETTINGS_UPDATE',
-          'SYSTEM_SETTINGS',
-          'global',
-          'Forbidden: Admin privileges required to update platform settings',
-          ctx
-        );
-        return res.status(403).json({ error: 'Forbidden: Admin privileges required.' });
+      if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+        return res.status(400).json({ error: 'Valid settings object is required.' });
       }
 
       // Capture before state
@@ -1061,14 +1070,14 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
         integrityHash: auditLogRecord.integrityHash,
       });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to update system settings.') });
     }
   });
 
   // Query audit logs with pagination and filters
-  apiRouter.get('/admin/audit-logs', async (req, res) => {
+  apiRouter.get('/admin/audit-logs', requireFirebaseAuth, requireAdmin, async (req, res) => {
     try {
-      const limitCount = req.query.limit ? Number(req.query.limit) : 50;
+      const limitCount = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
       const action = req.query.action as string | undefined;
       const targetType = req.query.targetType as string | undefined;
       const targetId = req.query.targetId as string | undefined;
@@ -1094,14 +1103,14 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
       });
     } catch (err: any) {
       console.warn('Audit query notice:', err?.message || err);
-      res.status(500).json({ error: err?.message || 'Failed to query audit logs' });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to query audit logs') });
     }
   });
 
   // Verify cryptographic integrity of audit logs
-  apiRouter.post('/admin/audit-logs/verify', async (req, res) => {
+  apiRouter.post('/admin/audit-logs/verify', requireFirebaseAuth, requireAdmin, async (req, res) => {
     try {
-      const { logs, log } = req.body;
+      const { logs, log } = req.body || {};
       if (log) {
         const check = verifyAuditLogIntegrity(log);
         return res.json(check);
@@ -1115,11 +1124,11 @@ apiRouter.post('/auth/account/delete-request', async (req, res) => {
       const summary = verifyAuditTrail(latestLogs);
       res.json(summary);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: sanitizeErrorMessage(err, 'Audit log verification failed.') });
     }
   });
 
-apiRouter.get('/admin/system-health', async (_req, res) => {
+apiRouter.get('/admin/system-health', requireFirebaseAuth, requireAdmin, async (_req, res) => {
   const health: Record<string, { status: string; latencyMs?: number; notes?: string }> = {
     authentication: { status: 'OPERATIONAL', latencyMs: 14 },
     firestore: { status: 'OPERATIONAL', latencyMs: 22 },
@@ -1135,22 +1144,23 @@ apiRouter.get('/admin/system-health', async (_req, res) => {
   res.json(health);
 });
 
-apiRouter.post('/support/ticket/create', async (req, res) => {
+apiRouter.post('/support/ticket/create', requireFirebaseAuth, async (req, res) => {
   try {
-    const { userId, userEmail, userName, category, subject, message, priority } = req.body;
-    if (!userId || !subject || !message) {
-      return res.status(400).json({ error: 'userId, subject, and message are required.' });
+    const authUser = req.verifiedUser!;
+    const { userName, category, subject, message, priority } = req.body || {};
+    if (!subject || !message) {
+      return res.status(400).json({ error: 'subject and message are required.' });
     }
 
-    const ticketId = `TICKET-${Date.now().toString(36).toUpperCase()}`;
+    const ticketId = `TICKET-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
     const ticket: SupportTicket = {
       ticketId,
-      userId,
-      userEmail: userEmail || '',
-      userName,
+      userId: authUser.uid,
+      userEmail: authUser.email || '',
+      userName: typeof userName === 'string' ? userName.slice(0, 120) : authUser.name,
       category: category || 'OTHER',
-      subject,
-      message,
+      subject: String(subject).slice(0, 200),
+      message: String(message).slice(0, 5000),
       status: 'OPEN',
       priority: priority || 'NORMAL',
       createdAt: new Date().toISOString(),
@@ -1160,7 +1170,7 @@ apiRouter.post('/support/ticket/create', async (req, res) => {
     await setDoc(doc(db, 'supportTickets', ticketId), ticket);
     res.json(ticket);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to create support ticket.') });
   }
 });
 
@@ -1234,26 +1244,25 @@ apiRouter.get('/realtime/stream', (req, res) => {
 
 /**
  * GET /api/users
- * Real-time accessible listing of all registered users in Firestore
+ * Public directory of creators via publicProfiles (no PII). Admins with Bearer tokens can also inspect private users collection.
  */
-apiRouter.get('/users', async (req, res) => {
+apiRouter.get('/users', optionalFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser;
     const qParam = ((req.query.q as string) || '').toLowerCase().trim();
     const roleParam = (req.query.role as string) || '';
 
-    const usersRef = collection(db, 'users');
-    const snap = await getDocs(query(usersRef, limit(100)));
+    const snap = await getDocs(query(collection(db, 'publicProfiles'), limit(100)));
 
     const users: any[] = [];
     snap.forEach((d) => {
       const data = d.data();
-      const rawName = data.username || data.displayName?.toLowerCase().replace(/\s+/g, '_') || data.email?.split('@')[0] || d.id;
-      const userItem = {
+      const rawName = data.username || data.displayName?.toLowerCase().replace(/\s+/g, '_') || `creator_${d.id.slice(0, 6)}`;
+      const userItem: Record<string, any> = {
         uid: d.id,
         id: d.id,
         username: rawName,
         displayName: data.displayName || rawName,
-        email: data.email || '',
         avatar: data.photoURL || '',
         photoURL: data.photoURL || '',
         role: data.role || data.accountType || 'CREATOR',
@@ -1265,7 +1274,6 @@ apiRouter.get('/users', async (req, res) => {
         postsCount: Number(data.postsCount) || 0,
         aiSpecialties: data.aiSpecialties || [],
         isVerified: Boolean(data.verified || data.isVerified),
-        isBanned: Boolean(data.isBanned),
         createdAt: data.createdAt || '',
         updatedAt: data.updatedAt || '',
       };
@@ -1277,9 +1285,8 @@ apiRouter.get('/users', async (req, res) => {
       if (qParam) {
         const matchesName = userItem.displayName.toLowerCase().includes(qParam);
         const matchesUsername = userItem.username.toLowerCase().includes(qParam);
-        const matchesEmail = userItem.email.toLowerCase().includes(qParam);
         const matchesBio = userItem.bio.toLowerCase().includes(qParam);
-        if (!matchesName && !matchesUsername && !matchesEmail && !matchesBio) {
+        if (!matchesName && !matchesUsername && !matchesBio) {
           return;
         }
       }
@@ -1294,50 +1301,52 @@ apiRouter.get('/users', async (req, res) => {
       fetchedAt: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to query directory.') });
   }
 });
 
 /**
  * GET /api/users/:uidOrUsername
- * Retrieve a specific user's document directly from Firestore by UID or username
+ * Retrieve a specific user's public profile (strictly redacted; no email/private fields)
  */
-apiRouter.get('/users/:uidOrUsername', async (req, res) => {
+apiRouter.get('/users/:uidOrUsername', optionalFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser;
     const { uidOrUsername } = req.params;
-    if (!uidOrUsername) {
-      return res.status(400).json({ error: 'UID or Username is required' });
+    if (!uidOrUsername || !isSafeIdentifier(uidOrUsername.replace(/^@/, ''))) {
+      return res.status(400).json({ error: 'Valid UID or Username is required' });
     }
 
-    // First try by direct UID
-    const userDocRef = doc(db, 'users', uidOrUsername);
-    const snap = await getDoc(userDocRef);
-    if (snap.exists()) {
-      return res.json({
-        uid: snap.id,
-        id: snap.id,
-        ...snap.data(),
+    const redactUserPayload = (docId: string, rawData: Record<string, any>) => {
+      const canViewPrivate = Boolean(authUser?.isAdmin || authUser?.uid === docId);
+      const { email, fymBalance, deletionReason, suspensionReason, ...publicFields } = rawData;
+      return {
+        uid: docId,
+        id: docId,
+        ...publicFields,
+        ...(canViewPrivate ? { email, fymBalance, deletionReason, suspensionReason } : {}),
         fetchedAt: new Date().toISOString(),
-      });
+      };
+    };
+
+    // Query non-PII publicProfiles first
+    const pubDocRef = doc(db, 'publicProfiles', uidOrUsername);
+    const snap = await getDoc(pubDocRef);
+    if (snap.exists()) {
+      return res.json(redactUserPayload(snap.id, snap.data()));
     }
 
-    // If not found, try username lookup in users collection
     const cleanUsername = uidOrUsername.toLowerCase().replace('@', '');
-    const userQuery = query(collection(db, 'users'), where('username', '==', cleanUsername), limit(1));
-    const querySnap = await getDocs(userQuery);
+    const pubQuery = query(collection(db, 'publicProfiles'), where('username', '==', cleanUsername), limit(1));
+    const querySnap = await getDocs(pubQuery);
     if (!querySnap.empty) {
       const matchDoc = querySnap.docs[0];
-      return res.json({
-        uid: matchDoc.id,
-        id: matchDoc.id,
-        ...matchDoc.data(),
-        fetchedAt: new Date().toISOString(),
-      });
+      return res.json(redactUserPayload(matchDoc.id, matchDoc.data()));
     }
 
     return res.status(404).json({ error: 'User profile not found' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to load user profile.') });
   }
 });
 
@@ -1372,7 +1381,7 @@ apiRouter.get('/users/:uidOrUsername/posts', async (req, res) => {
       fetchedAt: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to load user posts.') });
   }
 });
 
@@ -1380,13 +1389,16 @@ apiRouter.get('/users/:uidOrUsername/posts', async (req, res) => {
  * POST /api/users/sync
  * Server-side endpoint to ensure and sync a user profile in Firestore
  */
-apiRouter.post('/users/sync', async (req, res) => {
+apiRouter.post('/users/sync', requireFirebaseAuth, async (req, res) => {
   try {
-    const { uid, email, username, displayName, photoURL, bio, role } = req.body;
-    if (!uid) {
-      return res.status(400).json({ error: 'uid is required' });
+    const authUser = req.verifiedUser!;
+    const { uid: requestedUid, username, displayName, photoURL, bio } = req.body || {};
+    const uid = typeof requestedUid === 'string' && requestedUid.trim() ? requestedUid.trim() : authUser.uid;
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot synchronize another user’s profile.' });
     }
 
+    const email = authUser.email;
     const cleanUsername = (username || email?.split('@')[0] || displayName?.toLowerCase().replace(/\s+/g, '_') || `user_${uid.slice(0, 6)}`)
       .toLowerCase()
       .replace(/[^a-zA-Z0-9_]/g, '')
@@ -1396,8 +1408,8 @@ apiRouter.post('/users/sync', async (req, res) => {
     const userRef = doc(db, 'users', uid);
     const snap = await getDoc(userRef);
 
-    const isDesignatedAdmin = email === 'rachvan420@gmail.com';
-    const effectiveRole = isDesignatedAdmin ? 'ADMIN' : (role || 'CREATOR');
+    const isDesignatedAdmin = isVerifiedAdminEmail(email, authUser.emailVerified);
+    const effectiveRole = isDesignatedAdmin ? 'ADMIN' : 'CREATOR';
 
     if (!snap.exists()) {
       const newUserDoc = {
@@ -1433,7 +1445,7 @@ apiRouter.post('/users/sync', async (req, res) => {
         console.warn('Username reservation note:', e);
       }
 
-      broadcastRealtimeEvent('USER_REGISTERED', newUserDoc);
+      broadcastRealtimeEvent('USER_REGISTERED', { uid, username: cleanUsername, displayName: newUserDoc.displayName });
 
       return res.json({ success: true, created: true, user: newUserDoc });
     } else {
@@ -1454,26 +1466,35 @@ apiRouter.post('/users/sync', async (req, res) => {
       }
 
       const mergedUser = { ...existing, ...updates };
-      broadcastRealtimeEvent('USER_UPDATED', mergedUser);
+      broadcastRealtimeEvent('USER_UPDATED', { uid, username: mergedUser.username, displayName: mergedUser.displayName });
 
       return res.json({ success: true, updated: true, user: mergedUser });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to sync user profile.') });
   }
 });
 
 /**
  * POST /api/users/:targetUid/follow
- * Real-time follow/unfollow toggle on backend with counter sync and notifications
+ * Real-time follow/unfollow toggle on backend with verified caller identity
  */
-apiRouter.post('/users/:targetUid/follow', async (req, res) => {
+apiRouter.post('/users/:targetUid/follow', requireFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser!;
     const { targetUid } = req.params;
-    const { followerUid, followerName, followerUsername, followerAvatar } = req.body;
+    const { followerUid: requestedFollowerUid, followerName, followerUsername, followerAvatar } = req.body || {};
 
-    if (!targetUid || !followerUid) {
-      return res.status(400).json({ error: 'targetUid and followerUid are required' });
+    if (!isSafeIdentifier(targetUid)) {
+      return res.status(400).json({ error: 'Invalid targetUid.' });
+    }
+
+    const followerUid = authUser.uid;
+    if (requestedFollowerUid && requestedFollowerUid !== followerUid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Follower identity mismatch.' });
+    }
+    if (targetUid === followerUid) {
+      return res.status(400).json({ error: 'Cannot follow yourself.' });
     }
 
     const followingRef = doc(db, 'users', followerUid, 'following', targetUid);
@@ -1559,7 +1580,7 @@ apiRouter.post('/users/:targetUid/follow', async (req, res) => {
       return res.json({ success: true, following: true, followersCount: newFollowersCount });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Follow operation failed.') });
   }
 });
 
@@ -1604,7 +1625,7 @@ apiRouter.get('/posts', async (req, res) => {
       fetchedAt: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to load posts.') });
   }
 });
 
@@ -1612,26 +1633,33 @@ apiRouter.get('/posts', async (req, res) => {
  * POST /api/posts
  * Publish a new post to Firestore and broadcast live event to all subscribers
  */
-apiRouter.post('/posts', async (req, res) => {
+apiRouter.post('/posts', requireFirebaseAuth, async (req, res) => {
   try {
-    const post = req.body;
-    if (!post || !post.title || !post.authorId) {
-      return res.status(400).json({ error: 'Post title and authorId are required' });
+    const authUser = req.verifiedUser!;
+    const post = req.body || {};
+    if (!post.title) {
+      return res.status(400).json({ error: 'Post title is required' });
     }
 
-    const postId = post.id || `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const authorId = authUser.uid;
+    if (post.authorId && post.authorId !== authorId && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot publish a post under another creator UID.' });
+    }
+
+    const postId = `post_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const nowIso = new Date().toISOString();
 
     const postDoc = {
       ...post,
       id: postId,
-      authorUid: post.authorId,
+      authorId,
+      authorUid: authorId,
       authorUsername: post.authorUsername || 'creator',
-      authorDisplayName: post.authorName || 'Creator',
-      authorPhotoURL: post.authorAvatar || '',
+      authorDisplayName: post.authorName || authUser.name || 'Creator',
+      authorPhotoURL: post.authorAvatar || authUser.picture || '',
       createdAt: nowIso,
       updatedAt: nowIso,
-      likesCount: Number(post.likesCount) || 0,
+      likesCount: 0,
       commentsCount: 0,
       repostsCount: 0,
       savesCount: 0,
@@ -1641,7 +1669,7 @@ apiRouter.post('/posts', async (req, res) => {
 
     // Increment user postsCount
     try {
-      const authorRef = doc(db, 'users', post.authorId);
+      const authorRef = doc(db, 'users', authorId);
       const aSnap = await getDoc(authorRef);
       if (aSnap.exists()) {
         await updateDoc(authorRef, { postsCount: (aSnap.data().postsCount || 0) + 1 });
@@ -1654,7 +1682,7 @@ apiRouter.post('/posts', async (req, res) => {
 
     res.json({ success: true, post: postDoc });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to publish post.') });
   }
 });
 
@@ -1662,14 +1690,15 @@ apiRouter.post('/posts', async (req, res) => {
  * POST /api/posts/:postId/like
  * Toggle like on a post, update counters, and broadcast real-time event
  */
-apiRouter.post('/posts/:postId/like', async (req, res) => {
+apiRouter.post('/posts/:postId/like', requireFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser!;
     const { postId } = req.params;
-    const { userId, userName, userUsername, userAvatar } = req.body;
-
-    if (!postId || !userId) {
-      return res.status(400).json({ error: 'postId and userId are required' });
+    if (!isSafeIdentifier(postId)) {
+      return res.status(400).json({ error: 'Invalid postId.' });
     }
+    const { userName, userUsername, userAvatar } = req.body || {};
+    const userId = authUser.uid;
 
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDoc(postRef);
@@ -1682,7 +1711,7 @@ apiRouter.post('/posts/:postId/like', async (req, res) => {
 
     const likeRef = doc(db, 'posts', postId, 'likes', userId);
     const likeSnap = await getDoc(likeRef);
-    const isLiked = likeSnap.exists();
+    const isLiked = likeSnap.exists() && likeSnap.data()?.active !== false;
 
     let newCount = curLikes;
     if (isLiked) {
@@ -1701,9 +1730,9 @@ apiRouter.post('/posts/:postId/like', async (req, res) => {
           id: notifId,
           type: 'like',
           actorId: userId,
-          actorName: userName || 'Creator',
+          actorName: userName || authUser.name || 'Creator',
           actorUsername: userUsername || 'creator',
-          actorAvatar: userAvatar || '',
+          actorAvatar: userAvatar || authUser.picture || '',
           targetPostId: postId,
           targetPostTitle: pData.title || '',
           message: 'applauded your work',
@@ -1722,7 +1751,7 @@ apiRouter.post('/posts/:postId/like', async (req, res) => {
 
     res.json({ success: true, isLiked: !isLiked, likesCount: newCount });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to toggle like.') });
   }
 });
 
@@ -1733,6 +1762,9 @@ apiRouter.post('/posts/:postId/like', async (req, res) => {
 apiRouter.get('/posts/:postId/comments', async (req, res) => {
   try {
     const { postId } = req.params;
+    if (!isSafeIdentifier(postId)) {
+      return res.status(400).json({ error: 'Invalid postId.' });
+    }
     const commRef = collection(db, 'posts', postId, 'comments');
     const snap = await getDocs(commRef);
 
@@ -1742,7 +1774,7 @@ apiRouter.get('/posts/:postId/comments', async (req, res) => {
 
     res.json({ success: true, total: comments.length, comments });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to load comments.') });
   }
 });
 
@@ -1750,26 +1782,31 @@ apiRouter.get('/posts/:postId/comments', async (req, res) => {
  * POST /api/posts/:postId/comments
  * Add a comment to a post, increment counter, notify author, and broadcast
  */
-apiRouter.post('/posts/:postId/comments', async (req, res) => {
+apiRouter.post('/posts/:postId/comments', requireFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser!;
     const { postId } = req.params;
-    const { authorId, authorName, authorUsername, authorAvatar, content, parentId } = req.body;
+    if (!isSafeIdentifier(postId)) {
+      return res.status(400).json({ error: 'Invalid postId.' });
+    }
+    const { authorName, authorUsername, authorAvatar, content, parentId } = req.body || {};
+    const authorId = authUser.uid;
 
-    if (!postId || !authorId || !content) {
-      return res.status(400).json({ error: 'postId, authorId, and content are required' });
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Comment content is required.' });
     }
 
-    const commentId = `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const commentId = `comm_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const nowIso = new Date().toISOString();
 
     const commentDoc = {
       id: commentId,
       postId,
       authorId,
-      authorName: authorName || 'Creator',
+      authorName: authorName || authUser.name || 'Creator',
       authorUsername: authorUsername || 'creator',
-      authorAvatar: authorAvatar || '',
-      content,
+      authorAvatar: authorAvatar || authUser.picture || '',
+      content: content.trim().slice(0, 4000),
       createdAt: nowIso,
       likesCount: 0,
       parentId: parentId || null,
@@ -1793,12 +1830,12 @@ apiRouter.post('/posts/:postId/comments', async (req, res) => {
           id: notifId,
           type: 'comment',
           actorId: authorId,
-          actorName: authorName || 'Creator',
-          actorUsername: authorUsername || 'creator',
-          actorAvatar: authorAvatar || '',
+          actorName: commentDoc.authorName,
+          actorUsername: commentDoc.authorUsername,
+          actorAvatar: commentDoc.authorAvatar,
           targetPostId: postId,
           targetPostTitle: postSnap.data().title || '',
-          message: `commented: "${content.slice(0, 50)}"`,
+          message: `commented: "${commentDoc.content.slice(0, 50)}"`,
           createdAt: nowIso,
           read: false,
         });
@@ -1813,17 +1850,25 @@ apiRouter.post('/posts/:postId/comments', async (req, res) => {
 
     res.json({ success: true, comment: commentDoc, commentsCount: newCommentsCount });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to post comment.') });
   }
 });
 
 /**
  * GET /api/activity/:uid
- * Retrieve user notifications
+ * Retrieve user notifications (self or admin only)
  */
-apiRouter.get('/activity/:uid', async (req, res) => {
+apiRouter.get('/activity/:uid', requireFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser!;
     const { uid } = req.params;
+    if (!isSafeIdentifier(uid)) {
+      return res.status(400).json({ error: 'Invalid user identifier.' });
+    }
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot view another user’s activity feed.' });
+    }
+
     const notifsRef = collection(db, 'users', uid, 'notifications');
     const snap = await getDocs(query(notifsRef, limit(50)));
 
@@ -1833,17 +1878,25 @@ apiRouter.get('/activity/:uid', async (req, res) => {
 
     res.json({ success: true, total: notifications.length, notifications });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to fetch notifications.') });
   }
 });
 
 /**
  * POST /api/activity/:uid/read
- * Mark all notifications as read
+ * Mark all notifications as read (self or admin only)
  */
-apiRouter.post('/activity/:uid/read', async (req, res) => {
+apiRouter.post('/activity/:uid/read', requireFirebaseAuth, async (req, res) => {
   try {
+    const authUser = req.verifiedUser!;
     const { uid } = req.params;
+    if (!isSafeIdentifier(uid)) {
+      return res.status(400).json({ error: 'Invalid user identifier.' });
+    }
+    if (uid !== authUser.uid && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot modify another user’s notifications.' });
+    }
+
     const notifsRef = collection(db, 'users', uid, 'notifications');
     const snap = await getDocs(query(notifsRef, limit(50)));
 
@@ -1852,7 +1905,7 @@ apiRouter.post('/activity/:uid/read', async (req, res) => {
 
     res.json({ success: true, message: 'All notifications marked as read' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to mark notifications read.') });
   }
 });
 
@@ -1863,7 +1916,7 @@ apiRouter.post('/activity/:uid/read', async (req, res) => {
 apiRouter.get('/stats/realtime', async (_req, res) => {
   try {
     const [usersSnap, postsSnap] = await Promise.all([
-      getDocs(query(collection(db, 'users'), limit(500))),
+      getDocs(query(collection(db, 'publicProfiles'), limit(500))),
       getDocs(query(collection(db, 'posts'), limit(500))),
     ]);
 
@@ -1876,7 +1929,7 @@ apiRouter.get('/stats/realtime', async (_req, res) => {
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to load realtime stats.') });
   }
 });
 
@@ -1920,7 +1973,7 @@ apiRouter.get('/shorts', async (req, res) => {
       fetchedAt: new Date().toISOString(),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to load shorts.') });
   }
 });
 
@@ -1928,19 +1981,25 @@ apiRouter.get('/shorts', async (req, res) => {
  * POST /api/shorts
  * Publish a new short
  */
-apiRouter.post('/shorts', async (req, res) => {
+apiRouter.post('/shorts', requireFirebaseAuth, async (req, res) => {
   try {
-    const short = req.body;
-    if (!short || !short.title || !short.authorId || !short.videoUrl) {
-      return res.status(400).json({ error: 'Title, authorId, and videoUrl are required' });
+    const authUser = req.verifiedUser!;
+    const short = req.body || {};
+    if (!short.title || !short.videoUrl) {
+      return res.status(400).json({ error: 'Title and videoUrl are required' });
+    }
+    const authorId = authUser.uid;
+    if (short.authorId && short.authorId !== authorId && !authUser.isAdmin) {
+      return res.status(403).json({ error: 'Cannot publish a short under another creator UID.' });
     }
 
-    const shortId = short.id || `short_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const shortId = `short_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const nowIso = new Date().toISOString();
 
     const shortDoc = {
       ...short,
       id: shortId,
+      authorId,
       createdAt: nowIso,
       updatedAt: nowIso,
       viewsCount: 0,
@@ -1956,7 +2015,7 @@ apiRouter.post('/shorts', async (req, res) => {
 
     res.json({ success: true, short: shortDoc });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeErrorMessage(err, 'Failed to publish short.') });
   }
 });
 
@@ -1972,44 +2031,64 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+const SAFE_UPLOAD_MIME_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+};
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, uploadsDir);
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || (file.mimetype.startsWith('video') ? '.mp4' : '.jpg');
-    const safeBase = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-    const unique = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    cb(null, `ivntri_${safeBase}_${unique}${ext}`);
+    const mappedExt = SAFE_UPLOAD_MIME_EXT[file.mimetype.toLowerCase()] || '.bin';
+    const safeBase = path.basename(file.originalname, path.extname(file.originalname)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30) || 'media';
+    const unique = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    cb(null, `ivntri_${safeBase}_${unique}${mappedExt}`);
   },
 });
 
 const upload = multer({
   storage,
   limits: {
-    fileSize: 150 * 1024 * 1024, // 150MB per file to comfortably support high-bitrate video clips
+    fileSize: 150 * 1024 * 1024, // 150MB per file
     files: 10,
   },
   fileFilter: (_req, file, cb) => {
-    const isVideo = file.mimetype.startsWith('video/');
-    const isImage = file.mimetype.startsWith('image/');
-    if (isVideo || isImage) {
+    const mime = file.mimetype.toLowerCase();
+    if (SAFE_UPLOAD_MIME_EXT[mime]) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Only video and image files are permitted.`));
+      cb(new Error('Unsupported file type. Only binary raster image (JPG/PNG/WEBP/GIF) and video (MP4/WEBM/MOV) files are permitted.'));
     }
   },
 });
 
+function readFileHeaderSlice(filePath: string, bytes = 1024): Buffer {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(bytes);
+    const bytesRead = fs.readSync(fd, buf, 0, bytes, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /**
  * POST /api/upload
- * Multi-file & single-file upload for video and image files.
- * Form field: 'files' (or 'file')
+ * Multi-file & single-file upload for video and image files with magic-byte validation.
  */
-apiRouter.post('/upload', (req: Request, res: Response): void => {
+apiRouter.post('/upload', requireFirebaseAuth, uploadLimiter, (req: Request, res: Response): void => {
   upload.any()(req, res, (err: any) => {
     if (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
+      const message = sanitizeErrorMessage(err, 'Upload failed.');
       res.status(400).json({ success: false, error: message });
       return;
     }
@@ -2020,58 +2099,94 @@ apiRouter.post('/upload', (req: Request, res: Response): void => {
       return;
     }
 
-    const uploaded = files.map((file) => {
-      const isVideo = file.mimetype.startsWith('video/');
-      const publicUrl = `/uploads/${file.filename}`;
-      return {
-        url: publicUrl,
-        filename: file.filename,
-        originalName: file.originalname,
-        mimetype: file.mimetype,
-        type: isVideo ? 'video' : 'image',
-        size: file.size,
-        aspectRatio: isVideo ? 'aspect-[16/9]' : 'aspect-[3/4]',
-        createdAt: new Date().toISOString(),
-      };
-    });
+    const cleanupAll = () => {
+      for (const f of files) {
+        try {
+          if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+        } catch {
+          // ignore
+        }
+      }
+    };
 
-    res.json({
-      success: true,
-      message: `Successfully uploaded ${uploaded.length} media file(s).`,
-      files: uploaded,
-      file: uploaded[0], // for convenient single-file consumption
-    });
+    try {
+      const uploaded = files.map((file) => {
+        const header = readFileHeaderSlice(file.path, 1024);
+        const magic = validateMagicBytes(header, file.mimetype, ['image', 'video']);
+        if (!magic.valid || !magic.detectedMime) {
+          throw new Error(magic.reason || 'File signature rejected.');
+        }
+
+        const isVideo = magic.detectedMime.startsWith('video/');
+        const publicUrl = `/uploads/${file.filename}`;
+        return {
+          url: publicUrl,
+          filename: file.filename,
+          originalName: file.originalname,
+          mimetype: magic.detectedMime,
+          type: isVideo ? 'video' : 'image',
+          size: file.size,
+          aspectRatio: isVideo ? 'aspect-[16/9]' : 'aspect-[3/4]',
+          createdAt: new Date().toISOString(),
+        };
+      });
+
+      res.json({
+        success: true,
+        message: `Successfully uploaded ${uploaded.length} media file(s).`,
+        files: uploaded,
+        file: uploaded[0],
+      });
+    } catch (validationErr: any) {
+      cleanupAll();
+      res.status(400).json({
+        success: false,
+        error: sanitizeErrorMessage(validationErr, 'Invalid media binary signature.'),
+      });
+    }
   });
 });
 
 /**
  * POST /api/upload/base64
- * Fallback endpoint for base64-encoded video or image data
+ * Validated base64 media upload (magic-byte inspected, SVG/HTML blocked)
  */
-apiRouter.post('/upload/base64', async (req: Request, res: Response): Promise<void> => {
+apiRouter.post('/upload/base64', requireFirebaseAuth, uploadLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { dataUrl, filename: userFilename, type: explicitType } = req.body;
+    const { dataUrl, filename: userFilename } = req.body || {};
     if (!dataUrl || typeof dataUrl !== 'string') {
       res.status(400).json({ success: false, error: 'dataUrl is required.' });
       return;
     }
 
     const matches = dataUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-    let mimeType = 'image/jpeg';
-    let base64Data = dataUrl;
-
-    if (matches && matches.length === 3) {
-      mimeType = matches[1];
-      base64Data = matches[2];
+    if (!matches || matches.length !== 3) {
+      res.status(400).json({ success: false, error: 'Malformed base64 data URL.' });
+      return;
     }
 
-    const isVideo = mimeType.startsWith('video/') || explicitType === 'video';
-    const ext = isVideo ? '.mp4' : (mimeType === 'image/png' ? '.png' : mimeType === 'image/webp' ? '.webp' : '.jpg');
-    const safeBase = userFilename ? path.basename(userFilename, path.extname(userFilename)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30) : 'media';
-    const filename = `ivntri_${safeBase}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}${ext}`;
+    const mimeType = matches[1].toLowerCase();
+    const base64Data = matches[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    if (buffer.length > 50 * 1024 * 1024) {
+      res.status(413).json({ success: false, error: 'Uploaded media exceeds 50MB limit.' });
+      return;
+    }
+
+    const magic = validateMagicBytes(buffer, mimeType, ['image', 'video']);
+    if (!magic.valid || !magic.ext || !magic.detectedMime) {
+      res.status(400).json({ success: false, error: magic.reason || 'Unsupported or invalid binary media payload.' });
+      return;
+    }
+
+    const isVideo = magic.detectedMime.startsWith('video/');
+    const safeBase = userFilename
+      ? path.basename(userFilename, path.extname(userFilename)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30)
+      : 'media';
+    const filename = `ivntri_${safeBase}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${magic.ext}`;
     const filePath = path.join(uploadsDir, filename);
 
-    const buffer = Buffer.from(base64Data, 'base64');
     fs.writeFileSync(filePath, buffer);
 
     res.json({
@@ -2079,7 +2194,7 @@ apiRouter.post('/upload/base64', async (req: Request, res: Response): Promise<vo
       file: {
         url: `/uploads/${filename}`,
         filename,
-        mimetype: mimeType,
+        mimetype: magic.detectedMime,
         type: isVideo ? 'video' : 'image',
         size: buffer.length,
         aspectRatio: isVideo ? 'aspect-[16/9]' : 'aspect-[3/4]',
@@ -2087,15 +2202,15 @@ apiRouter.post('/upload/base64', async (req: Request, res: Response): Promise<vo
       },
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to store uploaded media.') });
   }
 });
 
 /**
  * GET /api/uploads
- * List stored media files
+ * Admin-only listing of stored media files (excludes internal JSON databases and hidden dirs)
  */
-apiRouter.get('/uploads', async (_req: Request, res: Response): Promise<void> => {
+apiRouter.get('/uploads', requireFirebaseAuth, requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   try {
     if (!fs.existsSync(uploadsDir)) {
       res.json({ success: true, files: [] });
@@ -2104,12 +2219,17 @@ apiRouter.get('/uploads', async (_req: Request, res: Response): Promise<void> =>
 
     const fileNames = fs.readdirSync(uploadsDir);
     const mediaFiles = fileNames
+      .filter((name) => {
+        const lower = name.toLowerCase();
+        return !lower.endsWith('.json') && !lower.endsWith('.tmp') && !lower.startsWith('.');
+      })
       .map((name) => {
         const fullPath = path.join(uploadsDir, name);
         try {
           const stats = fs.statSync(fullPath);
+          if (!stats.isFile()) return null;
           const ext = path.extname(name).toLowerCase();
-          const isVideo = ['.mp4', '.webm', '.mov', '.ogg', '.mkv', '.avi'].includes(ext);
+          const isVideo = ['.mp4', '.webm', '.mov', '.ogg'].includes(ext);
           return {
             filename: name,
             url: `/uploads/${name}`,
@@ -2131,27 +2251,35 @@ apiRouter.get('/uploads', async (_req: Request, res: Response): Promise<void> =>
       files: mediaFiles,
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to list uploads.') });
   }
 });
 
 /**
  * DELETE /api/upload/:filename
- * Delete an uploaded media file
+ * Admin-only deletion of uploaded media file with traversal & JSON DB guard
  */
-apiRouter.delete('/upload/:filename', async (req: Request, res: Response): Promise<void> => {
+apiRouter.delete('/upload/:filename', requireFirebaseAuth, requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
-    const rawFilename = path.basename(req.params.filename);
-    const filePath = path.join(uploadsDir, rawFilename);
+    const rawFilename = req.params.filename;
+    if (!isSafeIdentifier(rawFilename) || rawFilename.toLowerCase().endsWith('.json')) {
+      res.status(400).json({ success: false, error: 'Invalid or protected filename.' });
+      return;
+    }
+    const filePath = resolveSafeSubpath(uploadsDir, rawFilename);
+    if (!filePath) {
+      res.status(400).json({ success: false, error: 'Invalid file path.' });
+      return;
+    }
 
-    if (fs.existsSync(filePath)) {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       fs.unlinkSync(filePath);
       res.json({ success: true, message: `File ${rawFilename} deleted.` });
     } else {
       res.status(404).json({ success: false, error: 'File not found.' });
     }
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to delete file.') });
   }
 });
 
@@ -2163,29 +2291,28 @@ const threadUpload = multer({
     files: 10,
   },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
+    const mime = file.mimetype.toLowerCase();
+    if (
+      mime.startsWith('image/') &&
+      !mime.includes('svg') &&
+      !mime.includes('xml') &&
+      !mime.includes('html')
+    ) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Threads image optimizer only accepts image files.`));
+      cb(new Error('Unsupported file type. Only raster image files are permitted.'));
     }
   },
 });
 
 /**
  * POST /api/threads/optimize-image
- * Production-ready backend image optimization pipeline for Threads:
- * 1. Authenticates user & checks payload
- * 2. Quarantines raw original to private temporary location
- * 3. Validates file buffer, format, dimensions, pixel count (decompression bomb guard)
- * 4. Optimizes via Sharp (WebP @ quality 82, max 2048px, alpha preserved)
- * 5. Generates responsive thumbnail variant
- * 6. Saves to persistent storage & syncs to Firebase Storage when available
- * 7. Automatically deletes temporary quarantine original
+ * Authenticated Threads image optimization pipeline
  */
-apiRouter.post('/threads/optimize-image', (req: Request, res: Response): void => {
+apiRouter.post('/threads/optimize-image', requireFirebaseAuth, uploadLimiter, (req: Request, res: Response): void => {
   threadUpload.any()(req, res, async (err: any) => {
     if (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
+      const message = sanitizeErrorMessage(err, 'Upload failed.');
       res.status(400).json({ success: false, error: message });
       return;
     }
@@ -2196,17 +2323,21 @@ apiRouter.post('/threads/optimize-image', (req: Request, res: Response): void =>
       return;
     }
 
-    const userId = (req.body.userId as string) || (req.headers['x-user-id'] as string);
-    if (!userId) {
-      res.status(401).json({ success: false, error: 'Authentication required. User ID missing.' });
+    const authUser = req.verifiedUser!;
+    const userId = authUser.uid;
+    const threadId = (req.body.threadId as string) || `thread_${Date.now()}`;
+    if (!isSafeIdentifier(threadId)) {
+      res.status(400).json({ success: false, error: 'Invalid threadId.' });
       return;
     }
-
-    const threadId = (req.body.threadId as string) || `thread_${Date.now()}`;
 
     try {
       const results = [];
       for (const file of files) {
+        const magic = validateMagicBytes(file.buffer, file.mimetype, ['image']);
+        if (!magic.valid) {
+          throw new Error(magic.reason || 'Invalid image signature.');
+        }
         const optimized = await optimizeThreadImage(
           file.buffer,
           userId,
@@ -2226,7 +2357,7 @@ apiRouter.post('/threads/optimize-image', (req: Request, res: Response): void =>
       console.warn('Backend thread image optimization notice:', optErr?.message || optErr);
       res.status(422).json({
         success: false,
-        error: optErr?.message || 'Image processing failed. Ensure file is a valid image.',
+        error: sanitizeErrorMessage(optErr, 'Image processing failed. Ensure file is a valid image.'),
       });
     }
   });
@@ -2234,27 +2365,46 @@ apiRouter.post('/threads/optimize-image', (req: Request, res: Response): void =>
 
 /**
  * DELETE /api/threads/:threadId/media
- * Cleans up all optimized images and directories associated with a deleted thread
+ * Authenticated cleanup of optimized images for caller's own thread (or admin)
  */
-apiRouter.delete('/threads/:threadId/media', async (req: Request, res: Response): Promise<void> => {
+apiRouter.delete('/threads/:threadId/media', requireFirebaseAuth, async (req: Request, res: Response): Promise<void> => {
   try {
+    const authUser = req.verifiedUser!;
     const threadId = req.params.threadId;
-    const userId = (req.query.userId as string) || (req.body?.userId as string) || (req.headers['x-user-id'] as string) || 'unknown';
+    if (!isSafeIdentifier(threadId)) {
+      res.status(400).json({ success: false, error: 'Invalid threadId.' });
+      return;
+    }
+    const requestedUid = (req.query.userId as string) || (req.body?.userId as string);
+    const userId = authUser.isAdmin && requestedUid && isSafeIdentifier(requestedUid)
+      ? requestedUid
+      : authUser.uid;
     await cleanupThreadMedia(userId, threadId);
     res.json({ success: true, message: `Media for thread ${threadId} cleaned up.` });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err?.message || 'Failed to cleanup media.' });
+    res.status(500).json({ success: false, error: sanitizeErrorMessage(err, 'Failed to cleanup media.') });
   }
 });
 
 /**
  * POST /api/users/:userId/avatar
- * Uploads and optimizes a user's profile avatar to high-fidelity WebP
+ * Authenticated upload & optimization of caller's own profile avatar to WebP
  */
-apiRouter.post('/users/:userId/avatar', (req: Request, res: Response): void => {
+apiRouter.post('/users/:userId/avatar', requireFirebaseAuth, uploadLimiter, (req: Request, res: Response): void => {
   threadUpload.single('avatar')(req, res, async (err: any) => {
     if (err) {
-      res.status(400).json({ success: false, error: err?.message || 'Avatar upload failed' });
+      res.status(400).json({ success: false, error: sanitizeErrorMessage(err, 'Avatar upload failed') });
+      return;
+    }
+
+    const authUser = req.verifiedUser!;
+    const userId = req.params.userId;
+    if (!isSafeIdentifier(userId)) {
+      res.status(400).json({ success: false, error: 'Invalid user ID.' });
+      return;
+    }
+    if (userId !== authUser.uid && !authUser.isAdmin) {
+      res.status(403).json({ success: false, error: 'Cannot modify another user’s avatar.' });
       return;
     }
 
@@ -2264,9 +2414,9 @@ apiRouter.post('/users/:userId/avatar', (req: Request, res: Response): void => {
       return;
     }
 
-    const userId = req.params.userId;
-    if (!userId) {
-      res.status(400).json({ success: false, error: 'User ID missing.' });
+    const magic = validateMagicBytes(file.buffer, file.mimetype, ['image']);
+    if (!magic.valid) {
+      res.status(400).json({ success: false, error: magic.reason || 'Invalid avatar image file.' });
       return;
     }
 

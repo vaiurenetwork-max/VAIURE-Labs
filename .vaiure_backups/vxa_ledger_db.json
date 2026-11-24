@@ -1,0 +1,3551 @@
+{
+  "wallets": {
+    "efayour@gmail.com": {
+      "id": "wlt_93f56084-569c-4d00-849b-6b873528cb5b",
+      "userId": "efayour@gmail.com",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 350,
+        "subscriptionCredits": 200,
+        "purchasedCredits": 150,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 50,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 50000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-18T21:06:03.722Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "stepUpPinSalt": "b064769e930fec8f08a11f16723bfa41",
+      "createdAt": "2026-11-12T21:06:03.722Z",
+      "updatedAt": "2026-11-19T21:06:03.722Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:06:03.722Z"
+    },
+    "sec_pin_user_1795122363723": {
+      "id": "wlt_dfab8e18-d3fa-4a25-b5d5-72dabd2a7a59",
+      "userId": "sec_pin_user_1795122363723",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-19T21:06:03.723Z",
+      "updatedAt": "2026-11-19T21:06:03.928Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:06:03.723Z",
+      "stepUpPinHash": "scrypt:157d92d48accb7f90f941b5a93f04dc025f2a487eaac746b5c273c0e1736ccfa",
+      "stepUpPinSalt": "577090ca50274732da885d4642e1a535"
+    },
+    "sec_settle_user_1795122364822": {
+      "id": "wlt_9a769447-9349-46be-b6a2-dbabacf38ac5",
+      "userId": "sec_settle_user_1795122364822",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:06:04.900Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:06:04.822Z",
+      "updatedAt": "2026-11-19T21:06:04.903Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:06:04.822Z"
+    },
+    "sec_pin_user_1795122429719": {
+      "id": "wlt_c9884cca-95cb-4e2d-8722-c9f804bfc3bf",
+      "userId": "sec_pin_user_1795122429719",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-19T21:07:09.719Z",
+      "updatedAt": "2026-11-19T21:07:09.896Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:07:09.723Z",
+      "stepUpPinHash": "scrypt:a64cde2b531cff717582417dc8950bb79d3d22d6691e6555e70cd33cffe88ee2",
+      "stepUpPinSalt": "33022afe504eb02d6086b41c3d9f33a5"
+    },
+    "sec_settle_user_1795122430600": {
+      "id": "wlt_f680c137-fc77-42d5-bb62-a1b3ddf68bb0",
+      "userId": "sec_settle_user_1795122430600",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:07:10.622Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:07:10.600Z",
+      "updatedAt": "2026-11-19T21:07:10.624Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:07:10.600Z"
+    },
+    "test_user_1795122434702": {
+      "id": "wlt_bf41e2de-ed10-4a2b-a0e1-8993a4572c7b",
+      "userId": "test_user_1795122434702",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 50,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 50000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:07:14.732Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:07:14.702Z",
+      "updatedAt": "2026-11-19T21:07:14.732Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:07:14.703Z"
+    },
+    "test_wth_user_1795122434733": {
+      "id": "wlt_db2f87d3-134b-4611-af25-2451e54a106c",
+      "userId": "test_wth_user_1795122434733",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:07:14.733Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:07:14.733Z",
+      "updatedAt": "2026-11-19T21:07:14.790Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:07:14.733Z"
+    },
+    "sec_pin_user_1795122630798": {
+      "id": "wlt_0b4ad1a6-5397-4d17-be2b-bdc2f345c8d7",
+      "userId": "sec_pin_user_1795122630798",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-19T21:10:30.799Z",
+      "updatedAt": "2026-11-19T21:10:31.000Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:10:30.799Z",
+      "stepUpPinHash": "scrypt:13e23400ace4271dcb8c374a47f65ea4624d6398e4b4f840ffa1569ba3439f23",
+      "stepUpPinSalt": "d67483b45b687b34fbf4e8d70c2f00fb"
+    },
+    "sec_settle_user_1795122631723": {
+      "id": "wlt_6d486804-d4aa-46ea-81c6-ba3b9a5dcfb5",
+      "userId": "sec_settle_user_1795122631723",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:10:31.803Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:10:31.723Z",
+      "updatedAt": "2026-11-19T21:10:31.806Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:10:31.723Z"
+    },
+    "test_user_1795122635331": {
+      "id": "wlt_5d099d32-1e95-4a75-95cb-6883c4a9a4b1",
+      "userId": "test_user_1795122635331",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 50,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 50000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:10:35.416Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:10:35.331Z",
+      "updatedAt": "2026-11-19T21:10:35.416Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:10:35.331Z"
+    },
+    "test_wth_user_1795122635417": {
+      "id": "wlt_a39c2d79-d565-4a54-9770-0800d9ec4b11",
+      "userId": "test_wth_user_1795122635417",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:10:35.418Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:10:35.417Z",
+      "updatedAt": "2026-11-19T21:10:35.422Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:10:35.417Z"
+    },
+    "sec_pin_user_1795125036609": {
+      "id": "wlt_2882dfe5-9875-406c-8fac-72416c133cb8",
+      "userId": "sec_pin_user_1795125036609",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-19T21:50:36.609Z",
+      "updatedAt": "2026-11-19T21:50:36.724Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:50:36.610Z",
+      "stepUpPinHash": "scrypt:a4bd737d93fbed83cda9f66a7eabf898dbaa190c833bc02bad86850c3b80b0a0",
+      "stepUpPinSalt": "e072141618770c9b553054078e60e709"
+    },
+    "sec_settle_user_1795125037406": {
+      "id": "wlt_e34fe00c-2556-4884-8f9a-d34c62591c0d",
+      "userId": "sec_settle_user_1795125037406",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-19T21:50:37.424Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-19T21:50:37.406Z",
+      "updatedAt": "2026-11-19T21:50:37.426Z",
+      "lastSecurityVerificationAt": "2026-11-19T21:50:37.406Z"
+    },
+    "sec_pin_user_1795168170039": {
+      "id": "wlt_fc26d939-d01f-4f45-b988-66709d607f08",
+      "userId": "sec_pin_user_1795168170039",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-20T09:49:30.039Z",
+      "updatedAt": "2026-11-20T09:49:30.121Z",
+      "lastSecurityVerificationAt": "2026-11-20T09:49:30.040Z",
+      "stepUpPinHash": "scrypt:e0ec5c597f2f2255a94bbbd4e9e13e7249b958734c75d006658e97008d2bb89f",
+      "stepUpPinSalt": "9c6e2fdb18a437d6aaea566eef446cf4"
+    },
+    "sec_settle_user_1795168170432": {
+      "id": "wlt_198a62a3-0ca0-434a-898d-52229026e0d9",
+      "userId": "sec_settle_user_1795168170432",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-20T09:49:30.454Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-20T09:49:30.432Z",
+      "updatedAt": "2026-11-20T09:49:30.457Z",
+      "lastSecurityVerificationAt": "2026-11-20T09:49:30.432Z"
+    },
+    "sec_pin_user_1795198129748": {
+      "id": "wlt_502191a3-cdeb-400f-8852-4db54a5e4f85",
+      "userId": "sec_pin_user_1795198129748",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-20T18:08:49.749Z",
+      "updatedAt": "2026-11-20T18:08:49.810Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:08:49.749Z",
+      "stepUpPinHash": "scrypt:56b11bac2ab79255eeaac5127082461efcfaa7a6925ba54228ca95b188a5d9bd",
+      "stepUpPinSalt": "70ed9cecb1d5760415e7c2caaded0230"
+    },
+    "sec_settle_user_1795198130112": {
+      "id": "wlt_08c3918b-f357-43be-b5ef-8bed70acf619",
+      "userId": "sec_settle_user_1795198130112",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-20T18:08:50.138Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-20T18:08:50.112Z",
+      "updatedAt": "2026-11-20T18:08:50.141Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:08:50.112Z"
+    },
+    "sec_pin_user_1795198747636": {
+      "id": "wlt_ce520ab7-309a-4a2f-92c6-e9df1ad68b2e",
+      "userId": "sec_pin_user_1795198747636",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-20T18:19:07.637Z",
+      "updatedAt": "2026-11-20T18:19:07.721Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:19:07.637Z",
+      "stepUpPinHash": "scrypt:eeb9d1900dd3dc5bd14f71c0985adcc01556854cf9b7081b62be19f93279de96",
+      "stepUpPinSalt": "96372220ad3f4ef83ceec3f91d328e2c"
+    },
+    "sec_settle_user_1795198748048": {
+      "id": "wlt_5ed71080-faed-4d67-8c4f-37340111d7f6",
+      "userId": "sec_settle_user_1795198748048",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-20T18:19:08.068Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-20T18:19:08.048Z",
+      "updatedAt": "2026-11-20T18:19:08.070Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:19:08.048Z"
+    },
+    "sec_pin_user_1795200651146": {
+      "id": "wlt_b990c382-5979-4c3c-becd-73b61302b6cc",
+      "userId": "sec_pin_user_1795200651146",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-20T18:50:51.147Z",
+      "updatedAt": "2026-11-20T18:50:51.210Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:50:51.147Z",
+      "stepUpPinHash": "scrypt:9dcc66b6d20ec160ffe23032460e3703ba230703cd803adfc38abbb10160edaa",
+      "stepUpPinSalt": "524edec3a43ad71679a5a4ef886e0761"
+    },
+    "sec_settle_user_1795200651520": {
+      "id": "wlt_71794169-78fb-4f32-9e84-fa73e98bbf45",
+      "userId": "sec_settle_user_1795200651520",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-20T18:50:51.539Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-20T18:50:51.521Z",
+      "updatedAt": "2026-11-20T18:50:51.542Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:50:51.521Z"
+    },
+    "sec_pin_user_1795200753885": {
+      "id": "wlt_cc5ee573-d8a1-491e-bbd0-63cef07075bb",
+      "userId": "sec_pin_user_1795200753885",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-20T18:52:33.885Z",
+      "updatedAt": "2026-11-20T18:52:33.959Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:52:33.885Z",
+      "stepUpPinHash": "scrypt:d118c43c29b0f381f4e5b098ebf994a8742ebb6af16002e3c621243c31f4c692",
+      "stepUpPinSalt": "715bc93c60c8c555726ac3249bc238b0"
+    },
+    "sec_settle_user_1795200754245": {
+      "id": "wlt_8a883e93-c52f-4a3f-af81-41c8e956cdf7",
+      "userId": "sec_settle_user_1795200754245",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-20T18:52:34.263Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-20T18:52:34.245Z",
+      "updatedAt": "2026-11-20T18:52:34.266Z",
+      "lastSecurityVerificationAt": "2026-11-20T18:52:34.245Z"
+    },
+    "sec_pin_user_1795234666255": {
+      "id": "wlt_238afc16-5f43-42e8-909a-e73afca6568d",
+      "userId": "sec_pin_user_1795234666255",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-21T04:17:46.256Z",
+      "updatedAt": "2026-11-21T04:17:46.435Z",
+      "lastSecurityVerificationAt": "2026-11-21T04:17:46.256Z",
+      "stepUpPinHash": "scrypt:d9837231c257aeaf23bcdfc3f96b112e85ca1cceb113e30e4c0c7fb2e1a97359",
+      "stepUpPinSalt": "057a5d7eee9c7c02a62f1e9318ca9617"
+    },
+    "sec_settle_user_1795234667238": {
+      "id": "wlt_e841be47-3552-4a1c-8507-6467a5523fc9",
+      "userId": "sec_settle_user_1795234667238",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-21T04:17:47.257Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-21T04:17:47.239Z",
+      "updatedAt": "2026-11-21T04:17:47.260Z",
+      "lastSecurityVerificationAt": "2026-11-21T04:17:47.239Z"
+    },
+    "sec_pin_user_1795349604011": {
+      "id": "wlt_39628b30-78ed-43d8-94b1-963698f8f3a8",
+      "userId": "sec_pin_user_1795349604011",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 0,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 0,
+        "totalDepositsCount": 0
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": true,
+      "createdAt": "2026-11-22T12:13:24.012Z",
+      "updatedAt": "2026-11-22T12:13:24.206Z",
+      "lastSecurityVerificationAt": "2026-11-22T12:13:24.014Z",
+      "stepUpPinHash": "scrypt:9214a573cea274f484ff9542b201502cc60f0324560caf9e36c0101e6c68aaed",
+      "stepUpPinSalt": "56d5bd3b408a28cdee87a8b0562ecddf"
+    },
+    "sec_settle_user_1795349605009": {
+      "id": "wlt_3db51053-ff08-40f4-9c26-09532b27e4c7",
+      "userId": "sec_settle_user_1795349605009",
+      "status": "ACTIVE",
+      "securityStatus": "VERIFIED",
+      "creditBalances": {
+        "totalCredits": 20,
+        "subscriptionCredits": 20,
+        "purchasedCredits": 0,
+        "promotionalCredits": 0
+      },
+      "vxaBalances": {
+        "availableMinor": 100,
+        "pendingMinor": 0,
+        "reservedMinor": 0
+      },
+      "depositStats": {
+        "totalDepositedIdr": 100000,
+        "totalDepositsCount": 1,
+        "lastDepositAt": "2026-11-22T12:13:25.027Z"
+      },
+      "withdrawalStats": {
+        "totalWithdrawnIdr": 0,
+        "totalWithdrawalsCount": 0
+      },
+      "stepUpPinEnabled": false,
+      "createdAt": "2026-11-22T12:13:25.009Z",
+      "updatedAt": "2026-11-22T12:13:25.030Z",
+      "lastSecurityVerificationAt": "2026-11-22T12:13:25.009Z"
+    }
+  },
+  "transactions": {
+    "tx_dep_1795122364824_4bf06414": {
+      "id": "tx_dep_1795122364824_4bf06414",
+      "idempotencyKey": "dep_1795122364822_f820a900",
+      "userId": "sec_settle_user_1795122364822",
+      "walletId": "wlt_9a769447-9349-46be-b6a2-dbabacf38ac5",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:06:04.900Z",
+      "updatedAt": "2026-11-19T21:06:04.900Z",
+      "settledAt": "2026-11-19T21:06:04.900Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122364900",
+      "riskScore": 0,
+      "signature": "a7787387e94dbbba4d61e94f5f1e15e0bb2f31b4ca6353c546b2b1ba66638e24",
+      "kid": "vxa_kid_1795122363720_4178c6ad",
+      "previousLedgerRef": "2ebb5fd2bd515471122cfc9daaad97007c87f89dcbc36637a6b2036305180f6a"
+    },
+    "tx_wth_1795122364901_5b1d0121": {
+      "id": "tx_wth_1795122364901_5b1d0121",
+      "idempotencyKey": "wth_1795122364901_4d7c460a",
+      "userId": "sec_settle_user_1795122364822",
+      "walletId": "wlt_9a769447-9349-46be-b6a2-dbabacf38ac5",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-19T21:06:04.902Z",
+      "updatedAt": "2026-11-19T21:06:04.903Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795122364902",
+      "riskScore": 40,
+      "signature": "54aa77f9acc01eb0ca62caa79535a39446b9cd23938d2939acbfb84dc154900e",
+      "kid": "vxa_kid_1795122363720_4178c6ad",
+      "previousLedgerRef": "f78b3d368d5b96965227ac66c875d531da09d351e300fb92a333a0da01a1ad05",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795122430601_f5ccfce0": {
+      "id": "tx_dep_1795122430601_f5ccfce0",
+      "idempotencyKey": "dep_1795122430600_e346c3e7",
+      "userId": "sec_settle_user_1795122430600",
+      "walletId": "wlt_f680c137-fc77-42d5-bb62-a1b3ddf68bb0",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:07:10.622Z",
+      "updatedAt": "2026-11-19T21:07:10.622Z",
+      "settledAt": "2026-11-19T21:07:10.622Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122430622",
+      "riskScore": 0,
+      "signature": "31e6e625ef3cbea30b687806104cfc006bacf88ea6a3417ffd2407d9f0fdffc9",
+      "kid": "vxa_kid_1795122429717_447233d8",
+      "previousLedgerRef": "76cbacae865513453d53975fd1a712833aebd8200f30b1c6b0fb6a492ea4eb25"
+    },
+    "tx_wth_1795122430623_567211d4": {
+      "id": "tx_wth_1795122430623_567211d4",
+      "idempotencyKey": "wth_1795122430623_a8c167ee",
+      "userId": "sec_settle_user_1795122430600",
+      "walletId": "wlt_f680c137-fc77-42d5-bb62-a1b3ddf68bb0",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-19T21:07:10.623Z",
+      "updatedAt": "2026-11-19T21:07:10.624Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795122430623",
+      "riskScore": 40,
+      "signature": "0474f2b3a939e6e0caf123b3ca2aa4e4b0243ba3fd38a62f7fb251b80240618c",
+      "kid": "vxa_kid_1795122429717_447233d8",
+      "previousLedgerRef": "c0c7af8325715deec2035b5d4633010df0ed085bea84963b6c5bd51a0240bae3",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795122434703_e5924ae4": {
+      "id": "tx_dep_1795122434703_e5924ae4",
+      "idempotencyKey": "dep_1795122434702_e5f5eee8",
+      "userId": "test_user_1795122434702",
+      "walletId": "wlt_bf41e2de-ed10-4a2b-a0e1-8993a4572c7b",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:07:14.732Z",
+      "updatedAt": "2026-11-19T21:07:14.732Z",
+      "settledAt": "2026-11-19T21:07:14.732Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122434732",
+      "riskScore": 0,
+      "signature": "321e7f255b2761fc66cd354d3a85b986e01ffe714d073613708d9670c455f315",
+      "kid": "vxa_kid_1795122434700_5d00a317",
+      "previousLedgerRef": "cc2db228876c521960c963a50de0af59116b65a26377ee379c6abf055842c212"
+    },
+    "tx_dep_1795122434733_84269ba7": {
+      "id": "tx_dep_1795122434733_84269ba7",
+      "idempotencyKey": "dep_1795122434733_efef0a25",
+      "userId": "test_wth_user_1795122434733",
+      "walletId": "wlt_db2f87d3-134b-4611-af25-2451e54a106c",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:07:14.733Z",
+      "updatedAt": "2026-11-19T21:07:14.733Z",
+      "settledAt": "2026-11-19T21:07:14.733Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122434733",
+      "riskScore": 0,
+      "signature": "b4c672599121bcfd4bef2a6477845e3b48e1df8580c35f1824a1b4d857b8bede",
+      "kid": "vxa_kid_1795122434700_5d00a317",
+      "previousLedgerRef": "1ee1f0419f2aec9c573d47b3295adf02b0f86fb2f3bef4e96851568ed8cefc75"
+    },
+    "tx_wth_1795122434789_b83a59ec": {
+      "id": "tx_wth_1795122434789_b83a59ec",
+      "idempotencyKey": "wth_1795122434788_6817ffbd",
+      "userId": "test_wth_user_1795122434733",
+      "walletId": "wlt_db2f87d3-134b-4611-af25-2451e54a106c",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 40,
+      "amountIdrEquivalent": 40000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-19T21:07:14.789Z",
+      "updatedAt": "2026-11-19T21:07:14.791Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Test Director"
+      },
+      "partnerReference": "BI-FAST-REQ-1795122434789",
+      "riskScore": 40,
+      "signature": "eda3764071dc8ee86480b702ee1df6b669745578b4217ca1ea322dc5c3ad74d6",
+      "kid": "vxa_kid_1795122434700_5d00a317",
+      "previousLedgerRef": "fab6a70d2eda8422da2a44c51c5ca5b52539a51fd9d0ffa502010f05cb148e0c",
+      "failureReason": "Automated test settlement reversal simulation"
+    },
+    "tx_dep_1795122631724_d0cd642a": {
+      "id": "tx_dep_1795122631724_d0cd642a",
+      "idempotencyKey": "dep_1795122631723_1ec74568",
+      "userId": "sec_settle_user_1795122631723",
+      "walletId": "wlt_6d486804-d4aa-46ea-81c6-ba3b9a5dcfb5",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:10:31.804Z",
+      "updatedAt": "2026-11-19T21:10:31.804Z",
+      "settledAt": "2026-11-19T21:10:31.804Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122631804",
+      "riskScore": 0,
+      "signature": "6933d9c1acc295e9176058790fa3b1f17ae5d936c145ec08b21d0102c5fddb8b",
+      "kid": "vxa_kid_1795122630796_60f58a07",
+      "previousLedgerRef": "0efeaa236dac0933aff9e34c293793a6b68646da581398766997d08a4f050c2d"
+    },
+    "tx_wth_1795122631805_9ef30156": {
+      "id": "tx_wth_1795122631805_9ef30156",
+      "idempotencyKey": "wth_1795122631805_3b4e4cb6",
+      "userId": "sec_settle_user_1795122631723",
+      "walletId": "wlt_6d486804-d4aa-46ea-81c6-ba3b9a5dcfb5",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-19T21:10:31.805Z",
+      "updatedAt": "2026-11-19T21:10:31.807Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795122631805",
+      "riskScore": 40,
+      "signature": "fed740dae78196e67d5d29962d946facbab466b99c8823c865313d39cebc45b4",
+      "kid": "vxa_kid_1795122630796_60f58a07",
+      "previousLedgerRef": "453d52b642c70692728d51b47347fcf8e0aa8d5731a90a22db09da3b5615bcf7",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795122635332_e9d3cff2": {
+      "id": "tx_dep_1795122635332_e9d3cff2",
+      "idempotencyKey": "dep_1795122635331_0e0b6418",
+      "userId": "test_user_1795122635331",
+      "walletId": "wlt_5d099d32-1e95-4a75-95cb-6883c4a9a4b1",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:10:35.416Z",
+      "updatedAt": "2026-11-19T21:10:35.416Z",
+      "settledAt": "2026-11-19T21:10:35.416Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122635416",
+      "riskScore": 0,
+      "signature": "6d2c2ab576e436254712e391c3ea943f45d2000d6e43d53b0feeb7a8e886cb71",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7",
+      "previousLedgerRef": "5f914d58f604df0c750102cc599861de2f55e19418937d7e0d3f16b0ccc78567"
+    },
+    "tx_dep_1795122635418_4e8a12b6": {
+      "id": "tx_dep_1795122635418_4e8a12b6",
+      "idempotencyKey": "dep_1795122635417_f984e56f",
+      "userId": "test_wth_user_1795122635417",
+      "walletId": "wlt_a39c2d79-d565-4a54-9770-0800d9ec4b11",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:10:35.418Z",
+      "updatedAt": "2026-11-19T21:10:35.418Z",
+      "settledAt": "2026-11-19T21:10:35.418Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795122635418",
+      "riskScore": 0,
+      "signature": "c85561273eb54c8dceb89570b6949b044cc0568ffe255ca1f13e958774eccc21",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7",
+      "previousLedgerRef": "cd36d3b0b3421e4bd8c12f1aee0cbe5ec377ffc1c4ab39ff8d4f18245e4d1eef"
+    },
+    "tx_wth_1795122635420_a64f211c": {
+      "id": "tx_wth_1795122635420_a64f211c",
+      "idempotencyKey": "wth_1795122635420_77c682b1",
+      "userId": "test_wth_user_1795122635417",
+      "walletId": "wlt_a39c2d79-d565-4a54-9770-0800d9ec4b11",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 40,
+      "amountIdrEquivalent": 40000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-19T21:10:35.421Z",
+      "updatedAt": "2026-11-19T21:10:35.422Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Test Director"
+      },
+      "partnerReference": "BI-FAST-REQ-1795122635421",
+      "riskScore": 40,
+      "signature": "e9821506d649db92bc14a7294cc9444f33689de23164ddb6605a1dcea37dc70b",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7",
+      "previousLedgerRef": "404bbfef0df34013ee86e4ea5ebec4602bb293a2e22a9852d7220a8a5df4e4fd",
+      "failureReason": "Automated test settlement reversal simulation"
+    },
+    "tx_dep_1795125037407_4c92fbff": {
+      "id": "tx_dep_1795125037407_4c92fbff",
+      "idempotencyKey": "dep_1795125037406_d47a25c6",
+      "userId": "sec_settle_user_1795125037406",
+      "walletId": "wlt_e34fe00c-2556-4884-8f9a-d34c62591c0d",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-19T21:50:37.424Z",
+      "updatedAt": "2026-11-19T21:50:37.424Z",
+      "settledAt": "2026-11-19T21:50:37.424Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795125037424",
+      "riskScore": 0,
+      "signature": "b5a2d3c05a213b46a588ea46a0228fa9c9f95ab9340ab7b5f64fdb62ee464e48",
+      "kid": "vxa_kid_1795125036606_c5e9235c",
+      "previousLedgerRef": "677966f039bf98bfa178419fc18b139f13b99672ac0852c8e54c5bc862da2141"
+    },
+    "tx_wth_1795125037425_18376a49": {
+      "id": "tx_wth_1795125037425_18376a49",
+      "idempotencyKey": "wth_1795125037425_b4f0b200",
+      "userId": "sec_settle_user_1795125037406",
+      "walletId": "wlt_e34fe00c-2556-4884-8f9a-d34c62591c0d",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-19T21:50:37.425Z",
+      "updatedAt": "2026-11-19T21:50:37.426Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795125037425",
+      "riskScore": 40,
+      "signature": "9102f82957d8c8b6652bd4ae14f154a1c4647abead437021a0d577ce4630ecc9",
+      "kid": "vxa_kid_1795125036606_c5e9235c",
+      "previousLedgerRef": "4e237bcdd8637688ebc809fc917ca61088e166163e8f3d72bcebbb3f558d8f26",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795168170433_ffc58e1f": {
+      "id": "tx_dep_1795168170433_ffc58e1f",
+      "idempotencyKey": "dep_1795168170432_8cf2093c",
+      "userId": "sec_settle_user_1795168170432",
+      "walletId": "wlt_198a62a3-0ca0-434a-898d-52229026e0d9",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-20T09:49:30.454Z",
+      "updatedAt": "2026-11-20T09:49:30.454Z",
+      "settledAt": "2026-11-20T09:49:30.454Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795168170454",
+      "riskScore": 0,
+      "signature": "8530ebb252d76a89b4b27998451efe28e747507fb50365449b1dec77f1a1c861",
+      "kid": "vxa_kid_1795168170033_d0cf1297",
+      "previousLedgerRef": "3b3261c0b38c0217d3de95c0f3374b2c496cb5dc1bbdbe5273227456aab820c3"
+    },
+    "tx_wth_1795168170456_ac72ecb1": {
+      "id": "tx_wth_1795168170456_ac72ecb1",
+      "idempotencyKey": "wth_1795168170456_477a87c9",
+      "userId": "sec_settle_user_1795168170432",
+      "walletId": "wlt_198a62a3-0ca0-434a-898d-52229026e0d9",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-20T09:49:30.456Z",
+      "updatedAt": "2026-11-20T09:49:30.457Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795168170456",
+      "riskScore": 40,
+      "signature": "5f1cc6d5b35b2e351c4d21361355081a7367674537289f671f0be8c3d001aa06",
+      "kid": "vxa_kid_1795168170033_d0cf1297",
+      "previousLedgerRef": "49b46820977830a1ef502c84c0e65430c0c1f5d48d50cde6e1e88bd9d788edc9",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795198130113_d40337a3": {
+      "id": "tx_dep_1795198130113_d40337a3",
+      "idempotencyKey": "dep_1795198130112_a7bcbadc",
+      "userId": "sec_settle_user_1795198130112",
+      "walletId": "wlt_08c3918b-f357-43be-b5ef-8bed70acf619",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-20T18:08:50.138Z",
+      "updatedAt": "2026-11-20T18:08:50.138Z",
+      "settledAt": "2026-11-20T18:08:50.138Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795198130138",
+      "riskScore": 0,
+      "signature": "6c48bfef6a3f2e96e1259207b67c772e46b30d0ded15527a35f2bde684f1636a",
+      "kid": "vxa_kid_1795198129745_4fb1052f",
+      "previousLedgerRef": "817b45153fce2ccd17d4f3de7ac1a50f4a5f91a221c98b11ff9c106f0cd61190"
+    },
+    "tx_wth_1795198130140_f8acdb59": {
+      "id": "tx_wth_1795198130140_f8acdb59",
+      "idempotencyKey": "wth_1795198130139_0b8a190c",
+      "userId": "sec_settle_user_1795198130112",
+      "walletId": "wlt_08c3918b-f357-43be-b5ef-8bed70acf619",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-20T18:08:50.140Z",
+      "updatedAt": "2026-11-20T18:08:50.141Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795198130140",
+      "riskScore": 40,
+      "signature": "d838ad2dba7f26fd97adb85d292864d6dda84df9abc7f83be845e8d4280d03cd",
+      "kid": "vxa_kid_1795198129745_4fb1052f",
+      "previousLedgerRef": "14806c1217cd5987bf8be74a08672330695ca5cff35372139998f83813ff7c38",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795198748049_c04e5b72": {
+      "id": "tx_dep_1795198748049_c04e5b72",
+      "idempotencyKey": "dep_1795198748048_ce07e9bf",
+      "userId": "sec_settle_user_1795198748048",
+      "walletId": "wlt_5ed71080-faed-4d67-8c4f-37340111d7f6",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-20T18:19:08.068Z",
+      "updatedAt": "2026-11-20T18:19:08.068Z",
+      "settledAt": "2026-11-20T18:19:08.068Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795198748068",
+      "riskScore": 0,
+      "signature": "225a55cc795cecd10f85c5f4036db16b49db20b5ce3f2f64a795485c29b63db5",
+      "kid": "vxa_kid_1795198747634_ee2b6e62",
+      "previousLedgerRef": "15546ed1d46810a4dd988d085e02e5b4a2719bed8c97d091c7dbf2da6eb35099"
+    },
+    "tx_wth_1795198748069_4dbd0561": {
+      "id": "tx_wth_1795198748069_4dbd0561",
+      "idempotencyKey": "wth_1795198748069_a62950fe",
+      "userId": "sec_settle_user_1795198748048",
+      "walletId": "wlt_5ed71080-faed-4d67-8c4f-37340111d7f6",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-20T18:19:08.070Z",
+      "updatedAt": "2026-11-20T18:19:08.070Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795198748070",
+      "riskScore": 40,
+      "signature": "78fc5edf344c34add94850baa4a298a575d64fe6d5889cba96eade6ac50efaaf",
+      "kid": "vxa_kid_1795198747634_ee2b6e62",
+      "previousLedgerRef": "908ec91d3bf05d3996cef5ad92302a853c07db55383b9c6e5467eb2df8adda87",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795200651521_469da685": {
+      "id": "tx_dep_1795200651521_469da685",
+      "idempotencyKey": "dep_1795200651520_40783fbd",
+      "userId": "sec_settle_user_1795200651520",
+      "walletId": "wlt_71794169-78fb-4f32-9e84-fa73e98bbf45",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-20T18:50:51.539Z",
+      "updatedAt": "2026-11-20T18:50:51.539Z",
+      "settledAt": "2026-11-20T18:50:51.539Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795200651539",
+      "riskScore": 0,
+      "signature": "257e88e8e9f88cd2443dd5b6c91e0b11bc758c9c3f52390614384894f3aa1faa",
+      "kid": "vxa_kid_1795200651143_e2ca4b81",
+      "previousLedgerRef": "786502914db4810005359671d58e0e042bb4228a73ec45c12d3113dc89b94db0"
+    },
+    "tx_wth_1795200651541_3e97e51b": {
+      "id": "tx_wth_1795200651541_3e97e51b",
+      "idempotencyKey": "wth_1795200651541_0cb640cd",
+      "userId": "sec_settle_user_1795200651520",
+      "walletId": "wlt_71794169-78fb-4f32-9e84-fa73e98bbf45",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-20T18:50:51.541Z",
+      "updatedAt": "2026-11-20T18:50:51.542Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795200651541",
+      "riskScore": 40,
+      "signature": "f01459904e60a51a24bef4ce67afc4dfd0d20b8dfcc78d52430bdf1bcc3e5e24",
+      "kid": "vxa_kid_1795200651143_e2ca4b81",
+      "previousLedgerRef": "513af0367fd94ef81d7c2267a9f0006c2132f791f2874de1c99184ad80629276",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795200754245_18e6931a": {
+      "id": "tx_dep_1795200754245_18e6931a",
+      "idempotencyKey": "dep_1795200754245_4f0a587a",
+      "userId": "sec_settle_user_1795200754245",
+      "walletId": "wlt_8a883e93-c52f-4a3f-af81-41c8e956cdf7",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-20T18:52:34.263Z",
+      "updatedAt": "2026-11-20T18:52:34.263Z",
+      "settledAt": "2026-11-20T18:52:34.263Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795200754263",
+      "riskScore": 0,
+      "signature": "397c0852d5881338f908f37e2185eaff6c4cc01d229adeedbb86527954b767c8",
+      "kid": "vxa_kid_1795200753882_7cd7ad54",
+      "previousLedgerRef": "ccb49bdbee717d558d9afc76e0858b1860a95129c02025258bb5bf2baee95f44"
+    },
+    "tx_wth_1795200754265_cc71cb9e": {
+      "id": "tx_wth_1795200754265_cc71cb9e",
+      "idempotencyKey": "wth_1795200754264_7458ba72",
+      "userId": "sec_settle_user_1795200754245",
+      "walletId": "wlt_8a883e93-c52f-4a3f-af81-41c8e956cdf7",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-20T18:52:34.265Z",
+      "updatedAt": "2026-11-20T18:52:34.266Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795200754265",
+      "riskScore": 40,
+      "signature": "661361efb8002a4d01ec4723695c063c6e53e01cecf0681f1acb389112e429b6",
+      "kid": "vxa_kid_1795200753882_7cd7ad54",
+      "previousLedgerRef": "fafb22090886f3465d3f1af16776713cf1cca02e1641639031f4b5a58d901d1e",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795234667241_6dbdf5d0": {
+      "id": "tx_dep_1795234667241_6dbdf5d0",
+      "idempotencyKey": "dep_1795234667239_fa81de19",
+      "userId": "sec_settle_user_1795234667238",
+      "walletId": "wlt_e841be47-3552-4a1c-8507-6467a5523fc9",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-21T04:17:47.257Z",
+      "updatedAt": "2026-11-21T04:17:47.257Z",
+      "settledAt": "2026-11-21T04:17:47.257Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795234667257",
+      "riskScore": 0,
+      "signature": "18fe584757939cbbc136432c9bb010419d9bafeea1e9b1f00756ce6b3946a7c4",
+      "kid": "vxa_kid_1795234666250_ae9598ea",
+      "previousLedgerRef": "301f5e687e8bef04ac453fd190ad6f32d8522213897ff61a8e743241e711b305"
+    },
+    "tx_wth_1795234667259_023e5ae1": {
+      "id": "tx_wth_1795234667259_023e5ae1",
+      "idempotencyKey": "wth_1795234667258_8d222ad8",
+      "userId": "sec_settle_user_1795234667238",
+      "walletId": "wlt_e841be47-3552-4a1c-8507-6467a5523fc9",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-21T04:17:47.259Z",
+      "updatedAt": "2026-11-21T04:17:47.260Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795234667259",
+      "riskScore": 40,
+      "signature": "ac1fb0d2176753dcc1905065aff3dde21e597d081a59666dde9c7cbfbd322726",
+      "kid": "vxa_kid_1795234666250_ae9598ea",
+      "previousLedgerRef": "2055c83ac70eb33f16d45e61f8e472c35e6ca1c724c2e7bb6d0d70fe5da2e6fe",
+      "failureReason": "Security audit test rejection"
+    },
+    "tx_dep_1795349605010_ef3be853": {
+      "id": "tx_dep_1795349605010_ef3be853",
+      "idempotencyKey": "dep_1795349605009_a6e08b40",
+      "userId": "sec_settle_user_1795349605009",
+      "walletId": "wlt_3db51053-ff08-40f4-9c26-09532b27e4c7",
+      "type": "DEPOSIT",
+      "asset": "VXA",
+      "amountMinor": 100,
+      "amountIdrEquivalent": 100000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "SETTLED",
+      "createdAt": "2026-11-22T12:13:25.027Z",
+      "updatedAt": "2026-11-22T12:13:25.027Z",
+      "settledAt": "2026-11-22T12:13:25.027Z",
+      "partnerReference": "MIDTRANS-SETTLED-1795349605027",
+      "riskScore": 0,
+      "signature": "faf538e7cf945c9f9feb43d70349ec97066a259de52cbf45e72c5d887e437c2e",
+      "kid": "vxa_kid_1795349603995_a489df18",
+      "previousLedgerRef": "9f4ea229265ca43fe8743bfc9762b763ec48782ef155e108bcb0b775b1db836a"
+    },
+    "tx_wth_1795349605028_f5167fe4": {
+      "id": "tx_wth_1795349605028_f5167fe4",
+      "idempotencyKey": "wth_1795349605028_dc964f87",
+      "userId": "sec_settle_user_1795349605009",
+      "walletId": "wlt_3db51053-ff08-40f4-9c26-09532b27e4c7",
+      "type": "WITHDRAWAL",
+      "asset": "VXA",
+      "amountMinor": 50,
+      "amountIdrEquivalent": 50000,
+      "conversionRate": 1000,
+      "feeMinor": 0,
+      "status": "REJECTED",
+      "createdAt": "2026-11-22T12:13:25.029Z",
+      "updatedAt": "2026-11-22T12:13:25.031Z",
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "partnerReference": "BI-FAST-REQ-1795349605029",
+      "riskScore": 40,
+      "signature": "a526525b7e5c40e171fbf404ebbe82dad567991159f48bf69d2d658514e105d2",
+      "kid": "vxa_kid_1795349603995_a489df18",
+      "previousLedgerRef": "2e60a3ed07ed7e4b7996dc4326fd56b0fa0f5c7e8ac55a7819b7a7865c41a959",
+      "failureReason": "Security audit test rejection"
+    }
+  },
+  "settlements": {
+    "tx_wth_1795122364901_5b1d0121": {
+      "withdrawalId": "tx_wth_1795122364901_5b1d0121",
+      "userId": "sec_settle_user_1795122364822",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-19T21:06:04.902Z",
+      "targetSettlementDate": "2026-11-24T04:06:04.902Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795122364902",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-19T21:06:04.902Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-19T21:06:04.902Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-19T21:06:04.903Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795122430623_567211d4": {
+      "withdrawalId": "tx_wth_1795122430623_567211d4",
+      "userId": "sec_settle_user_1795122430600",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-19T21:07:10.623Z",
+      "targetSettlementDate": "2026-11-24T04:07:10.623Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795122430623",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-19T21:07:10.623Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-19T21:07:10.623Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-19T21:07:10.624Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795122434789_b83a59ec": {
+      "withdrawalId": "tx_wth_1795122434789_b83a59ec",
+      "userId": "test_wth_user_1795122434733",
+      "amountVxa": 40,
+      "amountIdr": 40000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Test Director"
+      },
+      "requestedAt": "2026-11-19T21:07:14.789Z",
+      "targetSettlementDate": "2026-11-24T04:07:14.789Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795122434789",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-19T21:07:14.789Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-19T21:07:14.789Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Automated test settlement reversal simulation",
+          "timestamp": "2026-11-19T21:07:14.791Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795122631805_9ef30156": {
+      "withdrawalId": "tx_wth_1795122631805_9ef30156",
+      "userId": "sec_settle_user_1795122631723",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-19T21:10:31.805Z",
+      "targetSettlementDate": "2026-11-24T04:10:31.805Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795122631805",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-19T21:10:31.805Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-19T21:10:31.805Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-19T21:10:31.807Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795122635420_a64f211c": {
+      "withdrawalId": "tx_wth_1795122635420_a64f211c",
+      "userId": "test_wth_user_1795122635417",
+      "amountVxa": 40,
+      "amountIdr": 40000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Test Director"
+      },
+      "requestedAt": "2026-11-19T21:10:35.421Z",
+      "targetSettlementDate": "2026-11-24T04:10:35.421Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795122635421",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-19T21:10:35.421Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-19T21:10:35.421Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Automated test settlement reversal simulation",
+          "timestamp": "2026-11-19T21:10:35.422Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795125037425_18376a49": {
+      "withdrawalId": "tx_wth_1795125037425_18376a49",
+      "userId": "sec_settle_user_1795125037406",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-19T21:50:37.425Z",
+      "targetSettlementDate": "2026-11-24T04:50:37.425Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795125037425",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-19T21:50:37.425Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-19T21:50:37.425Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-19T21:50:37.426Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795168170456_ac72ecb1": {
+      "withdrawalId": "tx_wth_1795168170456_ac72ecb1",
+      "userId": "sec_settle_user_1795168170432",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-20T09:49:30.456Z",
+      "targetSettlementDate": "2026-11-24T16:49:30.456Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795168170456",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-20T09:49:30.456Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-20T09:49:30.456Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-20T09:49:30.457Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795198130140_f8acdb59": {
+      "withdrawalId": "tx_wth_1795198130140_f8acdb59",
+      "userId": "sec_settle_user_1795198130112",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-20T18:08:50.140Z",
+      "targetSettlementDate": "2026-11-24T01:08:50.140Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795198130140",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-20T18:08:50.140Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-20T18:08:50.140Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-20T18:08:50.141Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795198748069_4dbd0561": {
+      "withdrawalId": "tx_wth_1795198748069_4dbd0561",
+      "userId": "sec_settle_user_1795198748048",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-20T18:19:08.070Z",
+      "targetSettlementDate": "2026-11-24T01:19:08.070Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795198748070",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-20T18:19:08.070Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-20T18:19:08.070Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-20T18:19:08.070Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795200651541_3e97e51b": {
+      "withdrawalId": "tx_wth_1795200651541_3e97e51b",
+      "userId": "sec_settle_user_1795200651520",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-20T18:50:51.541Z",
+      "targetSettlementDate": "2026-11-24T01:50:51.541Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795200651541",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-20T18:50:51.541Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-20T18:50:51.541Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-20T18:50:51.542Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795200754265_cc71cb9e": {
+      "withdrawalId": "tx_wth_1795200754265_cc71cb9e",
+      "userId": "sec_settle_user_1795200754245",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-20T18:52:34.265Z",
+      "targetSettlementDate": "2026-11-24T01:52:34.265Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795200754265",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-20T18:52:34.265Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-20T18:52:34.265Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-20T18:52:34.266Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795234667259_023e5ae1": {
+      "withdrawalId": "tx_wth_1795234667259_023e5ae1",
+      "userId": "sec_settle_user_1795234667238",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-21T04:17:47.259Z",
+      "targetSettlementDate": "2026-11-24T11:17:47.259Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795234667259",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-21T04:17:47.259Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-21T04:17:47.259Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-21T04:17:47.260Z",
+          "completed": true
+        }
+      ]
+    },
+    "tx_wth_1795349605028_f5167fe4": {
+      "withdrawalId": "tx_wth_1795349605028_f5167fe4",
+      "userId": "sec_settle_user_1795349605009",
+      "amountVxa": 50,
+      "amountIdr": 50000,
+      "payoutDestination": {
+        "bankName": "BCA",
+        "accountNumber": "1234567890",
+        "accountHolderName": "Audit"
+      },
+      "requestedAt": "2026-11-22T12:13:25.029Z",
+      "targetSettlementDate": "2026-11-24T19:13:25.029Z",
+      "currentStatus": "REJECTED",
+      "isSimulatedDevMode": true,
+      "partnerReference": "BI-FAST-REQ-1795349605029",
+      "stages": [
+        {
+          "stage": "REQUESTED",
+          "label": "Withdrawal Request Submitted",
+          "timestamp": "2026-11-22T12:13:25.029Z",
+          "completed": true
+        },
+        {
+          "stage": "SECURITY_REVIEW",
+          "label": "Cryptographic & Risk Engine Review",
+          "timestamp": "2026-11-22T12:13:25.029Z",
+          "completed": true
+        },
+        {
+          "stage": "PROCESSING",
+          "label": "Queued for Financial Partner Dispatch",
+          "completed": false
+        },
+        {
+          "stage": "AWAITING_PARTNER",
+          "label": "BI-FAST / Real-Time Clearing",
+          "completed": false
+        },
+        {
+          "stage": "SETTLED",
+          "label": "Bank Settlement Complete",
+          "completed": false
+        },
+        {
+          "stage": "REJECTED",
+          "label": "Settlement Rejected: Security audit test rejection",
+          "timestamp": "2026-11-22T12:13:25.031Z",
+          "completed": true
+        }
+      ]
+    }
+  },
+  "securityEvents": [
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795349605009",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795349605028_f5167fe4",
+      "resolved": true,
+      "id": "sec_evt_1795349605031_edfc7e38",
+      "timestamp": "2026-11-22T12:13:25.031Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795349604011",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795349605006_d5743946",
+      "timestamp": "2026-11-22T12:13:25.006Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795349604011",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795349604906_a5b32e68",
+      "timestamp": "2026-11-22T12:13:24.906Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795349604011",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795349604798_7261ed14",
+      "timestamp": "2026-11-22T12:13:24.798Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795349604011",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795349604606_8b4e6ca4",
+      "timestamp": "2026-11-22T12:13:24.607Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795349604011",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795349604489_cae5cfc9",
+      "timestamp": "2026-11-22T12:13:24.489Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795234667238",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795234667259_023e5ae1",
+      "resolved": true,
+      "id": "sec_evt_1795234667260_fc67394d",
+      "timestamp": "2026-11-21T04:17:47.260Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795234666255",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795234667234_c550cbf9",
+      "timestamp": "2026-11-21T04:17:47.234Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795234666255",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795234667067_f68e2e47",
+      "timestamp": "2026-11-21T04:17:47.067Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795234666255",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795234666955_33046c4e",
+      "timestamp": "2026-11-21T04:17:46.955Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795234666255",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795234666841_3c1aaf24",
+      "timestamp": "2026-11-21T04:17:46.841Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795234666255",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795234666729_c108d935",
+      "timestamp": "2026-11-21T04:17:46.729Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795200754245",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795200754265_cc71cb9e",
+      "resolved": true,
+      "id": "sec_evt_1795200754266_d99d2e3e",
+      "timestamp": "2026-11-20T18:52:34.266Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200753885",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795200754242_316a8147",
+      "timestamp": "2026-11-20T18:52:34.242Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200753885",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200754197_4b1bfae1",
+      "timestamp": "2026-11-20T18:52:34.198Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200753885",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200754154_58187e40",
+      "timestamp": "2026-11-20T18:52:34.154Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200753885",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200754109_7e3dd5ff",
+      "timestamp": "2026-11-20T18:52:34.109Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200753885",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200754064_59c06ba0",
+      "timestamp": "2026-11-20T18:52:34.064Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795200651520",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795200651541_3e97e51b",
+      "resolved": true,
+      "id": "sec_evt_1795200651542_63cea8d5",
+      "timestamp": "2026-11-20T18:50:51.542Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200651146",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795200651517_354ebe72",
+      "timestamp": "2026-11-20T18:50:51.517Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200651146",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200651470_9f844258",
+      "timestamp": "2026-11-20T18:50:51.470Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200651146",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200651422_edff8156",
+      "timestamp": "2026-11-20T18:50:51.422Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200651146",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200651375_5f6808fd",
+      "timestamp": "2026-11-20T18:50:51.376Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795200651146",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795200651328_1e084d84",
+      "timestamp": "2026-11-20T18:50:51.328Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795198748048",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795198748069_4dbd0561",
+      "resolved": true,
+      "id": "sec_evt_1795198748070_879b1cf6",
+      "timestamp": "2026-11-20T18:19:08.070Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198747636",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795198748045_2117f3cb",
+      "timestamp": "2026-11-20T18:19:08.045Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198747636",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198747989_7c1b52c6",
+      "timestamp": "2026-11-20T18:19:07.989Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198747636",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198747940_4dfcfc45",
+      "timestamp": "2026-11-20T18:19:07.940Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198747636",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198747891_a27ac09e",
+      "timestamp": "2026-11-20T18:19:07.891Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198747636",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198747837_fe7cba93",
+      "timestamp": "2026-11-20T18:19:07.837Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795198130112",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795198130140_f8acdb59",
+      "resolved": true,
+      "id": "sec_evt_1795198130141_eb149206",
+      "timestamp": "2026-11-20T18:08:50.141Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198129748",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795198130109_97edb973",
+      "timestamp": "2026-11-20T18:08:50.109Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198129748",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198130061_03f8c758",
+      "timestamp": "2026-11-20T18:08:50.061Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198129748",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198130013_4d26cb92",
+      "timestamp": "2026-11-20T18:08:50.013Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198129748",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198129966_5c24b38c",
+      "timestamp": "2026-11-20T18:08:49.966Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795198129748",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795198129920_28df7a32",
+      "timestamp": "2026-11-20T18:08:49.920Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795168170432",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795168170456_ac72ecb1",
+      "resolved": true,
+      "id": "sec_evt_1795168170457_cce27156",
+      "timestamp": "2026-11-20T09:49:30.457Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795168170039",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795168170429_0ae82f5f",
+      "timestamp": "2026-11-20T09:49:30.429Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795168170039",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795168170380_777a808a",
+      "timestamp": "2026-11-20T09:49:30.380Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795168170039",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795168170332_ab8ae487",
+      "timestamp": "2026-11-20T09:49:30.332Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795168170039",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795168170286_636d4c6d",
+      "timestamp": "2026-11-20T09:49:30.286Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795168170039",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795168170238_e9d6d955",
+      "timestamp": "2026-11-20T09:49:30.239Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795125037406",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795125037425_18376a49",
+      "resolved": true,
+      "id": "sec_evt_1795125037426_30132d14",
+      "timestamp": "2026-11-19T21:50:37.426Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795125036609",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795125037403_2934f870",
+      "timestamp": "2026-11-19T21:50:37.403Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795125036609",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795125037295_c0c5a4e0",
+      "timestamp": "2026-11-19T21:50:37.295Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795125036609",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795125037123_3dd86d59",
+      "timestamp": "2026-11-19T21:50:37.123Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795125036609",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795125037011_7249f799",
+      "timestamp": "2026-11-19T21:50:37.011Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795125036609",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795125036914_d6dcd044",
+      "timestamp": "2026-11-19T21:50:36.914Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "test_wth_user_1795122635417",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795122635420_a64f211c",
+      "resolved": true,
+      "id": "sec_evt_1795122635422_28a9c94e",
+      "timestamp": "2026-11-19T21:10:35.422Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795122631723",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795122631805_9ef30156",
+      "resolved": true,
+      "id": "sec_evt_1795122631807_c635b0b5",
+      "timestamp": "2026-11-19T21:10:31.807Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122630798",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795122631717_9d0f6027",
+      "timestamp": "2026-11-19T21:10:31.717Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122630798",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122631632_394716c7",
+      "timestamp": "2026-11-19T21:10:31.632Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122630798",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122631520_83a82c2c",
+      "timestamp": "2026-11-19T21:10:31.520Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122630798",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122631412_e5d08284",
+      "timestamp": "2026-11-19T21:10:31.412Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122630798",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122631299_35934ccf",
+      "timestamp": "2026-11-19T21:10:31.299Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "test_wth_user_1795122434733",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795122434789_b83a59ec",
+      "resolved": true,
+      "id": "sec_evt_1795122434791_0b2abd6e",
+      "timestamp": "2026-11-19T21:07:14.791Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795122430600",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795122430623_567211d4",
+      "resolved": true,
+      "id": "sec_evt_1795122430624_0c070e7a",
+      "timestamp": "2026-11-19T21:07:10.624Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122429719",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795122430596_20a906ee",
+      "timestamp": "2026-11-19T21:07:10.596Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122429719",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122430492_68b64c62",
+      "timestamp": "2026-11-19T21:07:10.492Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122429719",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122430389_bfb71002",
+      "timestamp": "2026-11-19T21:07:10.390Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122429719",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122430237_b4b3ced3",
+      "timestamp": "2026-11-19T21:07:10.237Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122429719",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122430126_15b28507",
+      "timestamp": "2026-11-19T21:07:10.126Z"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "SETTLEMENT_DECISION",
+      "userId": "sec_settle_user_1795122364822",
+      "details": "Admin unknown executed REJECT on settlement tx_wth_1795122364901_5b1d0121",
+      "resolved": true,
+      "id": "sec_evt_1795122364903_17f72242",
+      "timestamp": "2026-11-19T21:06:04.903Z"
+    },
+    {
+      "severity": "CRITICAL",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122363723",
+      "details": "Step-up PIN locked out after 5 failed attempts.",
+      "resolved": false,
+      "id": "sec_evt_1795122364727_563662b9",
+      "timestamp": "2026-11-19T21:06:04.817Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122363723",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122364619_f9b98675",
+      "timestamp": "2026-11-19T21:06:04.619Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122363723",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122364521_b1c5b9d3",
+      "timestamp": "2026-11-19T21:06:04.521Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122363723",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122364400_266991d0",
+      "timestamp": "2026-11-19T21:06:04.400Z"
+    },
+    {
+      "severity": "HIGH",
+      "category": "AUTH_FAILURE",
+      "userId": "sec_pin_user_1795122363723",
+      "details": "Incorrect step-up PIN verification attempt.",
+      "resolved": false,
+      "id": "sec_evt_1795122364295_48492d02",
+      "timestamp": "2026-11-19T21:06:04.295Z"
+    }
+  ],
+  "idempotencyKeys": [
+    "dep_1795122364822_f820a900",
+    "wth_1795122364901_4d7c460a",
+    "depref:DEP_TEST_1795122430598",
+    "dep_1795122430600_e346c3e7",
+    "wth_1795122430623_a8c167ee",
+    "dep_1795122434702_e5f5eee8",
+    "dep_1795122434733_efef0a25",
+    "wth_1795122434788_6817ffbd",
+    "depref:DEP_TEST_1795122631720",
+    "dep_1795122631723_1ec74568",
+    "wth_1795122631805_3b4e4cb6",
+    "dep_1795122635331_0e0b6418",
+    "dep_1795122635417_f984e56f",
+    "wth_1795122635420_77c682b1",
+    "depref:DEP_TEST_1795125037405",
+    "dep_1795125037406_d47a25c6",
+    "wth_1795125037425_b4f0b200",
+    "depref:DEP_TEST_1795168170431",
+    "dep_1795168170432_8cf2093c",
+    "wth_1795168170456_477a87c9",
+    "depref:DEP_TEST_1795198130110",
+    "dep_1795198130112_a7bcbadc",
+    "wth_1795198130139_0b8a190c",
+    "depref:DEP_TEST_1795198748047",
+    "dep_1795198748048_ce07e9bf",
+    "wth_1795198748069_a62950fe",
+    "depref:DEP_TEST_1795200651519",
+    "dep_1795200651520_40783fbd",
+    "wth_1795200651541_0cb640cd",
+    "depref:DEP_TEST_1795200754243",
+    "dep_1795200754245_4f0a587a",
+    "wth_1795200754264_7458ba72",
+    "depref:DEP_TEST_1795234667236",
+    "dep_1795234667239_fa81de19",
+    "wth_1795234667258_8d222ad8",
+    "depref:DEP_TEST_1795349605007",
+    "dep_1795349605009_a6e08b40",
+    "wth_1795349605028_dc964f87"
+  ],
+  "ledger": [
+    {
+      "entryId": "jnl_1795122363721_a0fd12ef",
+      "timestamp": "2026-11-19T21:06:03.720Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "genesis_sys_open",
+      "userId": "system-escrow",
+      "debitAccount": "1001_CASH_SETTLEMENT_CLEARING",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 1000000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "System initial liquidity escrow seed",
+      "previousHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "hash": "335db03ce64f72ed404aba3552bb8cf434fc112d634111b9cfd11a8f86a48935",
+      "signature": "0f52ccceb2fc42b1f32ab7db218e4db53c717b051befa808d5ed3330f6ca0361",
+      "kid": "vxa_kid_1795122363720_4178c6ad"
+    },
+    {
+      "entryId": "jnl_1795122364899_56530691",
+      "timestamp": "2026-11-19T21:06:04.899Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122364824_4bf06414",
+      "userId": "sec_settle_user_1795122364822",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "335db03ce64f72ed404aba3552bb8cf434fc112d634111b9cfd11a8f86a48935",
+      "hash": "2ebb5fd2bd515471122cfc9daaad97007c87f89dcbc36637a6b2036305180f6a",
+      "signature": "a56468a6fec55f1112b8164b0e75f09e4d57cd949f2c062c7524ccbb01223e7b",
+      "kid": "vxa_kid_1795122363720_4178c6ad"
+    },
+    {
+      "entryId": "jnl_1795122364901_63923761",
+      "timestamp": "2026-11-19T21:06:04.901Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795122364901_5b1d0121",
+      "userId": "sec_settle_user_1795122364822",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "2ebb5fd2bd515471122cfc9daaad97007c87f89dcbc36637a6b2036305180f6a",
+      "hash": "f78b3d368d5b96965227ac66c875d531da09d351e300fb92a333a0da01a1ad05",
+      "signature": "01d330439c79a5aa3001f21fd7e2c81622e0bf48210a1da9bbebbde78b3be467",
+      "kid": "vxa_kid_1795122363720_4178c6ad"
+    },
+    {
+      "entryId": "jnl_1795122364903_20757ab2",
+      "timestamp": "2026-11-19T21:06:04.903Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795122364901_5b1d0121",
+      "userId": "sec_settle_user_1795122364822",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "f78b3d368d5b96965227ac66c875d531da09d351e300fb92a333a0da01a1ad05",
+      "hash": "95f00a06b0ce20f3b11a9c07b1fb279182fc9904a8975906810d6060be0cfe23",
+      "signature": "7a47b6ff0420edf63985d0d63c11873859e0cac63839623db632f7e6a5ffd5e0",
+      "kid": "vxa_kid_1795122363720_4178c6ad"
+    },
+    {
+      "entryId": "jnl_1795122430622_92490223",
+      "timestamp": "2026-11-19T21:07:10.622Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122430601_f5ccfce0",
+      "userId": "sec_settle_user_1795122430600",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "95f00a06b0ce20f3b11a9c07b1fb279182fc9904a8975906810d6060be0cfe23",
+      "hash": "76cbacae865513453d53975fd1a712833aebd8200f30b1c6b0fb6a492ea4eb25",
+      "signature": "c08ec273023692d637783b1b57fb414b4cd08ce5a4e3d063fe0035f730b6957a",
+      "kid": "vxa_kid_1795122429717_447233d8"
+    },
+    {
+      "entryId": "jnl_1795122430623_b5efb02c",
+      "timestamp": "2026-11-19T21:07:10.623Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795122430623_567211d4",
+      "userId": "sec_settle_user_1795122430600",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "76cbacae865513453d53975fd1a712833aebd8200f30b1c6b0fb6a492ea4eb25",
+      "hash": "c0c7af8325715deec2035b5d4633010df0ed085bea84963b6c5bd51a0240bae3",
+      "signature": "93d6de3808fee79e1782249ecfe0ae85216d90742defa46caf129f4bf682c56d",
+      "kid": "vxa_kid_1795122429717_447233d8"
+    },
+    {
+      "entryId": "jnl_1795122430624_66eda726",
+      "timestamp": "2026-11-19T21:07:10.624Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795122430623_567211d4",
+      "userId": "sec_settle_user_1795122430600",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "c0c7af8325715deec2035b5d4633010df0ed085bea84963b6c5bd51a0240bae3",
+      "hash": "5fbeb54dfad6e59fc836a649b2186d1b3ae2f8677d37e1f71edc6c22a8a8a3fd",
+      "signature": "8bd3801011e6697dee65db8ab74204bab953ec6de5605f4e2525f3d83d202755",
+      "kid": "vxa_kid_1795122429717_447233d8"
+    },
+    {
+      "entryId": "jnl_1795122434702_fc86d997",
+      "timestamp": "2026-11-19T21:07:14.701Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "test_audit_dep_1",
+      "userId": "test_user_audit",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Audit test deposit of Rp50,000",
+      "previousHash": "5fbeb54dfad6e59fc836a649b2186d1b3ae2f8677d37e1f71edc6c22a8a8a3fd",
+      "hash": "73108f4a37011fb95af15e0c2f89c52fc96f38a6093946d6a3fb2944f7bfeb77",
+      "signature": "fe385fadb5d74b0ab849a3462dd1af486badf5e369157b603780245567c03b53",
+      "kid": "vxa_kid_1795122434700_5d00a317"
+    },
+    {
+      "entryId": "jnl_1795122434731_6195c8f2",
+      "timestamp": "2026-11-19T21:07:14.731Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122434703_e5924ae4",
+      "userId": "test_user_1795122434702",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +50 VXA via QRIS (Rp50.000)",
+      "previousHash": "73108f4a37011fb95af15e0c2f89c52fc96f38a6093946d6a3fb2944f7bfeb77",
+      "hash": "cc2db228876c521960c963a50de0af59116b65a26377ee379c6abf055842c212",
+      "signature": "436e699ae4c3b5fd154082ac496cd90edb6ebf3583fdc38aee666b9752c5a4a1",
+      "kid": "vxa_kid_1795122434700_5d00a317"
+    },
+    {
+      "entryId": "jnl_1795122434733_02795eb9",
+      "timestamp": "2026-11-19T21:07:14.733Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122434733_84269ba7",
+      "userId": "test_wth_user_1795122434733",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via BCA_VA (Rp100.000)",
+      "previousHash": "cc2db228876c521960c963a50de0af59116b65a26377ee379c6abf055842c212",
+      "hash": "1ee1f0419f2aec9c573d47b3295adf02b0f86fb2f3bef4e96851568ed8cefc75",
+      "signature": "d2504a07be0edab077a17914f0be40e4a6abaa30ac4fde07fbf3133499405f0e",
+      "kid": "vxa_kid_1795122434700_5d00a317"
+    },
+    {
+      "entryId": "jnl_1795122434789_a456e8cd",
+      "timestamp": "2026-11-19T21:07:14.789Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795122434789_b83a59ec",
+      "userId": "test_wth_user_1795122434733",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 40000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 40 VXA -> BCA 1234567890",
+      "previousHash": "1ee1f0419f2aec9c573d47b3295adf02b0f86fb2f3bef4e96851568ed8cefc75",
+      "hash": "fab6a70d2eda8422da2a44c51c5ca5b52539a51fd9d0ffa502010f05cb148e0c",
+      "signature": "27884769d95e39324ab6f70f2761f3221ea746a1341ce45c7e20917f15dab32c",
+      "kid": "vxa_kid_1795122434700_5d00a317"
+    },
+    {
+      "entryId": "jnl_1795122434790_1c9d0d1e",
+      "timestamp": "2026-11-19T21:07:14.790Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795122434789_b83a59ec",
+      "userId": "test_wth_user_1795122434733",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 40000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +40 VXA restored. Reason: Automated test settlement reversal simulation",
+      "previousHash": "fab6a70d2eda8422da2a44c51c5ca5b52539a51fd9d0ffa502010f05cb148e0c",
+      "hash": "cc3d239f2c1f36a538bbaed28e25c2a4025391f2010084f9ea4dedb21507791e",
+      "signature": "1e58fa1915db8d0f404324c7328884fb8f89658acec26230fdc4ad14be6302b1",
+      "kid": "vxa_kid_1795122434700_5d00a317"
+    },
+    {
+      "entryId": "jnl_1795122631803_bb5219fc",
+      "timestamp": "2026-11-19T21:10:31.803Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122631724_d0cd642a",
+      "userId": "sec_settle_user_1795122631723",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "cc3d239f2c1f36a538bbaed28e25c2a4025391f2010084f9ea4dedb21507791e",
+      "hash": "0efeaa236dac0933aff9e34c293793a6b68646da581398766997d08a4f050c2d",
+      "signature": "8c8b7ce08fbf7a3c57aba7198c14ebb42b0a2a86b274abf0b8f9c101046099af",
+      "kid": "vxa_kid_1795122630796_60f58a07"
+    },
+    {
+      "entryId": "jnl_1795122631805_df03e08a",
+      "timestamp": "2026-11-19T21:10:31.805Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795122631805_9ef30156",
+      "userId": "sec_settle_user_1795122631723",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "0efeaa236dac0933aff9e34c293793a6b68646da581398766997d08a4f050c2d",
+      "hash": "453d52b642c70692728d51b47347fcf8e0aa8d5731a90a22db09da3b5615bcf7",
+      "signature": "19ccc51eb2620c7a0500847c0c86d49ba7ae61b38eca1b6cf8cf0f42bd37a3bf",
+      "kid": "vxa_kid_1795122630796_60f58a07"
+    },
+    {
+      "entryId": "jnl_1795122631806_6c9b4afe",
+      "timestamp": "2026-11-19T21:10:31.806Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795122631805_9ef30156",
+      "userId": "sec_settle_user_1795122631723",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "453d52b642c70692728d51b47347fcf8e0aa8d5731a90a22db09da3b5615bcf7",
+      "hash": "2b56b80257032af3623a994184e7709835b2828c85788c3cf7e0251520847085",
+      "signature": "539f664e4e38746afa77c888fddcc2e12ba05a4f1928fc8e8947d7f41ec99103",
+      "kid": "vxa_kid_1795122630796_60f58a07"
+    },
+    {
+      "entryId": "jnl_1795122635330_c33acb10",
+      "timestamp": "2026-11-19T21:10:35.330Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "test_audit_dep_1",
+      "userId": "test_user_audit",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Audit test deposit of Rp50,000",
+      "previousHash": "2b56b80257032af3623a994184e7709835b2828c85788c3cf7e0251520847085",
+      "hash": "6ef69af15ec18548abf75d5aef808d1dd3876c2633ace06e755ea3812907371e",
+      "signature": "9d425b0280b057f1843a087fb2c812e0f8b2181ec8acdc5ada3d04204dd936bd",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7"
+    },
+    {
+      "entryId": "jnl_1795122635416_78d171fc",
+      "timestamp": "2026-11-19T21:10:35.416Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122635332_e9d3cff2",
+      "userId": "test_user_1795122635331",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +50 VXA via QRIS (Rp50.000)",
+      "previousHash": "6ef69af15ec18548abf75d5aef808d1dd3876c2633ace06e755ea3812907371e",
+      "hash": "5f914d58f604df0c750102cc599861de2f55e19418937d7e0d3f16b0ccc78567",
+      "signature": "a8b10eff30318006a04bb84c1b7768665dd4a72cf551d9a354df3853ef831e70",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7"
+    },
+    {
+      "entryId": "jnl_1795122635418_05756324",
+      "timestamp": "2026-11-19T21:10:35.418Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795122635418_4e8a12b6",
+      "userId": "test_wth_user_1795122635417",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via BCA_VA (Rp100.000)",
+      "previousHash": "5f914d58f604df0c750102cc599861de2f55e19418937d7e0d3f16b0ccc78567",
+      "hash": "cd36d3b0b3421e4bd8c12f1aee0cbe5ec377ffc1c4ab39ff8d4f18245e4d1eef",
+      "signature": "81400a399d276a1ec7ba69a834935eb208c9da518f8686765ae4f11c1fe8a32d",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7"
+    },
+    {
+      "entryId": "jnl_1795122635420_b76bc709",
+      "timestamp": "2026-11-19T21:10:35.420Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795122635420_a64f211c",
+      "userId": "test_wth_user_1795122635417",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 40000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 40 VXA -> BCA 1234567890",
+      "previousHash": "cd36d3b0b3421e4bd8c12f1aee0cbe5ec377ffc1c4ab39ff8d4f18245e4d1eef",
+      "hash": "404bbfef0df34013ee86e4ea5ebec4602bb293a2e22a9852d7220a8a5df4e4fd",
+      "signature": "89516386b61d57d1a70ac6691b8a4ec7ffae5c3d2abe796af9233ee458e2d0ed",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7"
+    },
+    {
+      "entryId": "jnl_1795122635422_408d882d",
+      "timestamp": "2026-11-19T21:10:35.422Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795122635420_a64f211c",
+      "userId": "test_wth_user_1795122635417",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 40000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +40 VXA restored. Reason: Automated test settlement reversal simulation",
+      "previousHash": "404bbfef0df34013ee86e4ea5ebec4602bb293a2e22a9852d7220a8a5df4e4fd",
+      "hash": "920d9f3e60e581a0ba63c743369f97adcb653baafb7388ec355c7530676b2d5c",
+      "signature": "269cc522b0872ff868027a3cbc8f00b9f75d3e092500ec88227aaa82f6dfe51e",
+      "kid": "vxa_kid_1795122635328_c0eeaaf7"
+    },
+    {
+      "entryId": "jnl_1795125037423_6dc088c6",
+      "timestamp": "2026-11-19T21:50:37.423Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795125037407_4c92fbff",
+      "userId": "sec_settle_user_1795125037406",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "920d9f3e60e581a0ba63c743369f97adcb653baafb7388ec355c7530676b2d5c",
+      "hash": "677966f039bf98bfa178419fc18b139f13b99672ac0852c8e54c5bc862da2141",
+      "signature": "7ec36270cf51afe89e0ad666b44ba574758b3134cfb223ff4424c5bb2c7c695a",
+      "kid": "vxa_kid_1795125036606_c5e9235c"
+    },
+    {
+      "entryId": "jnl_1795125037425_c35e0ba8",
+      "timestamp": "2026-11-19T21:50:37.425Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795125037425_18376a49",
+      "userId": "sec_settle_user_1795125037406",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "677966f039bf98bfa178419fc18b139f13b99672ac0852c8e54c5bc862da2141",
+      "hash": "4e237bcdd8637688ebc809fc917ca61088e166163e8f3d72bcebbb3f558d8f26",
+      "signature": "b1fca844fa6611e1e0400e0e7ee9ec04e2344ebb1f1031bb096f4c9bfd71a713",
+      "kid": "vxa_kid_1795125036606_c5e9235c"
+    },
+    {
+      "entryId": "jnl_1795125037426_e6191e65",
+      "timestamp": "2026-11-19T21:50:37.426Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795125037425_18376a49",
+      "userId": "sec_settle_user_1795125037406",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "4e237bcdd8637688ebc809fc917ca61088e166163e8f3d72bcebbb3f558d8f26",
+      "hash": "a87df41b2fa75999121e06c6fb98e6a0b1e924652cf647291ac31d48704eca72",
+      "signature": "b837c25c1839edefb07a82428d136c172c88c61c66f0272d92d402febb8d5392",
+      "kid": "vxa_kid_1795125036606_c5e9235c"
+    },
+    {
+      "entryId": "jnl_1795168170454_32e2ef86",
+      "timestamp": "2026-11-20T09:49:30.453Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795168170433_ffc58e1f",
+      "userId": "sec_settle_user_1795168170432",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "a87df41b2fa75999121e06c6fb98e6a0b1e924652cf647291ac31d48704eca72",
+      "hash": "3b3261c0b38c0217d3de95c0f3374b2c496cb5dc1bbdbe5273227456aab820c3",
+      "signature": "7353c04725fe2bd924509d970d7a0d590f48fc891c4f491f4b61fd39cfd240a3",
+      "kid": "vxa_kid_1795168170033_d0cf1297"
+    },
+    {
+      "entryId": "jnl_1795168170456_f26551cf",
+      "timestamp": "2026-11-20T09:49:30.456Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795168170456_ac72ecb1",
+      "userId": "sec_settle_user_1795168170432",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "3b3261c0b38c0217d3de95c0f3374b2c496cb5dc1bbdbe5273227456aab820c3",
+      "hash": "49b46820977830a1ef502c84c0e65430c0c1f5d48d50cde6e1e88bd9d788edc9",
+      "signature": "87b91265a6216ac087536d91962cb161da96418e464f76b608089427eba5bbe2",
+      "kid": "vxa_kid_1795168170033_d0cf1297"
+    },
+    {
+      "entryId": "jnl_1795168170457_783a7aff",
+      "timestamp": "2026-11-20T09:49:30.457Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795168170456_ac72ecb1",
+      "userId": "sec_settle_user_1795168170432",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "49b46820977830a1ef502c84c0e65430c0c1f5d48d50cde6e1e88bd9d788edc9",
+      "hash": "c1a6650f9da208c611b94d974b931d22f3ff278a59b0b788e277e51bf7772def",
+      "signature": "3ce70be8b22a3ed6c60b28dcb49e31cbd3b9ffe3ad5642942d78006e1536235f",
+      "kid": "vxa_kid_1795168170033_d0cf1297"
+    },
+    {
+      "entryId": "jnl_1795198130138_3bc31ab3",
+      "timestamp": "2026-11-20T18:08:50.138Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795198130113_d40337a3",
+      "userId": "sec_settle_user_1795198130112",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "c1a6650f9da208c611b94d974b931d22f3ff278a59b0b788e277e51bf7772def",
+      "hash": "817b45153fce2ccd17d4f3de7ac1a50f4a5f91a221c98b11ff9c106f0cd61190",
+      "signature": "a562333e4e18a01bae0add62498d942856fb8b2accb305138798413f3113f1b9",
+      "kid": "vxa_kid_1795198129745_4fb1052f"
+    },
+    {
+      "entryId": "jnl_1795198130140_232152a8",
+      "timestamp": "2026-11-20T18:08:50.140Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795198130140_f8acdb59",
+      "userId": "sec_settle_user_1795198130112",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "817b45153fce2ccd17d4f3de7ac1a50f4a5f91a221c98b11ff9c106f0cd61190",
+      "hash": "14806c1217cd5987bf8be74a08672330695ca5cff35372139998f83813ff7c38",
+      "signature": "71a343bad1af84a4f7192cfc7d25d1e42516360b8fbcd4f8a1ac8b6cca564cbe",
+      "kid": "vxa_kid_1795198129745_4fb1052f"
+    },
+    {
+      "entryId": "jnl_1795198130141_2442e758",
+      "timestamp": "2026-11-20T18:08:50.141Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795198130140_f8acdb59",
+      "userId": "sec_settle_user_1795198130112",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "14806c1217cd5987bf8be74a08672330695ca5cff35372139998f83813ff7c38",
+      "hash": "a8fbe149bc28ab5a913be341be5e531cc9f5caa378ddf6b59ba7f2a60bd73eb7",
+      "signature": "deb2b8e2c80c72a64c52bae4c260d9baee7ac19a565c138777197c1b17f921c6",
+      "kid": "vxa_kid_1795198129745_4fb1052f"
+    },
+    {
+      "entryId": "jnl_1795198748068_39b6863a",
+      "timestamp": "2026-11-20T18:19:08.068Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795198748049_c04e5b72",
+      "userId": "sec_settle_user_1795198748048",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "a8fbe149bc28ab5a913be341be5e531cc9f5caa378ddf6b59ba7f2a60bd73eb7",
+      "hash": "15546ed1d46810a4dd988d085e02e5b4a2719bed8c97d091c7dbf2da6eb35099",
+      "signature": "d288a9e5bb72be42e4566b4837819f982dafe3b3ae9d8a96133845f682718b23",
+      "kid": "vxa_kid_1795198747634_ee2b6e62"
+    },
+    {
+      "entryId": "jnl_1795198748069_0f4e8288",
+      "timestamp": "2026-11-20T18:19:08.069Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795198748069_4dbd0561",
+      "userId": "sec_settle_user_1795198748048",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "15546ed1d46810a4dd988d085e02e5b4a2719bed8c97d091c7dbf2da6eb35099",
+      "hash": "908ec91d3bf05d3996cef5ad92302a853c07db55383b9c6e5467eb2df8adda87",
+      "signature": "987dcee389826d6abb204c919bbb5413695ea6c104cd4dbc473a351a820ccb4d",
+      "kid": "vxa_kid_1795198747634_ee2b6e62"
+    },
+    {
+      "entryId": "jnl_1795198748070_8b344a9b",
+      "timestamp": "2026-11-20T18:19:08.070Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795198748069_4dbd0561",
+      "userId": "sec_settle_user_1795198748048",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "908ec91d3bf05d3996cef5ad92302a853c07db55383b9c6e5467eb2df8adda87",
+      "hash": "a229eca304906970a99cc6519af0a45434b39d714f62501b8d6c9c680bddb0f3",
+      "signature": "982ca82fd1c3d2407468929d9a11f33dbf7e863d97586aa729226f9c2c6a0b34",
+      "kid": "vxa_kid_1795198747634_ee2b6e62"
+    },
+    {
+      "entryId": "jnl_1795200651539_dc2c9ba8",
+      "timestamp": "2026-11-20T18:50:51.539Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795200651521_469da685",
+      "userId": "sec_settle_user_1795200651520",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "a229eca304906970a99cc6519af0a45434b39d714f62501b8d6c9c680bddb0f3",
+      "hash": "786502914db4810005359671d58e0e042bb4228a73ec45c12d3113dc89b94db0",
+      "signature": "281e49d7a98cdd104a7807deb18041ee84d73e264d05ba4b90cd28f35a2f07e1",
+      "kid": "vxa_kid_1795200651143_e2ca4b81"
+    },
+    {
+      "entryId": "jnl_1795200651541_eb7a721c",
+      "timestamp": "2026-11-20T18:50:51.541Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795200651541_3e97e51b",
+      "userId": "sec_settle_user_1795200651520",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "786502914db4810005359671d58e0e042bb4228a73ec45c12d3113dc89b94db0",
+      "hash": "513af0367fd94ef81d7c2267a9f0006c2132f791f2874de1c99184ad80629276",
+      "signature": "56d665185feac9be1f37dd08ac7671f9cf7e6d011df336c192c1260fc6131c11",
+      "kid": "vxa_kid_1795200651143_e2ca4b81"
+    },
+    {
+      "entryId": "jnl_1795200651542_aeed25f5",
+      "timestamp": "2026-11-20T18:50:51.542Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795200651541_3e97e51b",
+      "userId": "sec_settle_user_1795200651520",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "513af0367fd94ef81d7c2267a9f0006c2132f791f2874de1c99184ad80629276",
+      "hash": "7764d2d41a00df286af79eecf87acc53d3b358bb0190651cec76532efdf2cc62",
+      "signature": "3c9d0366a3fc75db994c1a7fcb247ba461f34780b59bb16bfef48ee2b81137a2",
+      "kid": "vxa_kid_1795200651143_e2ca4b81"
+    },
+    {
+      "entryId": "jnl_1795200754263_b832988e",
+      "timestamp": "2026-11-20T18:52:34.263Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795200754245_18e6931a",
+      "userId": "sec_settle_user_1795200754245",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "7764d2d41a00df286af79eecf87acc53d3b358bb0190651cec76532efdf2cc62",
+      "hash": "ccb49bdbee717d558d9afc76e0858b1860a95129c02025258bb5bf2baee95f44",
+      "signature": "07e9e1362670e0ba09f5df2f039fb29568b758269df50e3b37b0a29dbe9a7a48",
+      "kid": "vxa_kid_1795200753882_7cd7ad54"
+    },
+    {
+      "entryId": "jnl_1795200754265_be420727",
+      "timestamp": "2026-11-20T18:52:34.265Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795200754265_cc71cb9e",
+      "userId": "sec_settle_user_1795200754245",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "ccb49bdbee717d558d9afc76e0858b1860a95129c02025258bb5bf2baee95f44",
+      "hash": "fafb22090886f3465d3f1af16776713cf1cca02e1641639031f4b5a58d901d1e",
+      "signature": "65ba82c586f90e024acd6ad973d0772d09a585ad745ffb9ac7bd6008cb478d97",
+      "kid": "vxa_kid_1795200753882_7cd7ad54"
+    },
+    {
+      "entryId": "jnl_1795200754266_8fdcd16d",
+      "timestamp": "2026-11-20T18:52:34.266Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795200754265_cc71cb9e",
+      "userId": "sec_settle_user_1795200754245",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "fafb22090886f3465d3f1af16776713cf1cca02e1641639031f4b5a58d901d1e",
+      "hash": "4f1d15ae68ebebc0510403d0d757c81c6db214c3b4530444c78bb526e92af11e",
+      "signature": "6c10f9c56114c020913a0a4d944f8fd261cd54b27f5c71b88cff5a30c3b73b67",
+      "kid": "vxa_kid_1795200753882_7cd7ad54"
+    },
+    {
+      "entryId": "jnl_1795234667257_eca5a7e3",
+      "timestamp": "2026-11-21T04:17:47.257Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795234667241_6dbdf5d0",
+      "userId": "sec_settle_user_1795234667238",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "4f1d15ae68ebebc0510403d0d757c81c6db214c3b4530444c78bb526e92af11e",
+      "hash": "301f5e687e8bef04ac453fd190ad6f32d8522213897ff61a8e743241e711b305",
+      "signature": "835dea260d1473749222cb34e6c16afcaefc3edbc1f2cb732fac410b250cd2d8",
+      "kid": "vxa_kid_1795234666250_ae9598ea"
+    },
+    {
+      "entryId": "jnl_1795234667259_9f41dc6e",
+      "timestamp": "2026-11-21T04:17:47.259Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795234667259_023e5ae1",
+      "userId": "sec_settle_user_1795234667238",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "301f5e687e8bef04ac453fd190ad6f32d8522213897ff61a8e743241e711b305",
+      "hash": "2055c83ac70eb33f16d45e61f8e472c35e6ca1c724c2e7bb6d0d70fe5da2e6fe",
+      "signature": "bf0c392649c545e31afa66da49bb42b2e0aebb9b724a7027c7e9afc036d5d9e8",
+      "kid": "vxa_kid_1795234666250_ae9598ea"
+    },
+    {
+      "entryId": "jnl_1795234667260_959f93fc",
+      "timestamp": "2026-11-21T04:17:47.260Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795234667259_023e5ae1",
+      "userId": "sec_settle_user_1795234667238",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "2055c83ac70eb33f16d45e61f8e472c35e6ca1c724c2e7bb6d0d70fe5da2e6fe",
+      "hash": "b2f854268aed973a357d2b862cf3b54bd0c8571ba7cf8bca9d7f3bf51e6339ab",
+      "signature": "3b667bc526ed4e3a854f32058a257613944c58dc83a6f7ebb6b1fb210b785c3e",
+      "kid": "vxa_kid_1795234666250_ae9598ea"
+    },
+    {
+      "entryId": "jnl_1795349605026_1d19f3ec",
+      "timestamp": "2026-11-22T12:13:25.026Z",
+      "referenceType": "DEPOSIT_ISSUANCE",
+      "referenceId": "tx_dep_1795349605010_ef3be853",
+      "userId": "sec_settle_user_1795349605009",
+      "debitAccount": "1002_PAYMENT_GATEWAY_RECEIVABLE",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 100000,
+      "currency": "IDR",
+      "exchangeRate": 1000,
+      "description": "Verified deposit: +100 VXA via QRIS (Rp100.000)",
+      "previousHash": "b2f854268aed973a357d2b862cf3b54bd0c8571ba7cf8bca9d7f3bf51e6339ab",
+      "hash": "9f4ea229265ca43fe8743bfc9762b763ec48782ef155e108bcb0b775b1db836a",
+      "signature": "9ccee272e70b8075d53595e9a1ee8171070b6adf37497d0d942e315f15c5246e",
+      "kid": "vxa_kid_1795349603995_a489df18"
+    },
+    {
+      "entryId": "jnl_1795349605028_fa1931d5",
+      "timestamp": "2026-11-22T12:13:25.028Z",
+      "referenceType": "WITHDRAWAL_RESERVE",
+      "referenceId": "tx_wth_1795349605028_f5167fe4",
+      "userId": "sec_settle_user_1795349605009",
+      "debitAccount": "2001_USER_VXA_LIABILITY",
+      "creditAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reserved: 50 VXA -> BCA 1234567890",
+      "previousHash": "9f4ea229265ca43fe8743bfc9762b763ec48782ef155e108bcb0b775b1db836a",
+      "hash": "2e60a3ed07ed7e4b7996dc4326fd56b0fa0f5c7e8ac55a7819b7a7865c41a959",
+      "signature": "c306c8ea6bd7095131d1dfa2f1c620b0a70aa24478b5e0db55941db0997de07b",
+      "kid": "vxa_kid_1795349603995_a489df18"
+    },
+    {
+      "entryId": "jnl_1795349605030_639ca605",
+      "timestamp": "2026-11-22T12:13:25.030Z",
+      "referenceType": "WITHDRAWAL_REVERSAL",
+      "referenceId": "tx_wth_1795349605028_f5167fe4",
+      "userId": "sec_settle_user_1795349605009",
+      "debitAccount": "2002_USER_RESERVED_VXA_LIABILITY",
+      "creditAccount": "2001_USER_VXA_LIABILITY",
+      "amountMinor": 50000,
+      "currency": "VXA",
+      "exchangeRate": 1000,
+      "description": "Withdrawal reversed: +50 VXA restored. Reason: Security audit test rejection",
+      "previousHash": "2e60a3ed07ed7e4b7996dc4326fd56b0fa0f5c7e8ac55a7819b7a7865c41a959",
+      "hash": "02379c26c29840a252ddcd3f27b24e2affecf6ae1b031d15e0c5d76c27cba42d",
+      "signature": "22f4e818ff0236bbcfb98e4a24ddd0dfb492c2003d4201f244023197720a3e38",
+      "kid": "vxa_kid_1795349603995_a489df18"
+    }
+  ],
+  "updatedAt": "2026-11-22T12:13:25.032Z"
+}

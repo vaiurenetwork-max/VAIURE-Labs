@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { UserProfile } from '../../types/social';
 import { X, Camera, Loader2, Check, AlertCircle } from 'lucide-react';
+import { getAuthHeaders } from '../../lib/authHeaders';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -83,9 +84,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
       const res = await fetch(`/api/users/${encodeURIComponent(currentUser.id)}/avatar`, {
         method: 'POST',
-        headers: {
-          'x-user-id': currentUser.id,
-        },
+        headers: await getAuthHeaders({}, false),
         body: formData,
       });
 

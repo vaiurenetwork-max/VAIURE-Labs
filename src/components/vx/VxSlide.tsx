@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles,
   Menu,
@@ -102,6 +102,26 @@ export const VxSlide: React.FC<VxSlideProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeMobilePanel, setActiveMobilePanel] = useState<'input' | 'intelligence' | 'output'>('input');
   const [isCoOpModalOpen, setIsCoOpModalOpen] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close model dropdown on Escape or click outside
+  useEffect(() => {
+    if (!showModelDropdown) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowModelDropdown(false);
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showModelDropdown]);
 
   // Load models from backend registry on mount
   useEffect(() => {
@@ -197,40 +217,41 @@ export const VxSlide: React.FC<VxSlideProps> = ({
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#07080a] text-white flex flex-col font-sans select-text">
+    <div className="relative w-full h-full overflow-hidden bg-[#07080a] text-white flex flex-col font-sans select-text">
       {/* =========================================================================
           TOP CONTROL BAR & HEADER
          ========================================================================= */}
-      <header className="px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 bg-[#0a0c0f]/95 border-b border-white/[0.08] backdrop-blur-xl flex items-center justify-between shrink-0 z-30">
+      <header className="px-3 sm:px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 bg-[#0a0c0f]/95 border-b border-white/[0.08] backdrop-blur-xl flex items-center justify-between gap-2 sm:gap-3 shrink-0 z-30">
         {/* Brand & Slide Indicator */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             type="button"
             onClick={onOpenMenu}
-            className="w-8 h-8 rounded-full border border-white/10 hover:border-white/30 bg-white/[0.04] flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
+            aria-label="Open Slide Navigation Menu"
+            className="min-w-[40px] min-h-[40px] sm:w-8 sm:h-8 sm:min-w-[32px] sm:min-h-[32px] rounded-full border border-white/10 hover:border-white/30 bg-white/[0.04] flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer shrink-0"
             title="Open Slide Navigation Menu"
           >
             <Menu className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <span className="font-serif text-sm tracking-[0.2em] uppercase font-bold text-white">
-              VAIURE LABS
+          <div className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0">
+            <span className="font-serif text-xs sm:text-sm tracking-[0.2em] uppercase font-bold text-white">
+              VAIURE
             </span>
             <span className="text-white/30 font-mono text-xs">/</span>
             <div className="flex items-center gap-1.5">
               <span className="px-1.5 py-0.5 rounded bg-amber-400 text-black font-mono font-black text-[10px] tracking-widest uppercase">
                 VX
               </span>
-              <span className="text-[11px] font-mono text-white/90 hidden sm:inline tracking-wider uppercase">
+              <span className="text-[11px] font-mono text-white/90 hidden 2xl:inline tracking-wider uppercase">
                 VISUAL RECONSTRUCTION ENGINE
               </span>
             </div>
           </div>
         </div>
 
-        {/* Center: Generation Mode Switcher */}
-        <div className="hidden xl:flex items-center gap-1 p-1 rounded-lg bg-black/60 border border-white/[0.08] text-[10px] font-mono">
+        {/* Center: Generation Mode Switcher (xl+ inline; sub-xl in bar below) */}
+        <div className="hidden xl:flex items-center gap-1 p-1 rounded-lg bg-black/60 border border-white/[0.08] text-[10px] font-mono shrink-0">
           {[
             { id: 'mode_a_exact' as const, label: 'MODE A · EXACT' },
             { id: 'mode_b_photographic' as const, label: 'MODE B · PHOTOGRAPHIC' },
@@ -240,7 +261,7 @@ export const VxSlide: React.FC<VxSlideProps> = ({
               key={m.id}
               type="button"
               onClick={() => setSelectedMode(m.id)}
-              className={`px-2.5 py-1 rounded transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 selectedMode === m.id
                   ? 'bg-white text-black font-semibold shadow-sm'
                   : 'text-white/60 hover:text-white hover:bg-white/[0.04]'
@@ -251,17 +272,17 @@ export const VxSlide: React.FC<VxSlideProps> = ({
           ))}
         </div>
 
-        {/* Real-Time Model Backend Switcher Menu (Gemini 3, Gemini 3.1, Gemini 3.8, Gemini 4 Argon) */}
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-black/70 border border-white/10 text-[10px] font-mono shadow-inner">
-          <span className="text-[9px] text-white/50 uppercase px-1.5 hidden sm:flex items-center gap-1 font-semibold">
+        {/* Real-Time Model Backend Switcher Menu */}
+        <div className="hidden md:flex items-center gap-1 p-1 rounded-lg bg-black/70 border border-white/10 text-[10px] font-mono shadow-inner overflow-x-auto no-scrollbar shrink min-w-0">
+          <span className="text-[9px] text-white/50 uppercase px-1.5 hidden lg:flex items-center gap-1 font-semibold whitespace-nowrap shrink-0">
             <Cpu className="w-3 h-3 text-cyan-400" />
-            <span className="hidden md:inline">BACKEND:</span>
+            <span className="hidden 2xl:inline">BACKEND:</span>
           </span>
           {[
-            { id: 'gemini-3' as const, label: 'Gemini 3', badge: 'VISION' },
-            { id: 'gemini-3.1' as const, label: 'Gemini 3.1', badge: 'LITE' },
-            { id: 'gemini-3.8' as const, label: 'Gemini 3.8', badge: 'RECOMMENDED' },
-            { id: 'gemini-4-argon' as const, label: 'Gemini 4 Argon', badge: 'FLAGSHIP' },
+            { id: 'gemini-3' as const, label: 'Gemini 3' },
+            { id: 'gemini-3.1' as const, label: 'Gemini 3.1' },
+            { id: 'gemini-3.8' as const, label: 'Gemini 3.8' },
+            { id: 'gemini-4-argon' as const, label: 'Gemini 4 Argon' },
           ].map((m) => {
             const isSelected = selectedModelId === m.id || (selectedModelId === 'gemini-3.8-flash' && m.id === 'gemini-3.8');
             return (
@@ -269,37 +290,35 @@ export const VxSlide: React.FC<VxSlideProps> = ({
                 key={m.id}
                 type="button"
                 onClick={() => handleSelectModelId(m.id)}
-                className={`px-2 md:px-2.5 py-1 rounded transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2 py-1 rounded transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap shrink-0 ${
                   isSelected
-                    ? 'bg-cyan-400 text-black font-bold shadow-[0_0_12px_rgba(34,211,238,0.4)]'
+                    ? 'bg-cyan-400 text-black font-bold shadow-[0_0_12px_rgba(34,211,238,0.35)]'
                     : 'text-white/70 hover:text-white hover:bg-white/[0.05]'
                 }`}
-                title={`Switch backend model to ${m.label} (Real-time active)`}
+                title={`Switch backend model to ${m.label}`}
               >
                 <span>{m.label}</span>
-                {isSelected && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-                )}
               </button>
             );
           })}
         </div>
 
         {/* Right: Model Selector Dropdown & Slide Navigation Jumps */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Gemini Model Selector Dropdown */}
-          <div className="relative">
+          <div ref={modelDropdownRef} className="relative">
             <button
               type="button"
               onClick={() => setShowModelDropdown(!showModelDropdown)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/15 text-white text-[11px] font-mono tracking-wider transition-all cursor-pointer"
-              title="View model profiles and capabilities"
+              aria-expanded={showModelDropdown}
+              className="min-h-[40px] sm:min-h-[32px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/15 text-white text-[11px] font-mono tracking-wider transition-all cursor-pointer whitespace-nowrap shrink-0"
+              title="Select backend Gemini model"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-semibold text-white/90 truncate max-w-[110px] hidden sm:inline">
+              <Cpu className="w-3.5 h-3.5 text-cyan-400 md:hidden" />
+              <span className="font-semibold text-white/90 truncate max-w-[110px]">
                 {activeModelOption.label}
               </span>
-              <ChevronDown className="w-3 h-3 text-white/50" />
+              <ChevronDown className={`w-3 h-3 text-white/50 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`} />
             </button>
 
             {showModelDropdown && (
@@ -354,15 +373,15 @@ export const VxSlide: React.FC<VxSlideProps> = ({
           <button
             type="button"
             onClick={() => setIsCoOpModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 text-amber-300 text-[11px] font-mono tracking-wider transition-all cursor-pointer"
+            className="min-h-[40px] sm:min-h-[32px] flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/30 text-amber-300 text-[11px] font-mono tracking-wider transition-all cursor-pointer whitespace-nowrap shrink-0"
             title="Open Co-Op Prompt Matrix & Community Reconstructions"
           >
             <Users className="w-3.5 h-3.5" />
-            <span className="font-semibold hidden sm:inline">CO-OP MATRIX</span>
+            <span className="font-semibold hidden sm:inline">CO-OP</span>
           </button>
 
           {/* Quick Slide Navigation Jumper */}
-          <div className="hidden lg:flex items-center gap-1 border-l border-white/10 pl-2 text-[9px] font-mono uppercase text-white/60">
+          <div className="hidden 2xl:flex items-center gap-1 border-l border-white/10 pl-2 text-[9px] font-mono uppercase text-white/60 whitespace-nowrap shrink-0">
             <button
               type="button"
               onClick={onBackToHero}
@@ -388,6 +407,29 @@ export const VxSlide: React.FC<VxSlideProps> = ({
         </div>
       </header>
 
+      {/* Sub-XL Compact Reconstruction Mode Switcher Bar */}
+      <div className="xl:hidden px-3 py-1.5 bg-[#090b0e] border-b border-white/[0.06] flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 text-[10px] font-mono">
+        <span className="text-white/40 uppercase tracking-wider shrink-0 mr-1">MODE:</span>
+        {[
+          { id: 'mode_a_exact' as const, label: 'A · Exact' },
+          { id: 'mode_b_photographic' as const, label: 'B · Photographic' },
+          { id: 'mode_c_editorial' as const, label: 'C · Editorial' },
+        ].map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setSelectedMode(m.id)}
+            className={`px-2.5 py-1 rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              selectedMode === m.id
+                ? 'bg-white text-black font-semibold'
+                : 'bg-white/[0.04] text-white/65 hover:text-white'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       {/* Global Error Notice Bar if any */}
       {errorMessage && (
         <div className="px-4 py-2 bg-red-950/80 border-b border-red-500/30 text-red-200 text-xs font-mono flex items-center justify-between shrink-0">
@@ -410,7 +452,7 @@ export const VxSlide: React.FC<VxSlideProps> = ({
         <button
           type="button"
           onClick={() => setActiveMobilePanel('input')}
-          className={`flex-1 py-2 text-center transition-colors ${
+          className={`flex-1 min-h-[44px] py-2.5 text-center transition-colors whitespace-nowrap ${
             activeMobilePanel === 'input'
               ? 'text-white border-b-2 border-white font-bold bg-white/[0.04]'
               : 'text-white/50 hover:text-white'
@@ -421,7 +463,7 @@ export const VxSlide: React.FC<VxSlideProps> = ({
         <button
           type="button"
           onClick={() => setActiveMobilePanel('intelligence')}
-          className={`flex-1 py-2 text-center transition-colors ${
+          className={`flex-1 min-h-[44px] py-2.5 text-center transition-colors whitespace-nowrap ${
             activeMobilePanel === 'intelligence'
               ? 'text-white border-b-2 border-white font-bold bg-white/[0.04]'
               : 'text-white/50 hover:text-white'
@@ -432,7 +474,7 @@ export const VxSlide: React.FC<VxSlideProps> = ({
         <button
           type="button"
           onClick={() => setActiveMobilePanel('output')}
-          className={`flex-1 py-2 text-center transition-colors ${
+          className={`flex-1 min-h-[44px] py-2.5 text-center transition-colors whitespace-nowrap ${
             activeMobilePanel === 'output'
               ? 'text-white border-b-2 border-white font-bold bg-white/[0.04]'
               : 'text-white/50 hover:text-white'

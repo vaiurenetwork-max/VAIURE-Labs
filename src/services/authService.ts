@@ -177,6 +177,11 @@ export async function registerWithEmail(
     createdAt: nowIso,
   });
 
+  const safeAccountType: AccountType =
+    ['ADMIN', 'SUPER_ADMIN', 'MODERATOR', 'FINANCE', 'SUPPORT', 'EDITOR'].includes(accountType)
+      ? 'CREATOR'
+      : accountType;
+
   // Create user document
   const userDoc: UserDocData = {
     uid: user.uid,
@@ -187,8 +192,8 @@ export async function registerWithEmail(
     bio: 'Visual director & digital curator at the frontier of artificial intelligence.',
     website: 'https://ivntri.com',
     location: 'PARIS // TOKYO',
-    role: accountType,
-    accountType,
+    role: safeAccountType,
+    accountType: safeAccountType,
     verified: false,
     followersCount: 0,
     followingCount: 0,
@@ -200,6 +205,8 @@ export async function registerWithEmail(
   };
 
   await setDoc(doc(db, 'users', user.uid), userDoc);
+  const { email: _omitEmail, ...publicProfileData } = userDoc;
+  await setDoc(doc(db, 'publicProfiles', user.uid), publicProfileData);
 
   return {
     id: user.uid,
@@ -305,7 +312,11 @@ export async function ensureUserProfile(user: User): Promise<UserProfile> {
     createdAt: nowIso,
   });
 
-  const isDesignatedAdmin = user.email === 'rachvan420@gmail.com';
+  const isDesignatedAdmin =
+    Boolean(user.emailVerified) &&
+    ['rachvan420@gmail.com', 'vaiurenetwork@gmail.com', 'efayour@gmail.com'].includes(
+      (user.email || '').toLowerCase()
+    );
   const role = isDesignatedAdmin ? 'ADMIN' : 'CREATOR';
 
   const userDoc: UserDocData = {
@@ -332,6 +343,8 @@ export async function ensureUserProfile(user: User): Promise<UserProfile> {
   };
 
   await setDoc(doc(db, 'users', user.uid), userDoc);
+  const { email: _omitPubEmail, ...publicProfileData } = userDoc;
+  await setDoc(doc(db, 'publicProfiles', user.uid), publicProfileData);
 
   return {
     id: user.uid,
@@ -369,10 +382,28 @@ export async function signOutCurrentSession(): Promise<void> {
  */
 export async function updateProfileData(uid: string, updates: Partial<UserDocData>): Promise<void> {
   try {
+    // Strip privileged fields — role/verification/status mutations require server/admin authority
+    const {
+      uid: _uid,
+      role: _role,
+      accountType: _acc,
+      verified: _ver,
+      isVerified: _isVer,
+      specialBadge: _badge,
+      status: _status,
+      isBanned: _banned,
+      createdAt: _created,
+      ...safeUpdates
+    } = updates as Record<string, any>;
+    const updatedAt = new Date().toISOString();
     await updateDoc(doc(db, 'users', uid), {
-      ...updates,
-      updatedAt: new Date().toISOString(),
+      ...safeUpdates,
+      updatedAt,
     });
+    const { email: _omitEmail, ...publicSafe } = safeUpdates;
+    if (Object.keys(publicSafe).length > 0) {
+      await setDoc(doc(db, 'publicProfiles', uid), { uid, ...publicSafe, updatedAt }, { merge: true });
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
   }
@@ -519,12 +550,17 @@ export async function changeUsername(
     createdAt: nowIso,
   });
 
-  // 5. Update user profile document
+  // 5. Update user profile & public directory document
   await updateDoc(userRef, {
     username: norm,
     lastUsernameChangeAt: nowIso,
     updatedAt: nowIso,
   });
+  await setDoc(
+    doc(db, 'publicProfiles', uid),
+    { uid, username: norm, updatedAt: nowIso },
+    { merge: true }
+  );
 
   // 6. Release old username so other creators can register it
   if (currentUsername && currentUsername !== norm) {

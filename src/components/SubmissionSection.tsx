@@ -15,9 +15,9 @@ export const SubmissionSection: React.FC<SubmissionSectionProps> = ({ onOpenSubm
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(255,255,255,0.04)_0%,transparent_70%)] pointer-events-none" />
 
       <div className="max-w-[1440px] mx-auto relative z-10">
-        <div className="border border-white/15 bg-neutral-950/80 p-8 sm:p-14 md:p-20 relative overflow-hidden">
+        <div className="border border-white/[0.12] bg-[#0a0a0d] p-8 sm:p-14 md:p-20 relative">
           <div className="max-w-4xl">
-            <span className="text-xs tracking-[0.3em] font-mono text-white/40 uppercase block mb-6">
+            <span className="text-xs tracking-[0.3em] font-mono text-white/45 uppercase block mb-6">
               {t('curatorialSubmissions')}
             </span>
 
@@ -32,20 +32,16 @@ export const SubmissionSection: React.FC<SubmissionSectionProps> = ({ onOpenSubm
             <div className="flex flex-col sm:flex-row sm:items-center gap-6">
               <button
                 onClick={onOpenSubmit}
-                className="inline-flex items-center justify-between sm:justify-start gap-4 px-8 py-4 bg-white text-black hover:bg-neutral-200 transition-all duration-300 text-xs font-mono tracking-[0.25em] font-semibold uppercase group hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md"
+                className="inline-flex items-center justify-between sm:justify-start gap-4 px-8 py-4 bg-white text-black hover:bg-neutral-200 transition-all duration-300 text-xs font-mono tracking-[0.25em] font-semibold uppercase group hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md min-h-[48px]"
               >
                 <span>{t('submitWork')}</span>
                 <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5" />
               </button>
 
-              <div className="text-xs font-mono tracking-widest text-white/40 uppercase">
+              <div className="text-xs font-mono tracking-widest text-white/45 uppercase">
                 CATEGORIES: FASHION · FILM · ART · EXPERIMENTAL
               </div>
             </div>
-          </div>
-
-          <div className="absolute -bottom-10 -right-10 text-[10rem] md:text-[14rem] font-serif font-bold text-white/[0.02] pointer-events-none select-none">
-            VAIURE
           </div>
         </div>
       </div>

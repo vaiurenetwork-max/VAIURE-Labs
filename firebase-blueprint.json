@@ -701,14 +701,19 @@
     },
     "membershipPlans": {
       "title": "Seedance Membership Plan",
-      "description": "5-tier subscription plans (Free, Starter, Creator, Pro, Studio)",
+      "description": "Configurable 5-tier subscription plans (Free, Basic, Pro, Premium, Enterprise)",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 50 },
-        "tier": { "type": "string", "enum": ["FREE", "STARTER", "CREATOR", "PRO", "STUDIO"] },
-        "name": { "type": "string", "maxLength": 50 },
+        "tier": { "type": "string", "enum": ["FREE", "BASIC", "PRO", "PREMIUM", "ENTERPRISE"] },
+        "name": { "type": "string", "maxLength": 64 },
         "priceIDR": { "type": "number" },
+        "priceUsd": { "type": "number" },
         "monthlyCredits": { "type": "number" },
+        "maxResolution": { "type": "string", "enum": ["480p", "720p", "1080p"] },
+        "maxDurationSeconds": { "type": "number" },
+        "maxReferenceImages": { "type": "number" },
+        "concurrentJobs": { "type": "number" },
         "features": { "type": "array", "items": { "type": "string" } },
         "updatedAt": { "type": "string" }
       },
@@ -716,15 +721,19 @@
     },
     "subscriptions": {
       "title": "User Subscription",
-      "description": "Active user tier subscription and renewal status",
+      "description": "Active user tier subscription, auto-renewal, expiration, and renewal history",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
         "userId": { "type": "string", "maxLength": 128 },
-        "tier": { "type": "string", "enum": ["FREE", "STARTER", "CREATOR", "PRO", "STUDIO"] },
-        "status": { "type": "string", "enum": ["ACTIVE", "PAST_DUE", "CANCELED", "TRIALING"] },
+        "tier": { "type": "string", "enum": ["FREE", "BASIC", "PRO", "PREMIUM", "ENTERPRISE"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "PAST_DUE", "CANCELLED", "EXPIRED", "TRIALING"] },
+        "billingStatus": { "type": "string", "enum": ["FREE", "PAID", "PENDING_PAYMENT", "CANCELLED", "ADMIN_GRANTED"] },
         "monthlyCreditsRemaining": { "type": "number" },
         "currentPeriodEnd": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "renewalDate": { "type": "string" },
+        "autoRenew": { "type": "boolean" },
         "cancelAtPeriodEnd": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
@@ -739,17 +748,19 @@
         "name": { "type": "string", "maxLength": 50 },
         "credits": { "type": "number" },
         "priceIDR": { "type": "number" },
+        "priceUsd": { "type": "number" },
         "validityDays": { "type": "number" }
       },
       "required": ["id", "name", "credits", "priceIDR"]
     },
     "creditWallets": {
       "title": "Credit Wallet",
-      "description": "User credit wallet separating monthly vs purchased top-up balance",
+      "description": "User credit wallet separating monthly vs purchased top-up balance and total used credits",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "maxLength": 128 },
         "totalCredits": { "type": "number" },
+        "usedCredits": { "type": "number" },
         "monthlyCredits": { "type": "number" },
         "purchasedCredits": { "type": "number" },
         "monthlyExpiryDate": { "type": "string" },
@@ -773,20 +784,58 @@
       "required": ["id", "userId", "type", "amount", "balanceAfter", "createdAt"]
     },
     "generationJobs": {
-      "title": "Seedance Generation Job",
-      "description": "Asynchronous Seedance 2.5 video generation task and render state",
+      "title": "Unified Multi-Provider Generation Job",
+      "description": "Asynchronous multi-provider (ByteDance & MUAPI Seedance 2.5 Spicy) video generation task, pricing, draft linkage, and Firebase Storage metadata",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
+        "job_id": { "type": "string", "maxLength": 128 },
         "userId": { "type": "string", "maxLength": 128 },
+        "user_id": { "type": "string", "maxLength": 128 },
+        "provider": { "type": "string", "maxLength": 64 },
+        "model_id": { "type": "string", "maxLength": 160 },
+        "model_name": { "type": "string", "maxLength": 160 },
+        "request_id": { "type": "string", "maxLength": 200 },
+        "parent_draft_job_id": { "type": "string", "maxLength": 128 },
         "prompt": { "type": "string", "maxLength": 5000 },
+        "image_url": { "type": "string", "maxLength": 2000 },
+        "last_image": { "type": "string", "maxLength": 2000 },
+        "resolution": { "type": "string", "enum": ["480p", "720p", "1080p", "4K"] },
+        "duration": { "type": "number" },
+        "generate_audio": { "type": "boolean" },
+        "camera_fixed": { "type": "boolean" },
+        "high_bitrate": { "type": "boolean" },
+        "draft": { "type": "boolean" },
+        "draft_request_id": { "type": "string", "maxLength": 200 },
+        "estimated_cost": { "type": "number" },
+        "currency": { "type": "string", "enum": ["USD", "CREDITS"] },
         "status": { "type": "string" },
         "progress": { "type": "number" },
-        "videoUrl": { "type": "string", "maxLength": 1000 },
+        "provider_output_url": { "type": "string", "maxLength": 2000 },
+        "firebase_storage_path": { "type": "string", "maxLength": 500 },
+        "playback_url": { "type": "string", "maxLength": 2000 },
+        "videoUrl": { "type": "string", "maxLength": 2000 },
+        "error": { "type": "string", "maxLength": 1000 },
         "reservedCredits": { "type": "number" },
-        "createdAt": { "type": "string" }
+        "created_at": { "type": "string" },
+        "completed_at": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "userId", "prompt", "status", "reservedCredits", "createdAt"]
+      "required": ["id", "userId", "prompt", "status", "createdAt"]
+    },
+    "providerConfigs": {
+      "title": "Public-Safe AI Video Provider Configuration",
+      "description": "Administrator-managed non-secret provider capabilities and pricing metadata (no API keys stored in Firestore)",
+      "type": "object",
+      "properties": {
+        "providerId": { "type": "string", "maxLength": 64 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "enabled": { "type": "boolean" },
+        "autoFallbackEnabled": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["providerId", "displayName", "enabled"]
     },
     "communityVideos": {
       "title": "Community AI Video",
@@ -829,6 +878,529 @@
         "usdToIdrRate": { "type": "number" }
       },
       "required": ["id", "mrrIDR", "grossProfitIDR", "usdToIdrRate"]
+    },
+    "generationCostConfigs": {
+      "title": "Generation Cost Configuration",
+      "description": "Dynamic server-side credit pricing matrix configurable by admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 50 },
+        "autoRefundOnFailure": { "type": "boolean" },
+        "unitValueIdr": { "type": "number" },
+        "referenceImageSurchargePerExtraPlate": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "autoRefundOnFailure", "unitValueIdr"]
+    },
+    "agentMemories": {
+      "title": "Personal AI Agent Memory Item",
+      "description": "User-isolated creative memory entry (character, style, storyline, instruction, prompt_history)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["character", "style", "storyline", "instruction", "prompt_history"] },
+        "title": { "type": "string", "maxLength": 160 },
+        "content": { "type": "string", "maxLength": 4000 },
+        "enabled": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "category", "title", "content", "enabled", "createdAt"]
+    },
+    "agentConversations": {
+      "title": "Personal AI Agent Conversation",
+      "description": "Persistent AI creative assistant thread isolated per user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "createdAt"]
+    },
+    "livestreams": {
+      "title": "Seedance Lab Livestream",
+      "description": "Real DB-backed live creator broadcast sessions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "hostUserId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE"] },
+        "status": { "type": "string", "enum": ["LIVE", "ENDED"] },
+        "viewerCount": { "type": "number" },
+        "startedAt": { "type": "string" }
+      },
+      "required": ["id", "hostUserId", "title", "visibility", "status", "startedAt"]
+    },
+    "livestreamMessages": {
+      "title": "Livestream Chat Message",
+      "description": "Real-time chat message in an active livestream",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "streamId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "text": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "streamId", "userId", "text", "createdAt"]
+    },
+    "liveRooms": {
+      "title": "Multiplayer Live Call Room",
+      "description": "Real DB-backed WebRTC audio/video multiplayer call room",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 160 },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE", "INVITE_ONLY"] },
+        "creatorUserId": { "type": "string", "maxLength": 128 },
+        "maxParticipants": { "type": "number" },
+        "locked": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "CLOSED"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "visibility", "creatorUserId", "status", "createdAt"]
+    },
+    "liveRoomParticipants": {
+      "title": "Live Call Room Participant",
+      "description": "Participant state and role inside a multiplayer live room",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["CREATOR", "PARTICIPANT"] },
+        "audioEnabled": { "type": "boolean" },
+        "videoEnabled": { "type": "boolean" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["userId", "role", "joinedAt"]
+    },
+    "groups": {
+      "title": "Community Group",
+      "description": "Independent creative community group with public or private visibility and owner-configurable governance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 80 },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE"] },
+        "joinMode": { "type": "string", "enum": ["OPEN", "APPROVAL_REQUIRED", "INVITE_ONLY"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "ARCHIVED", "SUSPENDED"] },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "coverImageUrl": { "type": "string", "maxLength": 500 },
+        "iconImageUrl": { "type": "string", "maxLength": 500 },
+        "rulesText": { "type": "string", "maxLength": 4000 },
+        "memberCount": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "visibility", "status", "ownerId", "createdAt"]
+    },
+    "groupMemberships": {
+      "title": "Group Membership",
+      "description": "User membership and independent group role inside a specific community group",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["OWNER", "ADMIN", "MODERATOR", "MEMBER"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "BANNED"] },
+        "joinedAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["groupId", "userId", "role", "status", "joinedAt"]
+    },
+    "groupJoinRequests": {
+      "title": "Group Join Request",
+      "description": "Pending membership application for a private or approval-gated group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "message": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "userId", "status", "createdAt"]
+    },
+    "groupInvitations": {
+      "title": "Group Invitation",
+      "description": "Direct invitation sent to a user to join a community group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "inviterId": { "type": "string", "maxLength": 128 },
+        "inviteeId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "DECLINED", "REVOKED"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "inviterId", "inviteeId", "status", "createdAt"]
+    },
+    "groupPosts": {
+      "title": "Group Post & Seedance Workflow",
+      "description": "Image, video, Seedance workflow, text status, or livestream dispatch inside a group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "postType": { "type": "string", "enum": ["IMAGE", "VIDEO", "WORKFLOW", "TEXT", "LIVESTREAM"] },
+        "status": { "type": "string", "enum": ["PUBLISHED", "PENDING_APPROVAL", "REMOVED"] },
+        "groupVisibility": { "type": "string", "enum": ["PUBLIC", "PRIVATE"] },
+        "title": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 10000 },
+        "isPinned": { "type": "boolean" },
+        "commentsDisabled": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "authorId", "postType", "status", "groupVisibility", "createdAt"]
+    },
+    "groupPostComments": {
+      "title": "Group Post Comment",
+      "description": "Comment or threaded reply on a group post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "postId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "parentCommentId": { "type": "string", "maxLength": 128 },
+        "content": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "postId", "authorId", "content", "createdAt"]
+    },
+    "groupSavedPosts": {
+      "title": "Saved Group Post",
+      "description": "Bookmark linking a user to a saved community group post or workflow",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["postId", "groupId", "userId", "createdAt"]
+    },
+    "groupAnnouncements": {
+      "title": "Group Announcement",
+      "description": "Official pinned or scheduled announcement inside a group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "content": { "type": "string", "maxLength": 4000 },
+        "isPinned": { "type": "boolean" },
+        "scheduledAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "authorId", "title", "content", "createdAt"]
+    },
+    "groupEvents": {
+      "title": "Group Event & Challenge",
+      "description": "Scheduled group meeting, creative challenge, livestream event, or competition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "creatorId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "eventType": { "type": "string", "enum": ["MEETING", "CREATIVE_CHALLENGE", "LIVESTREAM_EVENT", "COMPETITION"] },
+        "startsAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "creatorId", "title", "eventType", "startsAt", "createdAt"]
+    },
+    "giftCatalog": {
+      "title": "Virtual Gift Catalog Item",
+      "description": "Admin-configurable virtual gift item and credit price",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "category": { "type": "string", "enum": ["BASIC", "PREMIUM", "SPECIAL_ANIMATED", "EXCLUSIVE_EVENT"] },
+        "creditPrice": { "type": "number" },
+        "enabled": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "creditPrice", "enabled"]
+    },
+    "giftTransactions": {
+      "title": "Virtual Gift Transaction",
+      "description": "Immutable platform-credit virtual gift ledger record with atomic credit deduction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "giftId": { "type": "string", "maxLength": 128 },
+        "senderId": { "type": "string", "maxLength": 128 },
+        "recipientId": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "livestreamId": { "type": "string", "maxLength": 128 },
+        "creditCost": { "type": "number" },
+        "idempotencyKey": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "giftId", "senderId", "recipientId", "creditCost", "idempotencyKey", "createdAt"]
+    },
+    "communityNotifications": {
+      "title": "Community Notification",
+      "description": "Deep-linked user notification for invitations, approvals, replies, mentions, gifts, and streams",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "recipientId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "maxLength": 60 },
+        "title": { "type": "string", "maxLength": 200 },
+        "body": { "type": "string", "maxLength": 500 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "recipientId", "type", "title", "isRead", "createdAt"]
+    },
+    "communityReports": {
+      "title": "Community Content Report",
+      "description": "User moderation report targeting posts, comments, groups, livestreams, or users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "reporterId": { "type": "string", "maxLength": 128 },
+        "targetType": { "type": "string", "enum": ["POST", "COMMENT", "GROUP", "USER", "LIVESTREAM"] },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["OPEN", "REVIEWED", "ACTION_TAKEN", "DISMISSED"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "reporterId", "targetType", "targetId", "reason", "status", "createdAt"]
+    },
+    "groupModerationLogs": {
+      "title": "Group Moderation Log",
+      "description": "Audit log of actions taken by group owners, admins, and moderators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "groupId": { "type": "string", "maxLength": 128 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 80 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "groupId", "actorId", "action", "createdAt"]
+    },
+    "communityCategories": {
+      "title": "Community Group Category",
+      "description": "Admin-managed community category definitions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["id", "name", "enabled"]
+    },
+    "communityPolicies": {
+      "title": "Community Platform Policies",
+      "description": "Platform-wide community rules, gift feature flags, and moderation guidelines",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "maxGroupsPerUser": { "type": "number" },
+        "allowVirtualGifts": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "allowVirtualGifts", "updatedAt"]
+    },
+    "communityUserProfiles": {
+      "title": "Community User Profile",
+      "description": "Creator community profile and per-field privacy visibility preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "bio": { "type": "string", "maxLength": 600 },
+        "showJoinedGroups": { "type": "boolean" },
+        "showReceivedGifts": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "displayName", "updatedAt"]
+    },
+    "userCreations": {
+      "title": "User AI Creation",
+      "description": "Private personal AIGC record auto-ingested from completed generation jobs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "sourceJobId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 120 },
+        "mediaType": { "type": "string", "enum": ["IMAGE", "VIDEO"] },
+        "primaryAssetId": { "type": "string", "maxLength": 128 },
+        "visibility": { "type": "string", "enum": ["private", "public"] },
+        "publicationStatus": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "sourceJobId", "title", "mediaType", "primaryAssetId", "visibility", "publicationStatus", "createdAt"]
+    },
+    "creationAssets": {
+      "title": "Creation Media Asset",
+      "description": "Protected storage metadata for generated image/video outputs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "creationId": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "mediaType": { "type": "string", "enum": ["IMAGE", "VIDEO"] },
+        "mimeType": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "creationId", "ownerId", "mediaType", "mimeType", "createdAt"]
+    },
+    "creationCollections": {
+      "title": "Personal Creation Collection",
+      "description": "User-defined private folder for organizing personal AI creations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 80 },
+        "itemCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "ownerId", "name", "createdAt"]
+    },
+    "collectionItems": {
+      "title": "Collection Item Link",
+      "description": "Mapping linking a private UserCreation to a CreationCollection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "collectionId": { "type": "string", "maxLength": 128 },
+        "creationId": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "addedAt": { "type": "string" }
+      },
+      "required": ["id", "collectionId", "creationId", "ownerId", "addedAt"]
+    },
+    "curationSubmissions": {
+      "title": "Curation Submission",
+      "description": "Explicit owner request to review a private creation for Public Curates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "creationId": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "proposedTitle": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 80 },
+        "status": { "type": "string", "enum": ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "WITHDRAWN", "REVISION_REQUESTED"] },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["id", "creationId", "ownerId", "proposedTitle", "category", "status", "submittedAt"]
+    },
+    "curationReviews": {
+      "title": "Curator Review Audit Entry",
+      "description": "Immutable curator moderation and approval record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "submissionId": { "type": "string", "maxLength": 128 },
+        "creationId": { "type": "string", "maxLength": 128 },
+        "reviewerId": { "type": "string", "maxLength": 128 },
+        "decision": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "submissionId", "creationId", "reviewerId", "decision", "createdAt"]
+    },
+    "publishedCreations": {
+      "title": "Public Curated Creation",
+      "description": "Curator-approved creation eligible for Public Curated Gallery discovery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "creationId": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 80 },
+        "mediaType": { "type": "string", "enum": ["IMAGE", "VIDEO"] },
+        "assetId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "enum": ["PUBLISHED", "UNPUBLISHED", "REMOVED"] },
+        "publishedAt": { "type": "string" }
+      },
+      "required": ["id", "creationId", "ownerId", "title", "category", "mediaType", "assetId", "status", "publishedAt"]
+    },
+    "creationReactions": {
+      "title": "Creation Appreciation Reaction",
+      "description": "Authenticated user appreciation for a published creation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "publishedCreationId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "reactionType": { "type": "string", "enum": ["APPRECIATE"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "publishedCreationId", "userId", "reactionType", "createdAt"]
+    },
+    "creationComments": {
+      "title": "Published Creation Comment",
+      "description": "Public comment on a published creation when comments are enabled",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "publishedCreationId": { "type": "string", "maxLength": 128 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "content": { "type": "string", "maxLength": 1500 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "publishedCreationId", "authorId", "content", "createdAt"]
+    },
+    "creatorFavorites": {
+      "title": "Curated Creation Favorite",
+      "description": "User bookmarked public curated creation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "publishedCreationId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "publishedCreationId", "createdAt"]
+    },
+    "creationTags": {
+      "title": "Creation Tag Index",
+      "description": "Normalized tag counts for public curated discovery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "label": { "type": "string", "maxLength": 32 },
+        "usageCount": { "type": "number" }
+      },
+      "required": ["id", "label", "usageCount"]
+    },
+    "creationAnalytics": {
+      "title": "Published Creation Analytics",
+      "description": "Creator-visible real engagement metrics for published creations",
+      "type": "object",
+      "properties": {
+        "publishedCreationId": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "totalViews": { "type": "number" },
+        "appreciations": { "type": "number" }
+      },
+      "required": ["publishedCreationId", "ownerId", "totalViews"]
     }
   },
   "firestore": {
@@ -1014,7 +1586,11 @@
     },
     "/generationJobs/{jobId}": {
       "schema": "generationJobs",
-      "description": "Seedance 2.5 asynchronous video generation tasks"
+      "description": "Unified ByteDance and MUAPI Seedance 2.5 Spicy asynchronous video generation tasks"
+    },
+    "/providerConfigs/{providerId}": {
+      "schema": "providerConfigs",
+      "description": "Admin-managed non-secret provider configurations and model capabilities"
     },
     "/communityVideos/{videoId}": {
       "schema": "communityVideos",
@@ -1027,6 +1603,150 @@
     "/financialAnalytics/{docId}": {
       "schema": "financialAnalytics",
       "description": "Executive financial metrics and gross margin analytics"
+    },
+    "/generationCostConfigs/{configId}": {
+      "schema": "generationCostConfigs",
+      "description": "Dynamic generation credit pricing rules managed by administrators"
+    },
+    "/agentMemories/{memoryId}": {
+      "schema": "agentMemories",
+      "description": "Private per-user AI Agent creative memory entries"
+    },
+    "/agentConversations/{conversationId}": {
+      "schema": "agentConversations",
+      "description": "Private per-user AI Agent conversation threads"
+    },
+    "/livestreams/{streamId}": {
+      "schema": "livestreams",
+      "description": "Active and archived Seedance Lab livestreams"
+    },
+    "/livestreams/{streamId}/messages/{messageId}": {
+      "schema": "livestreamMessages",
+      "description": "Livestream live chat messages"
+    },
+    "/liveRooms/{roomId}": {
+      "schema": "liveRooms",
+      "description": "Multiplayer WebRTC call rooms"
+    },
+    "/liveRooms/{roomId}/participants/{participantId}": {
+      "schema": "liveRoomParticipants",
+      "description": "Active call room participants and roles"
+    },
+    "/groups/{groupId}": {
+      "schema": "groups",
+      "description": "Community groups metadata, privacy, rules, and governance settings"
+    },
+    "/groups/{groupId}/members/{memberUid}": {
+      "schema": "groupMemberships",
+      "description": "Memberships and group-scoped roles inside each community group"
+    },
+    "/groups/{groupId}/joinRequests/{requestId}": {
+      "schema": "groupJoinRequests",
+      "description": "Membership join applications for approval-gated and private groups"
+    },
+    "/groupInvitations/{invitationId}": {
+      "schema": "groupInvitations",
+      "description": "Direct user invitations to join community groups"
+    },
+    "/groups/{groupId}/posts/{postId}": {
+      "schema": "groupPosts",
+      "description": "Group posts, images, AI videos, Seedance workflows, and text discussions"
+    },
+    "/groups/{groupId}/posts/{postId}/comments/{commentId}": {
+      "schema": "groupPostComments",
+      "description": "Nested comments and replies on group posts"
+    },
+    "/users/{userId}/savedGroupPosts/{postId}": {
+      "schema": "groupSavedPosts",
+      "description": "User saved group posts and workflows"
+    },
+    "/groups/{groupId}/announcements/{announcementId}": {
+      "schema": "groupAnnouncements",
+      "description": "Group announcements and scheduled updates"
+    },
+    "/groups/{groupId}/events/{eventId}": {
+      "schema": "groupEvents",
+      "description": "Group events, challenges, meetings, and competitions"
+    },
+    "/giftCatalog/{giftId}": {
+      "schema": "giftCatalog",
+      "description": "Platform-configured virtual gift catalog"
+    },
+    "/giftTransactions/{transactionId}": {
+      "schema": "giftTransactions",
+      "description": "Immutable virtual gift transaction ledger"
+    },
+    "/communityNotifications/{notificationId}": {
+      "schema": "communityNotifications",
+      "description": "User community notifications with deep links"
+    },
+    "/communityReports/{reportId}": {
+      "schema": "communityReports",
+      "description": "User reports submitted for moderation review"
+    },
+    "/groups/{groupId}/moderationLogs/{logId}": {
+      "schema": "groupModerationLogs",
+      "description": "Group-level moderation audit logs"
+    },
+    "/communityCategories/{categoryId}": {
+      "schema": "communityCategories",
+      "description": "Platform community group categories"
+    },
+    "/communityPolicies/{policyId}": {
+      "schema": "communityPolicies",
+      "description": "Platform-wide community policies and guidelines"
+    },
+    "/communityUserProfiles/{userId}": {
+      "schema": "communityUserProfiles",
+      "description": "Creator community profile details and privacy settings"
+    },
+    "/userCreations/{creationId}": {
+      "schema": "userCreations",
+      "description": "Strictly private user AIGC creations auto-captured on job completion"
+    },
+    "/creationAssets/{assetId}": {
+      "schema": "creationAssets",
+      "description": "Protected media asset records isolated by ownership or publication state"
+    },
+    "/creationCollections/{collectionId}": {
+      "schema": "creationCollections",
+      "description": "Private personal collections created by users to organize AI creations"
+    },
+    "/collectionItems/{itemId}": {
+      "schema": "collectionItems",
+      "description": "Private links between UserCreations and CreationCollections"
+    },
+    "/curationSubmissions/{submissionId}": {
+      "schema": "curationSubmissions",
+      "description": "Owner curation requests awaiting curator review"
+    },
+    "/curationReviews/{reviewId}": {
+      "schema": "curationReviews",
+      "description": "Immutable curator review decision and audit log"
+    },
+    "/publishedCreations/{publishedId}": {
+      "schema": "publishedCreations",
+      "description": "Publicly curated and approved creations only"
+    },
+    "/creationReactions/{reactionId}": {
+      "schema": "creationReactions",
+      "description": "User appreciations on published creations"
+    },
+    "/creationComments/{commentId}": {
+      "schema": "creationComments",
+      "description": "Public comments on published creations"
+    },
+    "/creatorFavorites/{favoriteId}": {
+      "schema": "creatorFavorites",
+      "description": "Personal favorites saved from Public Curates"
+    },
+    "/creationTags/{tagId}": {
+      "schema": "creationTags",
+      "description": "Normalized tag dictionary for public curated discovery"
+    },
+    "/creationAnalytics/{analyticsId}": {
+      "schema": "creationAnalytics",
+      "description": "Engagement metrics readable only by creation owner or admins"
     }
   }
 }

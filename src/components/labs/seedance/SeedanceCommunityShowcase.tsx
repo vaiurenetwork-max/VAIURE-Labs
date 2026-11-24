@@ -45,10 +45,12 @@ export const SeedanceCommunityShowcase: React.FC<SeedanceCommunityShowcaseProps>
 
   const loadShowcase = async () => {
     try {
-      const posts = await seedancePlatformService.getCommunityShowcase(
-        activeGenre === 'All' ? undefined : activeGenre
+      const posts = await seedancePlatformService.getCommunityShowcase();
+      setVideos(
+        activeGenre === 'All'
+          ? posts
+          : posts.filter((p) => p.genre?.toLowerCase() === activeGenre.toLowerCase())
       );
-      setVideos(posts);
     } catch (err) {
       console.error('Failed to load showcase posts:', err);
     }

@@ -39,6 +39,7 @@ interface UserProfileModalProps {
   onOpenAuth?: () => void;
   onOpenWallet?: () => void;
   onOpenSettings?: () => void;
+  onOpenSeedanceView?: (view: 'plans' | 'credits' | 'agent') => void;
   onOpenAdmin?: () => void;
   onUsernameChanged?: (newUsername: string, lastUsernameChangeAt: string) => void;
   onUpdateProfile?: (updates: {
@@ -63,6 +64,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenDirectMessage,
   onSignOut,
   onOpenSettings,
+  onOpenSeedanceView,
   onOpenAdmin,
   onUsernameChanged,
   onUpdateProfile,
@@ -222,6 +224,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         >
                           <Settings className="w-4 h-4" />
                         </button>
+                      )}
+
+                      {onOpenSeedanceView && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onOpenSeedanceView('plans')}
+                            className="px-2.5 py-1.5 border border-white/20 hover:border-white text-[11px] font-mono uppercase text-white/85 hover:text-white transition-colors cursor-pointer rounded-sm"
+                          >
+                            Plan & Credits
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onOpenSeedanceView('agent')}
+                            className="px-2.5 py-1.5 border border-white/20 hover:border-white text-[11px] font-mono uppercase text-white/85 hover:text-white transition-colors cursor-pointer rounded-sm"
+                          >
+                            AI Agent
+                          </button>
+                        </>
                       )}
 
                       {isAdmin && onOpenAdmin && (

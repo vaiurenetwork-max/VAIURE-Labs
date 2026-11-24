@@ -1,15 +1,12 @@
 /**
  * VAIURE — SEEDANCE LAB SERVICE
  * Professional AI Video Production Workspace
- * Exclusively communicates with the PosBot Developer API v1 via secure server-side routes:
- * - /api/ai/health
- * - /api/ai/models
- * - /api/ai/balance
- * - /api/ai/generate
- * - /api/ai/status/:jobCode (or /api/ai/jobs/:jobCode)
- * - /api/ai/history
- * - /api/ai/upload-media
+ * Communicates exclusively with ByteDance BytePlus ModelArk API v3 via secure server-side routes,
+ * sending verified Firebase Bearer tokens for user-scoped balance, generation, polling & history.
  */
+
+import { getAuthHeaders } from './authTokenHelper';
+import { CanonicalTierId } from '../types/seedancePlatform';
 
 export type SeedanceModelKey =
   | 'seedance_25_15s'
@@ -26,6 +23,8 @@ export interface SeedanceModelInfo {
   rateIdr: number;
   costGenerate: number;
   maxPromptLength: number;
+  maxPromptWords: number;
+  maxReferenceImages: number;
   nativeResolution: string;
   supportedAspectRatios: string[];
   description: string;
@@ -40,10 +39,12 @@ export const SEEDANCE_MODELS: Record<SeedanceModelKey, SeedanceModelInfo> = {
     isR2V: false,
     rateIdr: 4000,
     costGenerate: 4,
-    maxPromptLength: 8000,
+    maxPromptLength: 240000,
+    maxPromptWords: 30000,
+    maxReferenceImages: 30,
     nativeResolution: '720P',
     supportedAspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    description: 'High-fidelity 15s cinematic motion, fluid cloth dynamics, and atmospheric lighting. Multi-image capable.',
+    description: 'High-fidelity 15s cinematic motion, fluid cloth dynamics, and complex physics priority. Up to 30 reference images.',
   },
   seedance_25_30s: {
     id: 'seedance_25_30s',
@@ -53,10 +54,12 @@ export const SEEDANCE_MODELS: Record<SeedanceModelKey, SeedanceModelInfo> = {
     isR2V: false,
     rateIdr: 4500,
     costGenerate: 7,
-    maxPromptLength: 8000,
+    maxPromptLength: 240000,
+    maxPromptWords: 30000,
+    maxReferenceImages: 30,
     nativeResolution: '720P',
     supportedAspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    description: 'Extended 30s continuous storytelling, sustained camera arcs, and temporal consistency. Multi-image capable.',
+    description: 'Extended 30s continuous storytelling, sustained camera arcs, and complex physics consistency. Up to 30 reference images.',
   },
   seedance_25_15s_r2v: {
     id: 'seedance_25_15s_r2v',
@@ -66,10 +69,12 @@ export const SEEDANCE_MODELS: Record<SeedanceModelKey, SeedanceModelInfo> = {
     isR2V: true,
     rateIdr: 4000,
     costGenerate: 4,
-    maxPromptLength: 8000,
+    maxPromptLength: 240000,
+    maxPromptWords: 30000,
+    maxReferenceImages: 30,
     nativeResolution: '720P',
     supportedAspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    description: 'Reference-to-Video transfer with multi-image character identity, outfit, and environment preservation.',
+    description: 'Reference-to-Video transfer locking up to 30 identity, wardrobe, lighting, and environment plates.',
   },
   seedance_25_30s_r2v: {
     id: 'seedance_25_30s_r2v',
@@ -79,22 +84,105 @@ export const SEEDANCE_MODELS: Record<SeedanceModelKey, SeedanceModelInfo> = {
     isR2V: true,
     rateIdr: 4500,
     costGenerate: 7,
-    maxPromptLength: 8000,
+    maxPromptLength: 240000,
+    maxPromptWords: 30000,
+    maxReferenceImages: 30,
     nativeResolution: '720P',
     supportedAspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    description: 'Full 30-second extended Reference-to-Video sequence with strict character lock across complex camera motions.',
+    description: 'Full 30-second extended Reference-to-Video sequence locking up to 30 plates across complex physics trajectories.',
   },
 };
 
 export interface SeedanceGenerateParams {
-  model: SeedanceModelKey;
+  model: SeedanceModelKey | string;
   prompt: string;
   aspect_ratio: string;
   reference_image_urls?: string[];
+  image_url?: string;
+  end_image_url?: string;
+  video_url?: string;
+  audio_url?: string;
   sound_enabled?: boolean;
+  camera_fixed?: boolean;
+  seed?: number;
+  duration?: number;
   resolution?: string;
   video_format?: string;
   quantity?: number;
+  content_rating?: '18+' | 'standard';
+  physics_priority?: boolean;
+  idempotencyKey?: string;
+}
+
+export interface ByteDanceCatalogModelItem {
+  key: string;
+  upstreamModelId: string;
+  resolvedUpstreamModelId: string;
+  name: string;
+  category: string;
+  costUnits: number;
+  cost_generate: number;
+  costIdr: number;
+  cost_idr: number;
+  maxPromptLength: number;
+  maxPromptWords?: number;
+  maxImages: number;
+  defaultDurationSeconds?: number;
+  supportedDurations?: number[];
+  defaultResolution?: '480p' | '720p' | '1080p';
+  aspectRatios: string[];
+  isR2V?: boolean;
+  isSeedance25?: boolean;
+  available: boolean;
+  notes: string;
+}
+
+export interface ByteDanceModelsCatalogResponse {
+  ok: boolean;
+  source: string;
+  total_models: number;
+  serverKeyConfigured: boolean;
+  baseUrl: string;
+  models: ByteDanceCatalogModelItem[];
+  publishedKnowledge?: {
+    modelFamily: string;
+    architecture: string;
+    officialEndpoints: Record<string, string>;
+    promptFormula: string;
+    referenceTaggingRules: string[];
+    cameraMovementRules: string[];
+    physicsAndContinuityRules: string[];
+    supportedSpecs: Record<string, unknown>;
+  };
+}
+
+export interface MediaPromptAnalysisResult {
+  ok: boolean;
+  analyzedPrompt: string;
+  negativePrompt: string;
+  detectedSubjects: string;
+  environmentAndLighting: string;
+  cameraMotionAnalysis: string;
+  physicsDynamics: string;
+  recommendedCameraFixed: boolean;
+  continuityAnchors: string[];
+  engineUsed?: string;
+}
+
+export interface NextSceneContinuityResult {
+  ok: boolean;
+  nextScenePrompt: string;
+  continuityChecklist: string[];
+  recommendedDuration: number;
+  recommendedCameraFixed: boolean;
+  engineUsed?: string;
+}
+
+export interface SceneDirectorBreakdownResult {
+  ok: boolean;
+  directorTreatment: string;
+  beatSheet: string[];
+  engineUsed?: string;
 }
 
 export interface SeedanceGenerationJob {
@@ -114,10 +202,11 @@ export interface SeedanceGenerationJob {
   remainingBalance?: number;
 }
 
-export interface PosBotHistoryItem {
+export interface SeedanceHistoryItem {
   id: string;
   job_code: string;
   model: string;
+  upstream_model?: string;
   model_name: string;
   category: string;
   prompt: string;
@@ -132,37 +221,70 @@ export interface PosBotHistoryItem {
 }
 
 export interface SeedanceAccountBalance {
+  authenticated?: boolean;
+  userId?: string;
+  tier?: CanonicalTierId;
+  planName?: string;
   balance_generate: number;
+  used_credits?: number;
+  monthly_credits?: number;
+  purchased_credits?: number;
   balance_idr_equivalent: number;
   unit_value_idr: number;
+  api_stock_tokens_remaining?: number;
+  serverKeyConfigured?: boolean;
+  baseUrl?: string;
   source?: string;
 }
 
 export interface SeedanceHealthStatus {
   ok: boolean;
+  upstreamConnected?: boolean;
   service?: string;
   version?: string;
   baseUrl?: string;
   serverKeyConfigured?: boolean;
   serverKeyStatus?: string;
-  upstreamTunnelOffline?: boolean;
+  activeSeedanceModel?: string;
+  upstreamError?: string;
   time?: string;
+}
+
+export class SeedanceApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
 }
 
 class SeedanceLabService {
   /**
-   * Fetches real account balance from server /api/ai/balance
+   * Fetches real user-scoped account balance from server /api/ai/balance
    */
   async getBalance(): Promise<SeedanceAccountBalance> {
-    const res = await fetch('/api/ai/balance');
+    const headers = await getAuthHeaders(false);
+    const res = await fetch('/api/ai/balance', { headers });
     if (!res.ok) {
       throw new Error(`Failed to query balance: HTTP ${res.status}`);
     }
     const data = await res.json();
     return {
+      authenticated: Boolean(data.authenticated),
+      userId: data.userId,
+      tier: data.tier,
+      planName: data.planName,
       balance_generate: data.balance_generate ?? 0,
+      used_credits: data.used_credits ?? 0,
+      monthly_credits: data.monthly_credits ?? 0,
+      purchased_credits: data.purchased_credits ?? 0,
       balance_idr_equivalent: data.balance_idr_equivalent ?? 0,
-      unit_value_idr: data.unit_value_idr ?? 400,
+      unit_value_idr: data.unit_value_idr ?? 600,
+      api_stock_tokens_remaining: data.api_stock_tokens_remaining,
+      serverKeyConfigured: data.serverKeyConfigured,
+      baseUrl: data.baseUrl,
       source: data.source,
     };
   }
@@ -173,57 +295,124 @@ class SeedanceLabService {
   async getHealth(): Promise<SeedanceHealthStatus> {
     const res = await fetch('/api/ai/health');
     if (!res.ok) {
-      return { ok: false, service: 'Offline', upstreamTunnelOffline: true };
+      return { ok: false, upstreamConnected: false, service: 'ByteDance ModelArk Offline' };
     }
     return await res.json();
   }
 
   /**
-   * Uploads base64 or file data to server /api/ai/upload-media to receive a public HTTPS URL
+   * Uploads base64 or file data to server /api/ai/upload-media (authenticated)
    */
   async uploadMedia(dataUrl: string, fileName?: string): Promise<string> {
+    const headers = await getAuthHeaders(true);
     const res = await fetch('/api/ai/upload-media', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ dataUrl, fileName }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok || !data.url) {
-      throw new Error(data.error || 'Failed to host reference image.');
+      throw new SeedanceApiError(
+        data.error || 'Failed to host reference image.',
+        res.status,
+        data.code
+      );
     }
     return data.url;
   }
 
   /**
-   * Submits generation to /api/ai/generate
+   * Syncs live model catalog & published ByteDance Seedance 2.5 knowledge from /api/ai/models
+   */
+  async getModelsCatalog(): Promise<ByteDanceModelsCatalogResponse | null> {
+    try {
+      const res = await fetch('/api/ai/models');
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Submits generation to /api/ai/generate with Firebase auth & idempotency protection
    */
   async submitGeneration(params: SeedanceGenerateParams): Promise<{
     jobCode: string;
     costGenerate: number;
     remainingBalance?: number;
     immediateResultUrl?: string;
+    upstreamModel?: string;
+    deduplicated?: boolean;
   }> {
     const payload: Record<string, unknown> = {
       model: params.model,
       prompt: params.prompt.trim(),
       aspect_ratio: params.aspect_ratio === 'Smart' ? '16:9' : params.aspect_ratio,
+      content_rating: params.content_rating === '18+' ? '18+' : 'standard',
+      physics_priority: params.physics_priority !== false,
+      results_priority: params.physics_priority !== false ? 'cinematic_complex_physics' : 'balanced',
+      quantity: params.quantity || 1,
     };
 
+    if (params.idempotencyKey) {
+      payload.idempotencyKey = params.idempotencyKey;
+    }
+    if (typeof params.sound_enabled === 'boolean') {
+      payload.sound_enabled = params.sound_enabled;
+    }
+    if (typeof params.camera_fixed === 'boolean') {
+      payload.camera_fixed = params.camera_fixed;
+    }
+    if (typeof params.seed === 'number' && Number.isFinite(params.seed)) {
+      payload.seed = params.seed;
+    }
+    if (typeof params.duration === 'number' && Number.isFinite(params.duration)) {
+      payload.duration = params.duration;
+    }
+    if (params.resolution) {
+      payload.resolution = params.resolution;
+    }
+    if (params.image_url) {
+      payload.image_url = params.image_url;
+    }
+    if (params.end_image_url) {
+      payload.end_image_url = params.end_image_url;
+    }
+    if (params.video_url) {
+      payload.video_url = params.video_url;
+    }
+    if (params.audio_url) {
+      payload.audio_url = params.audio_url;
+    }
+
     if (params.reference_image_urls && params.reference_image_urls.length > 0) {
-      payload.reference_image_urls = params.reference_image_urls;
-      payload.image_urls = params.reference_image_urls;
-      payload.image_url = params.reference_image_urls[0];
+      const sliced = params.reference_image_urls.slice(0, 30);
+      payload.reference_image_urls = sliced;
+      payload.image_urls = sliced;
+      if (!payload.image_url) {
+        payload.image_url = sliced[0];
+      }
+    }
+
+    const headers = await getAuthHeaders(true);
+    if (params.idempotencyKey) {
+      headers['X-Idempotency-Key'] = params.idempotencyKey;
     }
 
     const res = await fetch('/api/ai/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     });
 
     const data = await res.json();
     if (!res.ok || !data.ok || !data.job_code) {
-      throw new Error(data.error || 'Generation request was rejected by server.');
+      throw new SeedanceApiError(
+        data.error || 'Generation request was rejected by server.',
+        res.status,
+        data.code
+      );
     }
 
     return {
@@ -231,19 +420,138 @@ class SeedanceLabService {
       costGenerate: data.cost_generate ?? 4,
       remainingBalance: data.remaining_balance_generate,
       immediateResultUrl: data.result_url || data.outputUrl,
+      upstreamModel: data.upstream_model,
+      deduplicated: Boolean(data.deduplicated),
     };
   }
 
   /**
-   * Polls job status from /api/ai/status/:jobCode (or /api/ai/jobs/:jobCode)
+   * Analyzes connected image(s) and/or video frames via /api/prompt/analyze-media
+   */
+  async analyzeMediaPrompt(params: {
+    images?: string[];
+    videos?: string[];
+    videoFrames?: string[];
+    userNotes?: string;
+    directorStyle?: string;
+    cameraMovement?: string;
+    durationSeconds?: number;
+    physicsPriority?: boolean;
+    contentRating?: '18+' | 'standard';
+  }): Promise<MediaPromptAnalysisResult> {
+    const headers = await getAuthHeaders(true);
+    const res = await fetch('/api/prompt/analyze-media', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Failed to analyze media prompt.');
+    }
+    return data;
+  }
+
+  /**
+   * Synthesizes a flawless zero-mistake Next Scene prompt locked to the preceding scene's final frame
+   */
+  async continueNextScene(params: {
+    previousPrompt?: string;
+    lastFrameUrl?: string;
+    additionalRefUrls?: string[];
+    nextActionIntent?: string;
+    directorStyle?: string;
+    cameraMovement?: string;
+    filmStock?: string;
+    durationSeconds?: number;
+    physicsPriority?: boolean;
+    contentRating?: '18+' | 'standard';
+  }): Promise<NextSceneContinuityResult> {
+    const headers = await getAuthHeaders(true);
+    const res = await fetch('/api/prompt/continue-scene', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Failed to generate next scene continuity prompt.');
+    }
+    return data;
+  }
+
+  /**
+   * Generates a Scene Director treatment and timestamped beat sheet
+   */
+  async runSceneDirector(params: {
+    directorName: string;
+    directorManifesto?: string;
+    sceneConcept?: string;
+    cameraMovement?: string;
+    filmStock?: string;
+    contrastRatio?: string;
+    durationSeconds?: number;
+  }): Promise<SceneDirectorBreakdownResult> {
+    const headers = await getAuthHeaders(true);
+    const res = await fetch('/api/prompt/director-breakdown', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || 'Failed to generate director treatment.');
+    }
+    return data;
+  }
+
+  /**
+   * Optimizes a scene prompt for best cinematic fidelity and complex physics simulation
+   */
+  async optimizePromptPhysics(params: {
+    prompt: string;
+    durationSeconds: number;
+    aspectRatio: string;
+    physicsPriority: boolean;
+    contentRating: '18+' | 'standard';
+  }): Promise<{ optimizedPrompt: string; source?: string }> {
+    const headers = await getAuthHeaders(true);
+    const res = await fetch('/api/prompt/optimize', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        compiledPrompt: params.prompt,
+        durationSeconds: params.durationSeconds,
+        frameRate: '24fps',
+        aspectRatio: params.aspectRatio,
+        physicsPriority: params.physicsPriority,
+        contentRating: params.contentRating,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to optimize prompt physics.');
+    }
+    const data = await res.json();
+    return {
+      optimizedPrompt: data.optimizedPrompt || params.prompt,
+      source: data.source,
+    };
+  }
+
+  /**
+   * Polls job status from /api/ai/status/:jobCode (authenticated)
    */
   async pollJobStatus(jobCode: string): Promise<{
     status: 'processing' | 'completed' | 'failed';
     progress: number;
     resultUrl?: string | null;
+    lastFrameUrl?: string | null;
+    usage?: Record<string, unknown>;
+    refunded?: boolean;
     error?: string | null;
   }> {
-    const res = await fetch(`/api/ai/status/${encodeURIComponent(jobCode)}`);
+    const headers = await getAuthHeaders(false);
+    const res = await fetch(`/api/ai/status/${encodeURIComponent(jobCode)}`, { headers });
     if (!res.ok) {
       throw new Error(`Status polling failed with HTTP ${res.status}`);
     }
@@ -255,13 +563,16 @@ class SeedanceLabService {
         status: 'completed',
         progress: 100,
         resultUrl: data.result_url || data.outputUrl,
+        lastFrameUrl: data.last_frame_url || null,
+        usage: data.usage,
       };
     }
 
-    if (rawStatus === 'failed') {
+    if (rawStatus === 'failed' || rawStatus === 'cancelled') {
       return {
         status: 'failed',
         progress: 0,
+        refunded: Boolean(data.refunded),
         error: data.error_message || data.error || 'Video generation failed upstream.',
       };
     }
@@ -274,26 +585,28 @@ class SeedanceLabService {
   }
 
   /**
-   * Fetches generation history from /api/ai/history
+   * Fetches user-scoped generation history from /api/ai/history
    */
-  async getHistory(): Promise<PosBotHistoryItem[]> {
-    const res = await fetch('/api/ai/history');
+  async getHistory(): Promise<SeedanceHistoryItem[]> {
+    const headers = await getAuthHeaders(false);
+    const res = await fetch('/api/ai/history', { headers });
     if (!res.ok) {
       return [];
     }
     const data = await res.json();
-    const allItems: PosBotHistoryItem[] = Array.isArray(data.items) ? data.items : [];
-    // Prioritize Seedance 2.5 generations or include all for comprehensive view
+    const allItems: SeedanceHistoryItem[] = Array.isArray(data.items) ? data.items : [];
     return allItems;
   }
 
   /**
-   * Deletes a generation history entry
+   * Deletes a generation history entry (user-scoped, authenticated)
    */
   async deleteHistoryEntry(idOrJobCode: string): Promise<boolean> {
     try {
+      const headers = await getAuthHeaders(false);
       const res = await fetch(`/api/ai/history/${encodeURIComponent(idOrJobCode)}`, {
         method: 'DELETE',
+        headers,
       });
       return res.ok;
     } catch {

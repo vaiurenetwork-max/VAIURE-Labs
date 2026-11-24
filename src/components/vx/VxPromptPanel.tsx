@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Copy,
@@ -52,6 +52,15 @@ export const VxPromptPanel: React.FC<VxPromptPanelProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [refinementInput, setRefinementInput] = useState('');
   const [showRefineModal, setShowRefineModal] = useState(false);
+
+  useEffect(() => {
+    if (!showRefineModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowRefineModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showRefineModal]);
 
   // Compute live character and word counts
   const charCount = editedPrompt.length;
@@ -108,19 +117,16 @@ export const VxPromptPanel: React.FC<VxPromptPanelProps> = ({
   return (
     <div className="flex flex-col h-full bg-[#0d0f12] border border-white/[0.08] rounded-xl overflow-hidden shadow-2xl">
       {/* Panel Header */}
-      <div className="px-4 py-3 border-b border-white/[0.08] bg-black/40 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-amber-400/90 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-          <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-white/90 font-semibold">
-            PANEL C · PROMPT SYNTHESIS & OUTPUT
-          </span>
-        </div>
+      <div className="px-4 py-3 border-b border-white/[0.08] bg-black/40 flex items-center justify-between shrink-0 gap-2">
+        <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-white/90 font-semibold truncate">
+          PANEL C · PROMPT SYNTHESIS
+        </span>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('prompt')}
-            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'prompt'
                 ? 'bg-white text-black font-semibold'
                 : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
@@ -131,7 +137,7 @@ export const VxPromptPanel: React.FC<VxPromptPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('command')}
-            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'command'
                 ? 'bg-white text-black font-semibold'
                 : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
@@ -142,7 +148,7 @@ export const VxPromptPanel: React.FC<VxPromptPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('json')}
-            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer ${
+            className={`px-2 py-1 rounded text-[10px] font-mono transition-colors cursor-pointer whitespace-nowrap ${
               activeTab === 'json'
                 ? 'bg-white text-black font-semibold'
                 : 'text-white/60 hover:text-white hover:bg-white/[0.05]'
@@ -156,7 +162,7 @@ export const VxPromptPanel: React.FC<VxPromptPanelProps> = ({
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
         {/* Metric Strip */}
-        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/30 border border-white/[0.06] text-[10px] font-mono text-white/60">
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-black/30 border border-white/[0.06] text-[10px] font-mono text-white/60 tabular-nums">
           <div className="flex items-center gap-3">
             <span>
               CHARS: <strong className="text-white">{charCount}</strong>
@@ -173,7 +179,7 @@ export const VxPromptPanel: React.FC<VxPromptPanelProps> = ({
             <span className="text-cyan-400 font-medium truncate max-w-[130px]">
               {result?.modelUsed || activeModelLabel || 'Gemini 3.8'}
             </span>
-            <span className="text-emerald-400">●</span>
+            <span className="text-white/30" aria-hidden="true">·</span>
             <span className="text-white/80">
               {result ? 'SYNTHESIZED' : 'READY'}
             </span>

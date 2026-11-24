@@ -150,18 +150,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenSubmit }) => {
               </div>
             ) : (
               <form onSubmit={handleSubscribe} className="space-y-2">
-                <div className="flex border border-white/20 focus-within:border-white transition-colors bg-neutral-950">
+                <div className="flex border border-white/20 focus-within:border-white transition-colors bg-neutral-950 min-h-[44px]">
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder={t('yourEmail')}
-                    className="w-full bg-transparent px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none uppercase font-mono"
+                    className="w-full bg-transparent px-3 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none uppercase font-mono"
                   />
                   <button
                     type="submit"
-                    className="px-3.5 py-2 text-xs font-mono tracking-wider text-white hover:text-neutral-300 transition-colors uppercase border-l border-white/20 flex items-center cursor-pointer"
+                    className="min-w-[44px] px-3.5 py-2 text-xs font-mono tracking-wider text-white hover:text-neutral-300 transition-colors uppercase border-l border-white/20 flex items-center justify-center cursor-pointer"
                     aria-label="Subscribe to archive"
                   >
                     <ArrowRight className="w-3.5 h-3.5" />

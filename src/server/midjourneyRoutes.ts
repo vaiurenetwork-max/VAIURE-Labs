@@ -1,5 +1,15 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
+import {
+  requireFirebaseAuth,
+  requireAdmin,
+} from './firebaseAuthMiddleware';
+import {
+  aiLimiter,
+  isSafeDiscordSnowflake,
+  sanitizeErrorMessage,
+} from './securityMiddleware';
+import { seedanceCuratedStore } from './seedanceCuratedStore';
 
 export const midjourneyRouter = Router();
 
@@ -34,6 +44,11 @@ function cleanVal(val?: string): string {
   return isPlaceholder(trimmed) ? '' : trimmed;
 }
 
+function cleanSnowflakeVal(val?: string): string {
+  const cleaned = cleanVal(val);
+  return isSafeDiscordSnowflake(cleaned) ? cleaned : '';
+}
+
 export function resolveDiscordConfig(reqOverride?: Partial<RuntimeDiscordConfig>) {
   const discordToken =
     cleanVal(reqOverride?.discordToken) ||
@@ -41,19 +56,19 @@ export function resolveDiscordConfig(reqOverride?: Partial<RuntimeDiscordConfig>
     cleanVal(process.env.DISCORD_TOKEN);
 
   const guildId =
-    cleanVal(reqOverride?.guildId) ||
-    cleanVal(runtimeOverride.guildId) ||
-    cleanVal(process.env.GUILD_ID);
+    cleanSnowflakeVal(reqOverride?.guildId) ||
+    cleanSnowflakeVal(runtimeOverride.guildId) ||
+    cleanSnowflakeVal(process.env.GUILD_ID);
 
   const channelId =
-    cleanVal(reqOverride?.channelId) ||
-    cleanVal(runtimeOverride.channelId) ||
-    cleanVal(process.env.CHANNEL_ID);
+    cleanSnowflakeVal(reqOverride?.channelId) ||
+    cleanSnowflakeVal(runtimeOverride.channelId) ||
+    cleanSnowflakeVal(process.env.CHANNEL_ID);
 
   const applicationId =
-    cleanVal(reqOverride?.applicationId) ||
-    cleanVal(runtimeOverride.applicationId) ||
-    cleanVal(process.env.MIDJOURNEY_APP_ID) ||
+    cleanSnowflakeVal(reqOverride?.applicationId) ||
+    cleanSnowflakeVal(runtimeOverride.applicationId) ||
+    cleanSnowflakeVal(process.env.MIDJOURNEY_APP_ID) ||
     DEFAULT_MJ_APP_ID;
 
   const commandId =
@@ -208,7 +223,7 @@ function matchMidjourneyMessage(
  * GET /api/midjourney/status
  * Checks whether DISCORD_TOKEN, GUILD_ID, and CHANNEL_ID are configured via manual UI or server env.
  */
-midjourneyRouter.get('/status', (_req: Request, res: Response) => {
+midjourneyRouter.get('/status', requireFirebaseAuth, (_req: Request, res: Response) => {
   const cfg = resolveDiscordConfig();
   res.json({
     configured: cfg.isConfigured,
@@ -217,8 +232,6 @@ midjourneyRouter.get('/status', (_req: Request, res: Response) => {
     applicationId: cfg.applicationId,
     commandId: cfg.commandId,
     commandVersion: cfg.commandVersion,
-    guildId: cfg.guildId || '',
-    channelId: cfg.channelId || '',
     hasToken: Boolean(cfg.discordToken),
     tokenMasked: cfg.discordToken
       ? `${cfg.discordToken.slice(0, 4)}••••${cfg.discordToken.slice(-4)}`
@@ -230,9 +243,9 @@ midjourneyRouter.get('/status', (_req: Request, res: Response) => {
 
 /**
  * POST /api/midjourney/config
- * Saves or clears manual Discord & Midjourney environment variables from the UI.
+ * Admin-only: saves or clears manual Discord & Midjourney environment variables.
  */
-midjourneyRouter.post('/config', (req: Request, res: Response) => {
+midjourneyRouter.post('/config', requireFirebaseAuth, requireAdmin, (req: Request, res: Response) => {
   const {
     discordToken,
     guildId,
@@ -261,21 +274,23 @@ midjourneyRouter.post('/config', (req: Request, res: Response) => {
         ? discordToken.trim()
         : runtimeOverride.discordToken,
     guildId:
-      typeof guildId === 'string' && guildId.trim() ? guildId.trim() : runtimeOverride.guildId,
+      typeof guildId === 'string' && isSafeDiscordSnowflake(guildId)
+        ? guildId.trim()
+        : runtimeOverride.guildId,
     channelId:
-      typeof channelId === 'string' && channelId.trim()
+      typeof channelId === 'string' && isSafeDiscordSnowflake(channelId)
         ? channelId.trim()
         : runtimeOverride.channelId,
     applicationId:
-      typeof applicationId === 'string' && applicationId.trim()
+      typeof applicationId === 'string' && isSafeDiscordSnowflake(applicationId)
         ? applicationId.trim()
         : runtimeOverride.applicationId,
     commandId:
-      typeof commandId === 'string' && commandId.trim()
+      typeof commandId === 'string' && isSafeDiscordSnowflake(commandId)
         ? commandId.trim()
         : runtimeOverride.commandId,
     commandVersion:
-      typeof commandVersion === 'string' && commandVersion.trim()
+      typeof commandVersion === 'string' && isSafeDiscordSnowflake(commandVersion)
         ? commandVersion.trim()
         : runtimeOverride.commandVersion,
   };
@@ -289,8 +304,6 @@ midjourneyRouter.post('/config', (req: Request, res: Response) => {
     applicationId: cfg.applicationId,
     commandId: cfg.commandId,
     commandVersion: cfg.commandVersion,
-    guildId: cfg.guildId,
-    channelId: cfg.channelId,
     hasToken: Boolean(cfg.discordToken),
     tokenMasked: cfg.discordToken
       ? `${cfg.discordToken.slice(0, 4)}••••${cfg.discordToken.slice(-4)}`
@@ -304,7 +317,7 @@ midjourneyRouter.post('/config', (req: Request, res: Response) => {
  * POST /api/midjourney/verify
  * Tests the provided or saved Discord credentials by fetching the target Discord channel metadata.
  */
-midjourneyRouter.post('/verify', async (req: Request, res: Response) => {
+midjourneyRouter.post('/verify', requireFirebaseAuth, async (req: Request, res: Response) => {
   const cfg = resolveDiscordConfig(req.body);
   if (!cfg.isConfigured) {
     return res.status(400).json({
@@ -339,7 +352,7 @@ midjourneyRouter.post('/verify', async (req: Request, res: Response) => {
   } catch (err: any) {
     return res.status(500).json({
       ok: false,
-      error: err?.message || 'Failed to reach Discord API.',
+      error: sanitizeErrorMessage(err, 'Failed to reach Discord API.'),
     });
   }
 });
@@ -349,7 +362,7 @@ midjourneyRouter.post('/verify', async (req: Request, res: Response) => {
  * Step 1: Triggers the Discord /imagine interaction and returns immediately so the UI
  * can poll /api/midjourney/poll and display real-time Discord render percentages.
  */
-midjourneyRouter.post('/trigger', async (req: Request, res: Response) => {
+midjourneyRouter.post('/trigger', requireFirebaseAuth, aiLimiter, async (req: Request, res: Response) => {
   const { prompt, discordToken, guildId, channelId, applicationId, commandId, commandVersion } =
     req.body || {};
 
@@ -424,7 +437,7 @@ midjourneyRouter.post('/trigger', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: error?.message || 'Failed to dispatch Discord /imagine interaction.',
+      error: sanitizeErrorMessage(error, 'Failed to dispatch Discord /imagine interaction.'),
     });
   }
 });
@@ -452,7 +465,7 @@ let activeBackendJob: ActiveBackendPollState = {
   updatedAt: Date.now(),
 };
 
-midjourneyRouter.get('/active-status', (_req: Request, res: Response) => {
+midjourneyRouter.get('/active-status', requireFirebaseAuth, (_req: Request, res: Response) => {
   res.json(activeBackendJob);
 });
 
@@ -537,6 +550,21 @@ async function handlePollRequest(req: Request, res: Response) {
         imageUrl: match.imageUrl,
         updatedAt: Date.now(),
       };
+      if (req.verifiedUser?.uid) {
+        seedanceCuratedStore.ingestCompletedGeneration({
+          ownerId: req.verifiedUser.uid,
+          ownerName: req.verifiedUser.name,
+          ownerAvatar: req.verifiedUser.picture,
+          sourceJobId: `mj-${match.message?.id || Date.now()}`,
+          sourcePipeline: 'midjourney',
+          mediaType: 'IMAGE',
+          outputUrls: [match.imageUrl],
+          aiModel: 'Midjourney',
+          modelCategory: 'Image',
+          prompt,
+          parameters: { width: match.width, height: match.height },
+        });
+      }
       return res.json({
         success: true,
         status: 'COMPLETED',
@@ -577,13 +605,13 @@ async function handlePollRequest(req: Request, res: Response) {
     });
   } catch (error: any) {
     return res.status(500).json({
-      error: error?.message || 'Discord message history poll error.',
+      error: sanitizeErrorMessage(error, 'Discord message history poll error.'),
     });
   }
 }
 
-midjourneyRouter.get('/poll', handlePollRequest);
-midjourneyRouter.post('/poll', handlePollRequest);
+midjourneyRouter.get('/poll', requireFirebaseAuth, aiLimiter, handlePollRequest);
+midjourneyRouter.post('/poll', requireFirebaseAuth, aiLimiter, handlePollRequest);
 
 /**
  * POST /api/generate (and POST /api/generate-image, POST /api/midjourney/generate)
@@ -734,6 +762,21 @@ export async function handleMidjourneyLongPollGenerate(req: Request, res: Respon
       return res.status(504).json({ error: 'Midjourney timeout or generation failed.' });
     }
 
+    if (req.verifiedUser?.uid) {
+      seedanceCuratedStore.ingestCompletedGeneration({
+        ownerId: req.verifiedUser.uid,
+        ownerName: req.verifiedUser.name,
+        ownerAvatar: req.verifiedUser.picture,
+        sourceJobId: `mj-${triggeredAt}`,
+        sourcePipeline: 'midjourney',
+        mediaType: 'IMAGE',
+        outputUrls: [imageUrl],
+        aiModel: 'Midjourney',
+        modelCategory: 'Image',
+        prompt: cleanPrompt,
+      });
+    }
+
     return res.json({
       success: true,
       imageUrl,
@@ -741,8 +784,8 @@ export async function handleMidjourneyLongPollGenerate(req: Request, res: Respon
     });
   } catch (error: any) {
     console.error('Midjourney Discord Bridge Error:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Internal server error' });
+    return res.status(500).json({ error: sanitizeErrorMessage(error, 'Internal server error') });
   }
 }
 
-midjourneyRouter.post('/generate', handleMidjourneyLongPollGenerate);
+midjourneyRouter.post('/generate', requireFirebaseAuth, aiLimiter, handleMidjourneyLongPollGenerate);

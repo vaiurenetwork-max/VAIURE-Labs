@@ -70,18 +70,9 @@ export const SeedanceTopUpModal: React.FC<SeedanceTopUpModalProps> = ({
     if (!selectedPackage) return;
     setIsProcessing(true);
     try {
-      const response = await seedancePlatformService.purchasePackage(
-        userId,
-        selectedPackage.id,
-        paymentMethod
-      );
-      setPurchasedResult({
-        package: selectedPackage,
-        newBalance: response.balance,
-      });
-      setStep('success');
-      if (onCreditsPurchased) {
-        onCreditsPurchased(response.balance);
+      const response = await seedancePlatformService.initiateCheckout(selectedPackage.id);
+      if (response.checkoutUrl) {
+        window.location.assign(response.checkoutUrl);
       }
     } catch (err) {
       console.error('Checkout failed:', err);

@@ -55,7 +55,7 @@ export const SeedanceMembershipModal: React.FC<SeedanceMembershipModalProps> = (
     try {
       const [fetchedPlans, sub] = await Promise.all([
         seedancePlatformService.getMembershipPlans(),
-        seedancePlatformService.getUserSubscription(userId),
+        seedancePlatformService.getUserSubscription(),
       ]);
       setPlans(fetchedPlans);
       setCurrentSub(sub);
@@ -70,16 +70,20 @@ export const SeedanceMembershipModal: React.FC<SeedanceMembershipModalProps> = (
     setIsProcessing(true);
     setNotification(null);
     try {
-      const updated = await seedancePlatformService.updateSubscription(userId, plan.tier);
-      setCurrentSub(updated);
-      setSelectedTier(updated.tier);
+      const res = await seedancePlatformService.updateSubscription(plan.tier);
+      if (res.requiresCheckout && res.checkoutUrl) {
+        window.location.assign(res.checkoutUrl);
+        return;
+      }
+      if (res.subscription) {
+        setCurrentSub(res.subscription);
+        setSelectedTier(res.subscription.tier);
+        onSubscriptionUpdated?.(res.subscription);
+      }
       setNotification({
         type: 'success',
-        message: `Plan successfully updated to ${plan.name}! ${plan.monthlyCredits} monthly credits allocated.`,
+        message: res.message || `Plan updated to ${plan.name}.`,
       });
-      if (onSubscriptionUpdated) {
-        onSubscriptionUpdated(updated);
-      }
     } catch (err: any) {
       setNotification({
         type: 'error',
@@ -94,16 +98,16 @@ export const SeedanceMembershipModal: React.FC<SeedanceMembershipModalProps> = (
     setIsProcessing(true);
     setNotification(null);
     try {
-      const updated = await seedancePlatformService.cancelSubscription(userId);
-      setCurrentSub(updated);
+      const res = await seedancePlatformService.cancelSubscription();
+      setCurrentSub(res.subscription);
       setConfirmCancel(false);
       setNotification({
         type: 'success',
-        message: 'Your subscription will not renew after the current cycle. Completed projects remain intact.',
+        message:
+          res.message ||
+          'Your subscription will not renew after the current cycle. Completed projects remain intact.',
       });
-      if (onSubscriptionUpdated) {
-        onSubscriptionUpdated(updated);
-      }
+      onSubscriptionUpdated?.(res.subscription);
     } catch (err: any) {
       setNotification({
         type: 'error',

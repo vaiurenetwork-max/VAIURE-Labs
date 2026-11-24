@@ -5,6 +5,7 @@
  */
 
 import { db, doc, setDoc, getDocs, collection, updateDoc, writeBatch } from '../lib/firebase';
+import { getAuthHeaders } from '../lib/authHeaders';
 import { UserSession } from '../types/settings';
 
 /**
@@ -216,7 +217,7 @@ export async function signOutEverywhere(uid: string): Promise<void> {
     // 2. Notify server-side revocation endpoint
     await fetch('/api/auth/session/revoke-all', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ uid }),
     }).catch(() => {});
 

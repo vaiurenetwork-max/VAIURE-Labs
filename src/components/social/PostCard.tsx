@@ -33,6 +33,7 @@ interface PostCardProps {
   onOpenProfile: (username: string) => void;
   onOpenModeration: (postId: string, authorId: string) => void;
   onInlineComment: (postId: string, text: string) => void;
+  onTagClick?: (tag: string) => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({
@@ -48,11 +49,12 @@ export const PostCard: React.FC<PostCardProps> = ({
   onOpenProfile,
   onOpenModeration,
   onInlineComment,
+  onTagClick,
 }) => {
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const [isPlayingVideo, setIsPlayingVideo] = useState(false);
   const [inlineText, setInlineText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [failedMediaIdx, setFailedMediaIdx] = useState<Record<number, boolean>>({});
 
   const handleCopyLink = async () => {
     try {
@@ -81,7 +83,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   };
 
   return (
-    <article className="w-full bg-neutral-950 border border-white/10 hover:border-white/20 transition-all duration-300 overflow-hidden text-white flex flex-col">
+    <article className="w-full bg-[#0a0a0d] border border-white/[0.09] hover:border-white/25 transition-all duration-300 overflow-hidden text-white flex flex-col">
       {/* Repost Header if this is a repost */}
       {post.repostedBy && (
         <div className="bg-neutral-900/60 border-b border-white/5 px-6 py-2 flex items-center justify-between text-[11px] font-mono text-white/50">
@@ -192,15 +194,23 @@ export const PostCard: React.FC<PostCardProps> = ({
             />
           </div>
         ) : (
-          <div className="relative w-full overflow-hidden aspect-[4/5] sm:aspect-[16/10] bg-black">
-            {Boolean(currentMedia?.url && currentMedia.url.trim()) ? (
+          <div className="relative w-full overflow-hidden aspect-[4/5] sm:aspect-[16/10] bg-black flex items-center justify-center">
+            {Boolean(currentMedia?.url && currentMedia.url.trim()) && !failedMediaIdx[carouselIndex] ? (
               <img
                 src={currentMedia.url}
                 alt={post.title}
                 referrerPolicy="no-referrer"
-                className="w-full h-full object-cover filter grayscale contrast-[1.1]"
+                onError={() =>
+                  setFailedMediaIdx((prev) => ({ ...prev, [carouselIndex]: true }))
+                }
+                className="w-full h-full object-cover filter grayscale contrast-[1.1] transition-transform duration-700 hover:scale-[1.015]"
               />
-            ) : null}
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 text-white/30 font-mono text-[10px] tracking-[0.2em] uppercase p-6">
+                <span>ARCHIVAL FRAME UNAVAILABLE</span>
+                <span className="text-[9px] text-white/20">{post.category}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -334,9 +344,14 @@ export const PostCard: React.FC<PostCardProps> = ({
         {post.tags && post.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
             {post.tags.map((tag) => (
-              <span key={tag} className="text-xs font-mono text-white/60 hover:text-white cursor-pointer">
+              <button
+                type="button"
+                key={tag}
+                onClick={() => onTagClick?.(tag)}
+                className="text-xs font-mono text-white/55 hover:text-white transition-colors cursor-pointer"
+              >
                 {tag}
-              </span>
+              </button>
             ))}
           </div>
         )}

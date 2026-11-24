@@ -118,8 +118,8 @@ export const SeedanceStudioWorkspace: React.FC<SeedanceStudioWorkspaceProps> = (
   const refreshUserWallet = async () => {
     try {
       const [bal, sub] = await Promise.all([
-        seedancePlatformService.getWalletBalance(userId),
-        seedancePlatformService.getUserSubscription(userId),
+        seedancePlatformService.getWalletBalance(),
+        seedancePlatformService.getUserSubscription(),
       ]);
       setWallet(bal);
       setSubscription(sub);
@@ -142,9 +142,9 @@ export const SeedanceStudioWorkspace: React.FC<SeedanceStudioWorkspaceProps> = (
   // Seedance Schedule cost calculation
   const calculateCreditCost = (res: Resolution, dur: DurationSeconds): number => {
     const SCHEDULE: Record<Resolution, Record<DurationSeconds, number>> = {
-      '480p': { 5: 25, 10: 50, 15: 75, 30: 150 },
-      '720p': { 5: 55, 10: 110, 15: 165, 30: 330 },
-      '1080p': { 5: 135, 10: 270, 15: 405, 30: 810 },
+      '480p': { 5: 25, 10: 50, 15: 75, 20: 100, 30: 150 },
+      '720p': { 5: 55, 10: 110, 15: 165, 20: 220, 30: 330 },
+      '1080p': { 5: 135, 10: 270, 15: 405, 20: 540, 30: 810 },
     };
     return SCHEDULE[res]?.[dur] || 55;
   };
@@ -199,25 +199,25 @@ export const SeedanceStudioWorkspace: React.FC<SeedanceStudioWorkspaceProps> = (
     setPublishedSuccess(false);
 
     try {
+      const modeMap = {
+        text_to_video: 'text-to-video',
+        image_to_video: 'image-to-video',
+        reference_consistency: 'ref-video',
+      } as const;
+
       const response = await seedancePlatformService.startGeneration({
-        userId,
         prompt: prompt.trim(),
         negativePrompt: negativePrompt.trim(),
         resolution,
-        durationSeconds,
-        aspectRatio,
-        workflowMode,
-        referenceImages: referenceImages.map((r) => ({
-          url: r.url,
-          label: r.role,
-        })),
-        characterConsistency: lockCharacterFace,
-        wardrobeLock: lockWardrobe,
+        duration: durationSeconds,
+        aspectRatio: aspectRatio === '2.39:1' ? '16:9' : aspectRatio,
+        mode: modeMap[workflowMode],
+        referenceImages: referenceImages.map((r) => r.url),
         vehicleLock: lockVehicleOrientation,
       });
 
-      if (!response.ok || !response.job) {
-        throw new Error(response.error || 'Failed to start generation job');
+      if (!response.job) {
+        throw new Error('Failed to start generation job');
       }
 
       setActiveJob(response.job);
@@ -225,21 +225,19 @@ export const SeedanceStudioWorkspace: React.FC<SeedanceStudioWorkspaceProps> = (
       // Start polling status
       const interval = setInterval(async () => {
         try {
-          const poll = await seedancePlatformService.getJobStatus(response.job.id);
-          if (poll.ok && poll.job) {
-            setActiveJob(poll.job);
+          const job = await seedancePlatformService.getJobStatus(response.job.id);
+          setActiveJob(job);
 
-            if (poll.job.status === 'COMPLETED' || poll.job.status === 'FAILED') {
-              clearInterval(interval);
-              setIsGenerating(false);
-              refreshUserWallet();
+          if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+            clearInterval(interval);
+            setIsGenerating(false);
+            refreshUserWallet();
 
-              if (poll.job.status === 'FAILED') {
-                setErrorMsg(
-                  poll.job.errorReason ||
-                    'Seedance API generation failed. Reserved credits have been automatically refunded to your wallet.'
-                );
-              }
+            if (job.status === 'FAILED') {
+              setErrorMsg(
+                job.errorReason ||
+                  'Seedance API generation failed. Reserved credits have been automatically refunded to your wallet.'
+              );
             }
           }
         } catch (pollErr) {

@@ -9,13 +9,8 @@ import {
   MessageSquare,
   Search,
   Plus,
-  Sparkles,
-  TrendingUp,
-  Filter,
-  Hash,
-  Terminal,
-  Layers,
 } from 'lucide-react';
+import { VaiureEmptyState } from '../ui/VaiurePrimitives';
 
 interface ForumSectionProps {
   currentUser: UserProfile;
@@ -43,6 +38,7 @@ export const ForumSection: React.FC<ForumSectionProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTopic, setSelectedTopic] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'RECENT' | 'MOST_LIKED'>('RECENT');
   const [isNewThreadOpen, setIsNewThreadOpen] = useState(false);
 
   // Subscribe to real-time forum threads
@@ -69,17 +65,24 @@ export const ForumSection: React.FC<ForumSectionProps> = ({
     setIsNewThreadOpen(true);
   };
 
-  // Filter threads by search query
-  const filteredThreads = threads.filter((t) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      t.content.toLowerCase().includes(q) ||
-      t.authorUsername.toLowerCase().includes(q) ||
-      t.authorDisplayName.toLowerCase().includes(q) ||
-      t.topic.toLowerCase().includes(q)
-    );
-  });
+  // Filter & sort threads
+  const filteredThreads = threads
+    .filter((t) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        t.content.toLowerCase().includes(q) ||
+        t.authorUsername.toLowerCase().includes(q) ||
+        t.authorDisplayName.toLowerCase().includes(q) ||
+        t.topic.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === 'MOST_LIKED') {
+        return (b.likesCount || 0) - (a.likesCount || 0);
+      }
+      return 0;
+    });
 
   return (
     <section id="forum" className="w-full bg-[#050507] text-white py-12 md:py-20 border-t border-white/10 select-text">
@@ -110,7 +113,7 @@ export const ForumSection: React.FC<ForumSectionProps> = ({
         {/* Inline Quick Composer Bar */}
         <div
           onClick={handleOpenComposer}
-          className="p-4 bg-[#0d0d10] border border-white/15 rounded-xl hover:border-white/30 transition-all cursor-pointer shadow-lg mb-8 flex items-center gap-3.5"
+          className="p-4 bg-[#0a0a0d] border border-white/[0.09] hover:border-white/30 transition-all cursor-pointer mb-8 flex items-center gap-3.5"
         >
           <div className="w-9 h-9 rounded-full overflow-hidden border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white/70">
             {currentUser.avatar ? (
@@ -120,40 +123,59 @@ export const ForumSection: React.FC<ForumSectionProps> = ({
                 className="w-full h-full object-cover filter grayscale"
               />
             ) : (
-              <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'IV'}</span>
+              <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
             )}
           </div>
-          <div className="flex-1 text-xs text-white/40 font-sans tracking-wide">
+          <div className="flex-1 text-xs text-white/45 font-sans tracking-wide">
             {t('postAThreadPlaceholder')}
           </div>
           <button
             type="button"
-            className="px-3.5 py-1.5 bg-white/10 text-white font-mono text-[11px] uppercase tracking-wider rounded-lg border border-white/15 hover:bg-white/20 transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 bg-white/10 text-white font-mono text-[11px] uppercase tracking-wider border border-white/15 hover:bg-white/20 transition-colors cursor-pointer"
           >
             {t('post')}
           </button>
         </div>
 
-        {/* Topics Filter & Search Bar */}
+        {/* Topics Filter, Sort & Search Bar */}
         <div className="space-y-4 mb-6">
-          {/* Topic Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {TOPICS.map((top) => {
-              const isSelected = selectedTopic === top.value;
-              return (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Topic Chips */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-1">
+              {TOPICS.map((top) => {
+                const isSelected = selectedTopic === top.value;
+                return (
+                  <button
+                    key={top.value}
+                    onClick={() => setSelectedTopic(top.value)}
+                    className={`px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition-colors border cursor-pointer ${
+                      isSelected
+                        ? 'bg-white text-black border-white font-medium'
+                        : 'border-white/15 text-white/60 hover:border-white/30 hover:text-white bg-[#0a0a0d]'
+                    }`}
+                  >
+                    {top.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-1 text-[10px] font-mono shrink-0">
+              {(['RECENT', 'MOST_LIKED'] as const).map((mode) => (
                 <button
-                  key={top.value}
-                  onClick={() => setSelectedTopic(top.value)}
-                  className={`px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider whitespace-nowrap transition-colors border ${
-                    isSelected
-                      ? 'bg-white text-black border-white font-medium'
-                      : 'border-white/15 text-white/60 hover:border-white/30 hover:text-white bg-black/40'
+                  key={mode}
+                  type="button"
+                  onClick={() => setSortBy(mode)}
+                  className={`px-2.5 py-1.5 border transition-colors cursor-pointer ${
+                    sortBy === mode
+                      ? 'border-white bg-white text-black font-semibold'
+                      : 'border-white/15 text-white/50 hover:text-white'
                   }`}
                 >
-                  {top.label}
+                  {mode === 'RECENT' ? 'RECENT' : 'MOST LIKED'}
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
 
           {/* Search Input */}
@@ -164,35 +186,40 @@ export const ForumSection: React.FC<ForumSectionProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search dispatches, prompt keywords, authors, or topics..."
-              className="w-full bg-[#0d0d10] border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 font-sans"
+              className="w-full bg-[#0a0a0d] border border-white/[0.09] pl-10 pr-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 font-sans"
             />
           </div>
         </div>
 
         {/* Thread Feed Stream */}
-        <div className="bg-[#09090b] border border-white/15 rounded-xl divide-y divide-white/10 shadow-2xl overflow-hidden">
+        <div className="bg-[#0a0a0d] border border-white/[0.09] divide-y divide-white/[0.08] overflow-hidden">
           {isLoading ? (
             <div className="py-24 text-center space-y-3 font-mono text-xs text-white/40 uppercase tracking-widest">
               <span>LOADING THREADS...</span>
             </div>
           ) : filteredThreads.length === 0 ? (
-            <div className="py-24 text-center space-y-3 px-6">
-              <MessageSquare className="w-8 h-8 text-white/20 mx-auto" />
-              <h3 className="text-sm font-serif uppercase tracking-tight text-white font-medium">
-                NO THREADS FOUND
-              </h3>
-              <p className="text-xs text-white/40 font-light max-w-sm mx-auto">
-                {searchQuery
+            <VaiureEmptyState
+              className="border-0"
+              icon={<MessageSquare className="w-5 h-5" />}
+              eyebrow="FORUM DISCOURSE"
+              title="NO THREADS FOUND"
+              description={
+                searchQuery
                   ? 'No threads match your search terms.'
-                  : 'Be the first creator to start a conversation in this topic.'}
-              </p>
-              <button
-                onClick={handleOpenComposer}
-                className="mt-2 px-4 py-2 bg-white text-black text-xs font-mono uppercase font-semibold hover:bg-neutral-200 transition-colors inline-block cursor-pointer"
-              >
-                START A THREAD
-              </button>
-            </div>
+                  : 'Be the first creator to start a conversation in this topic.'
+              }
+              actionLabel="START A THREAD"
+              onAction={handleOpenComposer}
+              secondaryLabel={searchQuery || selectedTopic !== 'ALL' ? 'RESET FILTERS' : undefined}
+              onSecondaryAction={
+                searchQuery || selectedTopic !== 'ALL'
+                  ? () => {
+                      setSearchQuery('');
+                      setSelectedTopic('ALL');
+                    }
+                  : undefined
+              }
+            />
           ) : (
             filteredThreads.map((thread) => (
               <ForumThreadCard

@@ -45,6 +45,7 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
   const [replyInput, setReplyInput] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Sync state with thread prop
   useEffect(() => {
@@ -118,9 +119,8 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
   };
 
   const handleDelete = async () => {
-    if (confirm('Delete this dispatch from the archive?')) {
-      await deleteForumThread(thread.id);
-    }
+    await deleteForumThread(thread.id);
+    setConfirmDelete(false);
   };
 
   const isAuthor = currentUser.id === thread.authorId;
@@ -194,13 +194,33 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
         {/* Options */}
         <div className="flex items-center gap-1">
           {isAuthor && (
-            <button
-              onClick={handleDelete}
-              title="Delete thread"
-              className="text-white/30 hover:text-red-400 p-1.5 transition-colors rounded"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            confirmDelete ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="px-2 py-1 bg-red-500 text-white text-[10px] font-mono uppercase font-bold cursor-pointer"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-2 py-1 border border-white/20 text-white/70 hover:text-white text-[10px] font-mono uppercase cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                title="Delete thread"
+                className="text-white/30 hover:text-red-400 p-1.5 transition-colors rounded cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )
           )}
         </div>
       </div>

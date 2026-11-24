@@ -69,6 +69,7 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
 
   const [isLoading, setIsLoading] = useState(false);
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [selectedUserForAction, setSelectedUserForAction] = useState<any | null>(null);
   const [actionReason, setActionReason] = useState('');
@@ -132,8 +133,15 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
   if (!isOpen) return null;
 
   const showToast = (msg: string) => {
+    setActionErrorMessage(null);
     setActionSuccessMessage(msg);
-    setTimeout(() => setActionSuccessMessage(null), 3000);
+    setTimeout(() => setActionSuccessMessage(null), 3500);
+  };
+
+  const showError = (msg: string) => {
+    setActionSuccessMessage(null);
+    setActionErrorMessage(msg);
+    setTimeout(() => setActionErrorMessage(null), 5000);
   };
 
   const handleToggleSetting = async (key: keyof SystemSettings, currentVal: boolean) => {
@@ -144,7 +152,7 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
       setSystemSettings(updated);
       showToast(`System setting "${key}" updated.`);
     } catch (err: any) {
-      alert(err.message || 'Failed to update system settings');
+      showError(err.message || 'Failed to update system settings');
     }
   };
 
@@ -156,7 +164,7 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
       setSystemSettings(updated);
       showToast(`System setting "${key}" updated to ${val}.`);
     } catch (err: any) {
-      alert(err.message || 'Failed to update system settings');
+      showError(err.message || 'Failed to update system settings');
     }
   };
 
@@ -181,7 +189,7 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
       snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
       setAllUsers(list);
     } catch (err: any) {
-      alert(err.message || 'Action failed');
+      showError(err.message || 'Action failed');
     } finally {
       setIsLoading(false);
     }
@@ -198,13 +206,13 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
       );
       showToast(`Wallet ${nextFreeze ? 'FROZEN' : 'UNFROZEN'} successfully.`);
     } catch (err: any) {
-      alert(err.message || 'Failed to toggle wallet freeze state');
+      showError(err.message || 'Failed to toggle wallet freeze state');
     }
   };
 
   const handleExecuteTreasuryGrant = async () => {
     if (!grantRecipient.trim() || grantAmount <= 0) {
-      alert('Valid recipient username and grant amount greater than 0 are required.');
+      showError('Valid recipient username and grant amount greater than 0 are required.');
       return;
     }
     setIsGranting(true);
@@ -221,11 +229,11 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
           actorEmail: currentUser.email,
         }
       );
-      showToast(`⚡ Direct Treasury Grant of +${grantAmount} ${grantCurrency} sent to @${grantRecipient.replace('@', '')}!`);
+      showToast(`Direct Treasury Grant of +${grantAmount} ${grantCurrency} sent to @${grantRecipient.replace('@', '')}.`);
       setGrantRecipient('');
       setGrantNote('');
     } catch (err: any) {
-      alert(err.message || 'Treasury grant failed');
+      showError(err.message || 'Treasury grant failed');
     } finally {
       setIsGranting(false);
     }
@@ -243,9 +251,9 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
         currentUser.email,
         'SUPER_ADMIN'
       );
-      showToast(`⚡ Free Super Admin Top-Up (+${amount} ${selfTopUpCurrency}) credited successfully!`);
+      showToast(`Free Super Admin Top-Up (+${amount} ${selfTopUpCurrency}) credited successfully.`);
     } catch (err: any) {
-      alert(err.message || 'Free top-up failed');
+      showError(err.message || 'Free top-up failed');
     } finally {
       setIsSelfTopUpProcessing(false);
     }
@@ -302,11 +310,35 @@ export const IvntriAdminModal: React.FC<IvntriAdminModalProps> = ({
           </button>
         </div>
 
-        {/* Action Toast */}
+        {/* Action Toast & Error Banner */}
         {actionSuccessMessage && (
-          <div className="px-6 py-2 bg-emerald-950 border-b border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center gap-2 animate-fadeIn">
-            <CheckCircle className="w-4 h-4 text-emerald-400" />
-            <span>{actionSuccessMessage}</span>
+          <div className="px-6 py-2.5 bg-emerald-950 border-b border-emerald-500/40 text-emerald-300 text-xs font-mono flex items-center justify-between gap-2 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{actionSuccessMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionSuccessMessage(null)}
+              className="text-emerald-300/60 hover:text-emerald-200 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {actionErrorMessage && (
+          <div className="px-6 py-2.5 bg-red-950/90 border-b border-red-500/40 text-red-200 text-xs font-mono flex items-center justify-between gap-2 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{actionErrorMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionErrorMessage(null)}
+              className="text-red-300/60 hover:text-red-200 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 

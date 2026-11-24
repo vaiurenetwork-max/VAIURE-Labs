@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { UserProfile } from '../types/social';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Users } from 'lucide-react';
 import { useLanguage } from '../services/i18n';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { VaiureEmptyState } from './ui/VaiurePrimitives';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -98,6 +99,9 @@ export const ArtistSection: React.FC<ArtistSectionProps> = ({ creators, onSelect
           className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-8 mb-12 gap-6"
         >
           <div>
+            <span className="text-[10px] font-mono tracking-[0.25em] text-white/40 uppercase block mb-2 tabular-nums">
+              SECTION 06 · {creatorList.length} CREATORS
+            </span>
             <h2 className="text-4xl sm:text-6xl lg:text-7xl font-serif font-light text-white tracking-tight uppercase leading-[0.95]">
               {t('navCreators')}
             </h2>
@@ -107,11 +111,14 @@ export const ArtistSection: React.FC<ArtistSectionProps> = ({ creators, onSelect
           </span>
         </div>
 
-        {/* Real Creators List or Minimal Empty State */}
+        {/* Real Creators List or Empty State */}
         {creatorList.length === 0 ? (
-          <div className="py-24 text-center border border-white/10 text-white/40 font-mono text-xs tracking-widest uppercase">
-            {t('noCreatorsYet')}
-          </div>
+          <VaiureEmptyState
+            icon={<Users className="w-5 h-5" />}
+            eyebrow="DIRECTORY"
+            title={t('noCreatorsYet')}
+            description="Verified directors, AI visualists, and independent creators will populate this directory."
+          />
         ) : (
           <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {creatorList.map((creator) => (
@@ -119,7 +126,7 @@ export const ArtistSection: React.FC<ArtistSectionProps> = ({ creators, onSelect
                 key={creator.id}
                 onClick={() => onSelectArtist(creator)}
                 data-cursor="VIEW"
-                className="group cursor-pointer border border-white/10 hover:border-white/30 transition-all duration-300 p-6 flex flex-col justify-between bg-neutral-950/60 hover:-translate-y-1 will-change-transform"
+                className="group cursor-pointer border border-white/[0.09] hover:border-white/30 transition-all duration-300 p-6 flex flex-col justify-between bg-[#0a0a0d] hover:-translate-y-1 will-change-transform"
               >
                 <div>
                   <div className="w-16 h-16 rounded-full overflow-hidden border border-white/20 bg-neutral-900 mb-5 flex items-center justify-center font-mono text-xs text-white/60 group-hover:border-white/40 transition-colors">

@@ -100,7 +100,7 @@ export const FeaturedStorySection: React.FC<FeaturedStorySectionProps> = ({
           <div
             onClick={() => onOpenStory(featuredPost)}
             data-cursor="VIEW"
-            className="lg:col-span-7 aspect-[16/9] overflow-hidden bg-neutral-900 border border-white/10 cursor-pointer group relative"
+            className="lg:col-span-7 aspect-[16/9] overflow-hidden bg-[#0a0a0d] border border-white/[0.09] hover:border-white/25 transition-colors cursor-pointer group relative"
           >
             {coverImage ? (
               <img
@@ -119,8 +119,8 @@ export const FeaturedStorySection: React.FC<FeaturedStorySectionProps> = ({
           </div>
 
           <div ref={contentRef} className="lg:col-span-5 space-y-4">
-            <span className="text-[10px] font-mono tracking-widest text-white/40 uppercase">
-              FEATURED // {featuredPost.category}
+            <span className="text-[10px] font-mono tracking-widest text-white/45 uppercase">
+              EDITORIAL SELECTION · {featuredPost.category}
             </span>
             <h2 className="text-3xl sm:text-5xl font-serif uppercase tracking-tight text-white leading-tight">
               {featuredPost.title}

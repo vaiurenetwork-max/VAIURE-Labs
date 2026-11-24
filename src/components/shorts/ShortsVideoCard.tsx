@@ -55,6 +55,7 @@ export const ShortsVideoCard: React.FC<ShortsVideoCardProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isAuthor = currentUser.id === short.authorId;
   const lastTapRef = useRef<number>(0);
 
@@ -324,7 +325,10 @@ export const ShortsVideoCard: React.FC<ShortsVideoCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setIsOptionsOpen(!isOptionsOpen);
+                setIsOptionsOpen((prev) => {
+                  if (prev) setConfirmDelete(false);
+                  return !prev;
+                });
               }}
               aria-label="More options"
               className="touch-press touch-target-min w-10 h-10 rounded-full flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-pointer"
@@ -334,26 +338,48 @@ export const ShortsVideoCard: React.FC<ShortsVideoCardProps> = ({
 
             {isOptionsOpen && (
               <div
-                className="absolute right-0 bottom-12 w-40 bg-[#101016] border border-white/15 rounded-xl shadow-2xl p-1.5 z-40 space-y-1 backdrop-blur-xl"
+                className="absolute right-0 bottom-12 w-48 bg-[#101016] border border-white/15 rounded-xl shadow-2xl p-1.5 z-40 space-y-1 backdrop-blur-xl"
                 onClick={(e) => e.stopPropagation()}
               >
                 {isAuthor && onDelete && (
-                  <button
-                    onClick={() => {
-                      if (window.confirm(t('shortsDeletePrompt'))) {
-                        onDelete(short.id);
-                      }
-                      setIsOptionsOpen(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-xs font-mono text-red-400 hover:bg-white/5 rounded-lg flex items-center gap-2 cursor-pointer touch-target-min"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>Delete</span>
-                  </button>
+                  confirmDelete ? (
+                    <div className="p-1.5 rounded-lg bg-red-950/30 border border-red-500/25 space-y-1.5">
+                      <span className="block text-[10px] font-mono text-red-300 uppercase tracking-wider px-1">
+                        {t('shortsDeletePrompt') || 'Delete this video?'}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            onDelete(short.id);
+                            setConfirmDelete(false);
+                            setIsOptionsOpen(false);
+                          }}
+                          className="flex-1 px-2 py-1.5 bg-red-500 text-white text-[10px] font-mono font-bold uppercase rounded cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(false)}
+                          className="px-2 py-1.5 bg-white/10 text-white/80 text-[10px] font-mono uppercase rounded cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="w-full px-3 py-2 text-left text-xs font-mono text-red-400 hover:bg-white/5 rounded-lg flex items-center gap-2 cursor-pointer touch-target-min"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </button>
+                  )
                 )}
                 <button
                   onClick={() => {
                     onShare(short);
+                    setConfirmDelete(false);
                     setIsOptionsOpen(false);
                   }}
                   className="w-full px-3 py-2 text-left text-xs font-mono text-white/80 hover:bg-white/5 rounded-lg flex items-center gap-2 cursor-pointer touch-target-min"

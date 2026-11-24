@@ -72,6 +72,7 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
 
   // Subscribe to real Firestore Shorts
   useEffect(() => {
@@ -207,7 +208,8 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(shareUrl);
-        window.alert(t('shortsCopiedLink'));
+        setShareNotice(t('shortsCopiedLink') || 'Share link copied');
+        setTimeout(() => setShareNotice(null), 2400);
       } catch (err) {
         console.warn('Clipboard note:', err);
       }
@@ -503,6 +505,15 @@ export const ShortsView: React.FC<ShortsViewProps> = ({
         }}
         onOpenAuthModal={onOpenAuthModal}
       />
+      {shareNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#0c0c10]/95 backdrop-blur-xl border border-white/20 text-white text-xs font-mono tracking-wide shadow-2xl pointer-events-none"
+        >
+          {shareNotice}
+        </div>
+      )}
     </div>
   );
 };

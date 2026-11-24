@@ -107,13 +107,14 @@ export const ManageRoomModal: React.FC<ManageRoomModalProps> = ({
     }
   };
 
+  const [confirmRemoveUserId, setConfirmRemoveUserId] = useState<string | null>(null);
+
   const handleRemove = async (userId: string) => {
-    if (confirm('Remove this collaborator from the room?')) {
-      try {
-        await removeParticipant(room.id, userId);
-      } catch (err) {
-        console.error('Failed to remove participant:', err);
-      }
+    try {
+      await removeParticipant(room.id, userId);
+      setConfirmRemoveUserId(null);
+    } catch (err) {
+      console.error('Failed to remove participant:', err);
     }
   };
 
@@ -319,13 +320,33 @@ export const ManageRoomModal: React.FC<ManageRoomModalProps> = ({
                       )}
 
                       {isOwner && !isItemOwner && (
-                        <button
-                          onClick={() => handleRemove(p.userId)}
-                          className="p-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors"
-                          title="Remove collaborator"
-                        >
-                          <UserX className="w-3.5 h-3.5" />
-                        </button>
+                        confirmRemoveUserId === p.userId ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleRemove(p.userId)}
+                              className="px-2 py-1 rounded bg-red-500 text-white text-[10px] font-mono uppercase font-bold cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRemoveUserId(null)}
+                              className="px-2 py-1 rounded border border-white/20 text-white/70 hover:text-white text-[10px] font-mono uppercase cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemoveUserId(p.userId)}
+                            className="p-1.5 rounded text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors cursor-pointer"
+                            title="Remove collaborator"
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                          </button>
+                        )
                       )}
                     </div>
                   </div>

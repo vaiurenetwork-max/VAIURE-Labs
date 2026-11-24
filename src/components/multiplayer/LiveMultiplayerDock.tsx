@@ -86,7 +86,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
   const isBottomNavSlide = currentSlide === 1 || currentSlide === 2;
   const dockContainerRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Auto-close multiplayer drawer when tapping outside
+  // Auto-close multiplayer drawer when tapping outside or pressing Escape
   useEffect(() => {
     if (!isOpen) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
@@ -94,11 +94,18 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
         setIsOpen(false);
       }
     };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handleOutside);
     document.addEventListener('touchstart', handleOutside, { passive: true });
+    window.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('mousedown', handleOutside);
       document.removeEventListener('touchstart', handleOutside);
+      window.removeEventListener('keydown', handleKey);
     };
   }, [isOpen]);
 
@@ -107,13 +114,13 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
       ref={dockContainerRef}
       className={`fixed ${
         isBottomNavSlide
-          ? 'bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.5rem))] sm:bottom-4'
+          ? 'bottom-[max(4.75rem,calc(env(safe-area-inset-bottom)+4rem))] sm:bottom-4'
           : 'bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4'
       } right-3 sm:right-4 z-40 font-sans select-none pointer-events-auto transition-all duration-300`}
     >
       {/* Expanded Multiplayer Drawer / Modal */}
       {isOpen && (
-        <div className="mb-2 w-[92vw] max-w-[340px] sm:w-[350px] rounded-2xl bg-[#0c0e12]/95 border border-white/15 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.7)] text-white overflow-hidden animate-in slide-in-from-bottom-3 duration-250 flex flex-col max-h-[460px]">
+        <div className="mb-2 w-[92vw] max-w-[340px] sm:w-[350px] rounded-xl bg-[#0c0e12]/95 border border-white/15 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.75)] text-white overflow-hidden animate-silk-fade flex flex-col max-h-[460px]">
           {/* Header */}
           <header className="px-4 py-3 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
             <div className="flex items-center gap-2">
@@ -122,7 +129,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
                 <span className="font-mono text-xs font-bold tracking-widest uppercase text-white/95">
                   LIVE ATELIER
                 </span>
-                <span className="text-[9px] font-mono text-white/40">
+                <span className="text-[9px] font-mono text-white/45 tabular-nums">
                   {creators.length} ARTISTS COLLABORATING
                 </span>
               </div>
@@ -132,8 +139,9 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="w-6 h-6 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 title="Minimize Live Atelier"
+                aria-label="Close Live Atelier"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -145,7 +153,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('creators')}
-              className={`flex-1 py-2 text-center transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2.5 text-center transition-colors cursor-pointer flex items-center justify-center gap-1.5 tabular-nums ${
                 activeTab === 'creators'
                   ? 'text-white border-b-2 border-cyan-400 bg-white/[0.03] font-bold'
                   : 'text-white/50 hover:text-white'
@@ -157,7 +165,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('pulse')}
-              className={`flex-1 py-2 text-center transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-2.5 text-center transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
                 activeTab === 'pulse'
                   ? 'text-white border-b-2 border-amber-400 bg-white/[0.03] font-bold'
                   : 'text-white/50 hover:text-white'
@@ -178,7 +186,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
                 return (
                   <div
                     key={c.uid}
-                    className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] transition-all flex items-center justify-between group"
+                    className="p-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.05] transition-all flex items-center justify-between group"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white/10 shrink-0">
@@ -218,14 +226,14 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
                           onNavigateToSlide(c.currentSlide);
                           setIsOpen(false);
                         }}
-                        className="px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/15 text-[9px] font-mono text-white/70 hover:text-white flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                        className="px-2.5 py-1 rounded bg-white/[0.06] hover:bg-white/15 text-[9px] font-mono text-white/75 hover:text-white flex items-center gap-1 transition-all cursor-pointer shrink-0 min-h-[32px]"
                         title={`Jump to ${c.currentSlideName}`}
                       >
                         <span>JOIN</span>
                         <ArrowRight className="w-2.5 h-2.5" />
                       </button>
                     ) : (
-                      <span className="text-[8px] font-mono text-emerald-400/80 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                      <span className="text-[8px] font-mono text-emerald-400/80 px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 shrink-0">
                         HERE
                       </span>
                     )}
@@ -261,7 +269,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
                       key={pulse}
                       type="button"
                       onClick={() => handleSendPulse(pulse)}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
                         isSent
                           ? 'bg-white text-black font-bold scale-[0.98]'
                           : 'bg-white/[0.03] hover:bg-white/[0.08] text-white/80 hover:text-white border-white/[0.08]'
@@ -272,7 +280,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
                           {meta.icon}
                         </span>
                         <span className="text-[8px] opacity-50 uppercase tracking-widest">
-                          {isSent ? 'SENT!' : 'PULSE'}
+                          {isSent ? 'SENT' : 'PULSE'}
                         </span>
                       </div>
                       <div className="mt-1 font-bold text-xs truncate">{meta.label}</div>
@@ -292,11 +300,11 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
                 onOpenCollabRooms();
                 setIsOpen(false);
               }}
-              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-amber-500/20 hover:from-emerald-500/30 hover:to-amber-500/30 border border-white/20 text-white font-mono text-[11px] font-bold tracking-wider uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg"
+              className="w-full py-2.5 px-3 rounded-lg bg-white text-black hover:bg-neutral-200 font-mono text-[11px] font-bold tracking-wider uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>OPEN SHAREDWORKS CANVASES</span>
-              <ArrowRight className="w-3 h-3 text-white/70" />
+              <ArrowRight className="w-3 h-3" />
             </button>
           </footer>
         </div>
@@ -306,7 +314,7 @@ export const LiveMultiplayerDock: React.FC<LiveMultiplayerDockProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0d0f14]/90 hover:bg-[#161a22] border border-white/20 hover:border-white/40 backdrop-blur-xl shadow-2xl text-white transition-all cursor-pointer group active:scale-95 min-h-[44px]"
+        className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0a0a0e]/92 hover:bg-[#14161c] border border-white/20 hover:border-white/40 backdrop-blur-xl shadow-2xl text-white transition-all cursor-pointer group active:scale-95 min-h-[44px] sm:min-h-[38px]"
         title="Toggle Live Atelier Multiplayer Presence"
       >
         <span className="relative flex h-2 w-2">

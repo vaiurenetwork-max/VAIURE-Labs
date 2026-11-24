@@ -36,6 +36,7 @@ import {
   StudioAsset,
 } from '../../../types/studio';
 import { uploadAndOptimizeThreadImage } from '../../../services/forumService';
+import { getAuthHeaders } from '../../../lib/authHeaders';
 
 export interface VaiuReferenceImageItem {
   id: string;
@@ -388,7 +389,7 @@ export const VaiuSeedanceWorkspace: React.FC<VaiuSeedanceWorkspaceProps> = ({
     try {
       const response = await fetch('/api/prompt/vaiu-seedance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           referenceImages: references.map((r) => ({
             url: r.url,
@@ -471,7 +472,7 @@ export const VaiuSeedanceWorkspace: React.FC<VaiuSeedanceWorkspaceProps> = ({
 
       const submitRes = await fetch('/api/ai/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           model: seedanceModelKey,
           prompt: activePrompt,
@@ -497,7 +498,9 @@ export const VaiuSeedanceWorkspace: React.FC<VaiuSeedanceWorkspaceProps> = ({
       while (!finalVideoUrl && pollCount < 45) {
         await new Promise((r) => setTimeout(r, pollCount === 0 ? 1500 : 3500));
         pollCount++;
-        const statusRes = await fetch(`/api/ai/jobs/${encodeURIComponent(jobCode)}`);
+        const statusRes = await fetch(`/api/ai/jobs/${encodeURIComponent(jobCode)}`, {
+          headers: await getAuthHeaders({}, false),
+        });
         const statusData = await statusRes.json();
         if (!statusRes.ok || !statusData.ok) {
           throw new Error(statusData.error || `Failed polling Seedance 2.5 job ${jobCode}.`);

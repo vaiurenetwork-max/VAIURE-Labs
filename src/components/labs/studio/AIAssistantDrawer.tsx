@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Sparkles, X, Send, Check, RefreshCw, Film, ArrowRight } from 'lucide-react';
 import { StudioProject, StoryboardShot, AIAssistantMessage, AssistantProposal } from '../../../types/studio';
+import { getAuthHeaders } from '../../../lib/authHeaders';
 
 interface AIAssistantDrawerProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ export const AIAssistantDrawer: React.FC<AIAssistantDrawerProps> = ({
     try {
       const response = await fetch('/api/prompt/assistant', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           message: text,
           projectContext: {

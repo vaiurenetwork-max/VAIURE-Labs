@@ -5,6 +5,7 @@
  */
 
 import { db, doc, setDoc, getDoc, updateDoc } from '../lib/firebase';
+import { getAuthHeaders } from '../lib/authHeaders';
 import { UserSettings } from '../types/settings';
 
 export const DEFAULT_USER_SETTINGS: Omit<UserSettings, 'uid'> = {
@@ -114,7 +115,7 @@ export async function requestAccountDeletion(
     // Notify backend deletion queue endpoint
     await fetch('/api/auth/account/delete-request', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ uid, reason }),
     }).catch(() => {});
 

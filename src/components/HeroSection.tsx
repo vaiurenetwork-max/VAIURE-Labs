@@ -17,7 +17,7 @@ interface HeroSectionProps {
 export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onOpenLeadStory }) => {
   const { t } = useLanguage();
   const heroRef = useRef<HTMLElement>(null);
-  const bgImageRef = useRef<HTMLImageElement>(null);
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
   const utilityRibbonRef = useRef<HTMLDivElement>(null);
   const eyebrowRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
@@ -84,9 +84,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onOpenLeadS
       });
 
       // Background visual: slow, restrained zoom (1.00 -> ~1.07) & subtle parallax shift
-      if (bgImageRef.current) {
+      if (bgVideoRef.current) {
         scrollTl.to(
-          bgImageRef.current,
+          bgVideoRef.current,
           {
             scale: isMobile ? 1.04 : 1.075,
             y: isMobile ? 25 : 55,
@@ -199,6 +199,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onOpenLeadS
       {/* Background Cinematic Visual with smooth full-screen video loop */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <video
+          ref={bgVideoRef}
           src="/assets/aistudio/lv_0_20261022183355_b0cc82db.mp4"
           autoPlay
           loop
@@ -218,12 +219,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onOpenLeadS
       {/* Top Editorial Utility Ribbon */}
       <div
         ref={utilityRibbonRef}
-        className="relative z-10 max-w-[1440px] w-full mx-auto flex items-center justify-between text-[10px] md:text-xs tracking-[0.25em] text-white/40 uppercase border-b border-white/10 pb-4 will-change-transform"
+        className="relative z-10 max-w-[1440px] w-full mx-auto flex items-center justify-between text-[10px] md:text-xs tracking-[0.25em] text-white/45 uppercase border-b border-white/10 pb-4 will-change-transform"
       >
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          <span>{t('curatedVisualArchive')}</span>
-        </div>
+        <span>{t('curatedVisualArchive')}</span>
         <span className="font-mono text-[10px]">{t('directory')}</span>
       </div>
 
@@ -259,13 +257,20 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExplore, onOpenLeadS
               {t('heroSubtitle')}
             </p>
 
-            <div ref={buttonsRef} className="flex flex-wrap items-center gap-4 pt-2 will-change-transform">
+            <div ref={buttonsRef} className="flex flex-wrap items-center gap-3 pt-2 will-change-transform">
               <button
                 onClick={onExplore}
-                className="group px-6 py-3 bg-white text-black hover:bg-neutral-200 active:scale-[0.98] text-xs font-mono tracking-widest uppercase font-semibold transition-all duration-300 ease-editorial flex items-center gap-2.5 cursor-pointer shadow-lg"
+                className="group px-6 py-3 bg-white text-black hover:bg-neutral-200 active:scale-[0.98] text-xs font-mono tracking-widest uppercase font-semibold transition-all duration-300 ease-editorial flex items-center gap-2.5 cursor-pointer shadow-lg min-h-[44px]"
               >
                 <span>{t('exploreArchive')}</span>
                 <ArrowDown className="w-3.5 h-3.5 transition-transform duration-300 ease-editorial group-hover:translate-y-0.5" />
+              </button>
+              <button
+                onClick={onOpenLeadStory}
+                className="group px-5 py-3 border border-white/25 hover:border-white bg-black/50 backdrop-blur-sm text-white hover:bg-white/10 text-xs font-mono tracking-widest uppercase transition-all duration-300 flex items-center gap-2 cursor-pointer min-h-[44px]"
+              >
+                <span>FEATURED DOSSIER</span>
+                <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
               </button>
             </div>
           </div>

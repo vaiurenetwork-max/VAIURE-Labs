@@ -50,6 +50,7 @@ import {
   formatTimestamp,
   localConvertNaturalToSlash,
 } from '../../utils/promptSequenceCompiler';
+import { getAuthHeaders } from '../../lib/authHeaders';
 
 interface LabsGenerationWorkspaceProps {
   currentModel: ModelOption;
@@ -226,7 +227,7 @@ export const LabsGenerationWorkspace: React.FC<LabsGenerationWorkspaceProps> = (
     try {
       const res = await fetch('/api/prompt/convert', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ prompt: promptText }),
       });
 
@@ -271,7 +272,7 @@ export const LabsGenerationWorkspace: React.FC<LabsGenerationWorkspaceProps> = (
     try {
       const res = await fetch('/api/prompt/rebuild', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           segments,
           originalPrompt: params.prompt,
@@ -313,7 +314,7 @@ export const LabsGenerationWorkspace: React.FC<LabsGenerationWorkspaceProps> = (
     try {
       const res = await fetch('/api/prompt/optimize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           compiledPrompt: compiledPromptText,
           durationSeconds: params.durationSeconds,
@@ -345,7 +346,7 @@ export const LabsGenerationWorkspace: React.FC<LabsGenerationWorkspaceProps> = (
     try {
       const res = await fetch('/api/generation/seedance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ payload: seedancePayload }),
       });
 

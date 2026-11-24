@@ -4,6 +4,7 @@
  * and communication with the Gemini backend reverse-engineering endpoints.
  */
 
+import { getAuthHeaders } from '../lib/authHeaders';
 import {
   VxImageFile,
   VxModelId,
@@ -129,9 +130,7 @@ export async function analyzeAndReconstructImage(params: {
 }): Promise<VxReconstructionResult> {
   const res = await fetch('/api/vx/analyze-and-reconstruct', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(params),
   });
 
@@ -161,9 +160,7 @@ export async function refineVxPrompt(params: {
 }> {
   const res = await fetch('/api/vx/refine', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(params),
   });
 
