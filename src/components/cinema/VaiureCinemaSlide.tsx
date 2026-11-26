@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  CINEMA_PROJECTS,
-  CinemaProject,
-  getLocalizedCinemaProjects,
-} from '../../data/cinemaProjectsData';
+  HYBRID_STUDIO_DEPARTMENTS,
+  SEEDANCE_PIPELINE_STAGES,
+  StudioDepartment,
+  getLocalizedStudioDepartments,
+} from '../../data/hybridStudioData';
 import { CinemaProjectDossierModal } from './CinemaProjectDossierModal';
 import { CinemaWorkIndexModal } from './CinemaWorkIndexModal';
 import { CinemaInfoModal } from './CinemaInfoModal';
 import { useLanguage } from '../../services/i18n';
-import { LanguageSwitcher } from '../navigation/LanguageSwitcher';
 import {
   Volume2,
   VolumeX,
@@ -16,10 +16,10 @@ import {
   ChevronRight,
   ArrowRight,
   Maximize2,
-  Sliders,
   Layers,
   Play,
   Pause,
+  Cpu,
 } from 'lucide-react';
 
 interface VaiureCinemaSlideProps {
@@ -35,66 +35,56 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
   onBackToSlideOne,
   onBackToSlideTwo,
   onGoToLabs,
-  onOpenShorts,
   onOpenMenu,
   onOpenSubmit,
 }) => {
-  const { t, language } = useLanguage();
-  const [activeProjectIdx, setActiveProjectIdx] = useState(0);
-  const [selectedDossierProject, setSelectedDossierProject] = useState<CinemaProject | null>(null);
-  const [isWorkModalOpen, setIsWorkModalOpen] = useState(false);
+  const { language } = useLanguage();
+  const [activeDeptIdx, setActiveDeptIdx] = useState(0);
+  const [selectedDossierDept, setSelectedDossierDept] = useState<StudioDepartment | null>(null);
+  const [isFacilityModalOpen, setIsFacilityModalOpen] = useState(false);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
 
-  // Web Audio Synth references for generative ambient drone
   const audioCtxRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
-
-  // Timecode counter state (matching LAFOUR reference: "· 01 : 58 : 15")
   const [timecode, setTimecode] = useState('01 : 58 : 15');
-
-  // Horizontal scroll container ref for bottom project ribbon
   const ribbonScrollRef = useRef<HTMLDivElement>(null);
 
-  // Hero Touch swipe state for intuitive mobile project cycling
   const [touchHeroStartX, setTouchHeroStartX] = useState<number | null>(null);
   const [touchHeroStartY, setTouchHeroStartY] = useState<number | null>(null);
   const [isAutoCycling, setIsAutoCycling] = useState(false);
 
-  const localizedProjects = useMemo(() => {
-    return getLocalizedCinemaProjects(CINEMA_PROJECTS, language);
+  const localizedDepartments = useMemo(() => {
+    return getLocalizedStudioDepartments(HYBRID_STUDIO_DEPARTMENTS, language);
   }, [language]);
 
-  const activeProject = localizedProjects[activeProjectIdx] || localizedProjects[0];
+  const activeDept = localizedDepartments[activeDeptIdx] || localizedDepartments[0];
 
-  // Procedural Web Audio Ambient Soundscape
+  // Procedural Web Audio Studio Room Tone (subtle low-frequency architectural acoustic resonance)
   const toggleAmbientSound = () => {
     if (isMuted) {
       try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         if (!audioCtxRef.current) {
           const ctx = new AudioCtx();
           audioCtxRef.current = ctx;
 
           const masterGain = ctx.createGain();
-          masterGain.gain.setValueAtTime(0.09, ctx.currentTime);
+          masterGain.gain.setValueAtTime(0.08, ctx.currentTime);
           masterGain.connect(ctx.destination);
           gainNodeRef.current = masterGain;
 
-          // Deep root drone (55Hz / A1)
           const osc1 = ctx.createOscillator();
           osc1.type = 'sine';
           osc1.frequency.setValueAtTime(55, ctx.currentTime);
 
-          // Warm harmonic overtone (82.4Hz / E2)
           const osc2 = ctx.createOscillator();
           osc2.type = 'triangle';
           osc2.frequency.setValueAtTime(82.4, ctx.currentTime);
 
-          // Low-pass filter for velvety atmospheric warmth
           const filter = ctx.createBiquadFilter();
           filter.type = 'lowpass';
-          filter.frequency.setValueAtTime(260, ctx.currentTime);
+          filter.frequency.setValueAtTime(240, ctx.currentTime);
 
           const droneGain = ctx.createGain();
           droneGain.gain.setValueAtTime(0.08, ctx.currentTime);
@@ -111,11 +101,10 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
         }
 
         if (gainNodeRef.current && audioCtxRef.current) {
-          gainNodeRef.current.gain.setTargetAtTime(0.09, audioCtxRef.current.currentTime, 0.4);
+          gainNodeRef.current.gain.setTargetAtTime(0.08, audioCtxRef.current.currentTime, 0.4);
         }
         setIsMuted(false);
-      } catch (err) {
-        console.warn('Web Audio Ambient error:', err);
+      } catch {
         setIsMuted(false);
       }
     } else {
@@ -126,7 +115,6 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
     }
   };
 
-  // Clean up AudioContext on unmount
   useEffect(() => {
     return () => {
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
@@ -135,7 +123,7 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
     };
   }, []);
 
-  // Dynamic ticking timecode adhering to LAFOUR's iconic cinematic clock format
+  // 24fps production facility sync timecode
   useEffect(() => {
     let frames = 15;
     let seconds = 58;
@@ -151,53 +139,51 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
       }
       const pad = (n: number) => n.toString().padStart(2, '0');
       setTimecode(`${pad(minutes)} : ${pad(seconds)} : ${pad(frames)}`);
-    }, 41.67); // 24 frames per second simulation
+    }, 41.67);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-cycle slideshow timer when toggled on
+  // Optional automated studio tour cycle
   useEffect(() => {
-    if (!isAutoCycling || selectedDossierProject || isWorkModalOpen || isInfoModalOpen) return;
+    if (!isAutoCycling || selectedDossierDept || isFacilityModalOpen || isInfoModalOpen) return;
     const cycleTimer = setInterval(() => {
-      setActiveProjectIdx((prev) => (prev + 1) % localizedProjects.length);
+      setActiveDeptIdx((prev) => (prev + 1) % localizedDepartments.length);
     }, 6500);
     return () => clearInterval(cycleTimer);
-  }, [isAutoCycling, localizedProjects.length, selectedDossierProject, isWorkModalOpen, isInfoModalOpen]);
+  }, [isAutoCycling, localizedDepartments.length, selectedDossierDept, isFacilityModalOpen, isInfoModalOpen]);
 
-  // Keyboard navigation for cinematic switching (Arrows + Enter/Escape)
+  // Keyboard switching
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (selectedDossierProject || isWorkModalOpen || isInfoModalOpen) return;
+      if (selectedDossierDept || isFacilityModalOpen || isInfoModalOpen) return;
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
       if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         e.preventDefault();
-        setActiveProjectIdx((prev) => (prev + 1) % localizedProjects.length);
+        setActiveDeptIdx((prev) => (prev + 1) % localizedDepartments.length);
       } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
         e.preventDefault();
-        setActiveProjectIdx((prev) => (prev - 1 + localizedProjects.length) % localizedProjects.length);
+        setActiveDeptIdx((prev) => (prev - 1 + localizedDepartments.length) % localizedDepartments.length);
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        setSelectedDossierProject(activeProject);
+        setSelectedDossierDept(activeDept);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDossierProject, isWorkModalOpen, isInfoModalOpen, activeProject, localizedProjects.length]);
+  }, [selectedDossierDept, isFacilityModalOpen, isInfoModalOpen, activeDept, localizedDepartments.length]);
 
-  // Keep active project in view inside bottom scroll ribbon
   useEffect(() => {
     if (ribbonScrollRef.current) {
-      const activeEl = ribbonScrollRef.current.children[activeProjectIdx] as HTMLElement;
+      const activeEl = ribbonScrollRef.current.children[activeDeptIdx] as HTMLElement;
       if (activeEl) {
         activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       }
     }
-  }, [activeProjectIdx]);
+  }, [activeDeptIdx]);
 
-  // Hero Touch Handlers for horizontal swipe navigation between cinema projects
   const handleHeroTouchStart = (e: React.TouchEvent) => {
     setTouchHeroStartX(e.touches[0].clientX);
     setTouchHeroStartY(e.touches[0].clientY);
@@ -210,15 +196,20 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
 
     if (Math.abs(diffX) > Math.abs(diffY) * 1.3 && Math.abs(diffX) > 50) {
       if (diffX < 0) {
-        // swipe left -> next project
-        setActiveProjectIdx((prev) => (prev + 1) % CINEMA_PROJECTS.length);
+        setActiveDeptIdx((prev) => (prev + 1) % localizedDepartments.length);
       } else {
-        // swipe right -> previous project
-        setActiveProjectIdx((prev) => (prev - 1 + CINEMA_PROJECTS.length) % CINEMA_PROJECTS.length);
+        setActiveDeptIdx((prev) => (prev - 1 + localizedDepartments.length) % localizedDepartments.length);
       }
     }
     setTouchHeroStartX(null);
     setTouchHeroStartY(null);
+  };
+
+  const handleSelectPipelineStage = (departmentId: string) => {
+    const idx = localizedDepartments.findIndex((d) => d.id === departmentId);
+    if (idx !== -1) {
+      setActiveDeptIdx(idx);
+    }
   };
 
   return (
@@ -228,53 +219,53 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
       className="relative w-full h-full min-h-0 bg-[#050507] text-[#ECECE9] overflow-hidden select-none flex flex-col justify-between font-sans"
     >
       {/* ======================================================== */}
-      {/* 1. CINEMATIC FULL-BLEED HERO BACKGROUND BACKDROP         */}
+      {/* 1. ARCHITECTURAL HYBRID STUDIO FULL-BLEED VISUALIZATION  */}
       {/* ======================================================== */}
       <div
-        onClick={() => setSelectedDossierProject(activeProject)}
+        onClick={() => setSelectedDossierDept(activeDept)}
         className="absolute inset-0 z-0 overflow-hidden cursor-pointer group select-none"
-        title="Click to view full cinematic project dossier"
+        title="Inspect studio department architectural blueprint"
       >
-        {/* Active Hero Image with crossfade transition */}
         <div className="relative w-full h-full">
-          {localizedProjects.map((proj, idx) => (
+          {localizedDepartments.map((dept, idx) => (
             <div
-              key={proj.id}
+              key={dept.id}
               className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-                activeProjectIdx === idx ? 'opacity-100 scale-100' : 'opacity-0 scale-105 pointer-events-none'
+                activeDeptIdx === idx ? 'opacity-100 scale-100' : 'opacity-0 scale-105 pointer-events-none'
               }`}
             >
               <img
-                src={proj.heroImage}
-                alt={proj.title}
-                className={`w-full h-full object-cover object-center filter contrast-[1.12] brightness-[0.88] transition-transform duration-[8000ms] ease-out will-change-transform transform-gpu group-hover:scale-[1.02] ${
-                  activeProjectIdx === idx ? 'animate-cinema-motion' : ''
+                src={dept.heroImage}
+                alt={dept.title}
+                className={`w-full h-full object-cover object-center filter contrast-[1.08] brightness-[0.86] transition-transform duration-[8000ms] ease-out will-change-transform transform-gpu group-hover:scale-[1.02] ${
+                  activeDeptIdx === idx ? 'animate-cinema-motion' : ''
                 }`}
               />
-              {/* Subtle architectural chiaroscuro gradient overlays matching LAFOUR reference */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/60 pointer-events-none" />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-black/30 pointer-events-none" />
-              <div className="absolute inset-0 film-grain pointer-events-none opacity-40" />
+              {/* Architectural chiaroscuro + subtle cobalt edge atmosphere */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050507] via-black/35 to-black/65 pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#050507]/80 via-transparent to-black/30 pointer-events-none" />
+              <div className="absolute inset-0 film-grain pointer-events-none opacity-35" />
             </div>
           ))}
         </div>
 
-        {/* Hover Cue in Center Viewport */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="px-5 py-2.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white text-xs font-mono uppercase tracking-widest flex items-center gap-2 shadow-2xl">
-            <span>{t('cinemaOpenDossier')}</span>
-            <Maximize2 className="w-3.5 h-3.5" />
+        {/* Center Hover Cue */}
+        <div className="absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="px-4 py-2 rounded-sm bg-black/75 backdrop-blur-md border border-white/25 text-white text-[11px] font-mono uppercase tracking-widest flex items-center gap-2 shadow-2xl">
+            <span>INSPECT ZONE BLUEPRINT</span>
+            <Maximize2 className="w-3.5 h-3.5 text-blue-400" />
           </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 2. TOP EDITORIAL HEADER (CLEAN & SIMPLE)                  */}
+      {/* 2. TOP PRESENTATION HEADER (PRESERVING VAIURE CHROME)    */}
       {/* ======================================================== */}
-      <header className="relative z-30 w-full px-4 sm:px-6 pt-[max(0rem,env(safe-area-inset-top))] h-[calc(2.75rem+env(safe-area-inset-top))] sm:h-[calc(3rem+env(safe-area-inset-top))] flex items-center justify-between text-xs font-mono tracking-wider select-none bg-gradient-to-b from-black/85 to-transparent">
-        {/* Left: Brand Name VAIURE｜唯昱尔 + Slide Switcher */}
+      <header className="relative z-30 w-full px-4 sm:px-6 pt-[max(0rem,env(safe-area-inset-top))] h-[calc(2.75rem+env(safe-area-inset-top))] sm:h-[calc(3rem+env(safe-area-inset-top))] flex items-center justify-between text-xs font-mono tracking-wider select-none bg-gradient-to-b from-black/90 to-transparent">
+        {/* Left: Brand Identity + Slide Switcher */}
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => {
               if (onBackToSlideTwo) onBackToSlideTwo();
             }}
@@ -290,32 +281,34 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
             </span>
           </button>
 
-          {/* Subtle Spatial Slide Switcher */}
           <div className="hidden lg:flex items-center gap-1 pl-3 border-l border-white/15 text-[10px] font-mono text-white/45">
             {onBackToSlideOne && (
               <button
+                type="button"
                 onClick={onBackToSlideOne}
                 title="Slide 01: Threads Discourse"
-                className="px-1.5 py-0.5 rounded hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded-sm hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
               >
                 01
               </button>
             )}
             {onBackToSlideTwo && (
               <button
+                type="button"
                 onClick={onBackToSlideTwo}
                 title="Slide 02: Curatorial Archive"
-                className="px-1.5 py-0.5 rounded hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                className="px-1.5 py-0.5 rounded-sm hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
               >
                 02
               </button>
             )}
-            <span className="px-1.5 py-0.5 rounded bg-white text-black font-bold">03</span>
+            <span className="px-1.5 py-0.5 rounded-sm bg-white text-black font-bold">03</span>
             {onGoToLabs && (
               <button
+                type="button"
                 onClick={onGoToLabs}
-                title="Slide 04: VAIURE Filmmaking Studio"
-                className="px-1.5 py-0.5 rounded hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                title="Slide 04: VAIURE Seedance 2.5 Studio"
+                className="px-1.5 py-0.5 rounded-sm hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
               >
                 04
               </button>
@@ -323,20 +316,19 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
           </div>
         </div>
 
-        {/* Center: Live 24fps Cinema Timecode Whisper */}
+        {/* Center: Live Facility Telemetry Whisper */}
         <div className="hidden md:flex items-center gap-2 text-[10px] font-mono tracking-[0.2em] text-white/55 tabular-nums whitespace-nowrap shrink-0">
           <span>{timecode}</span>
           <span className="text-white/25" aria-hidden="true">·</span>
-          <span>24 FPS</span>
+          <span>SEEDANCE 2.5 COMPLEX</span>
           <span className="text-white/25" aria-hidden="true">·</span>
-          <span className="text-white/75">
-            {String(activeProjectIdx + 1).padStart(2, '0')} / {String(localizedProjects.length).padStart(2, '0')}
+          <span className="text-white/80">
+            {String(activeDeptIdx + 1).padStart(2, '0')} / {String(localizedDepartments.length).padStart(2, '0')}
           </span>
         </div>
 
-        {/* Right: Auto-cycle, Sound, Work, Studio, and Menu */}
+        {/* Right Utility Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Auto-Cycle Slideshow Toggle */}
           <button
             type="button"
             onClick={() => setIsAutoCycling((prev) => !prev)}
@@ -345,47 +337,53 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
                 ? 'bg-white text-black border-white font-semibold'
                 : 'bg-white/5 hover:bg-white/10 border-white/15 text-white/75 hover:text-white'
             }`}
-            title={isAutoCycling ? 'Pause showcase reel' : 'Auto-cycle showcase reel'}
-            aria-label={isAutoCycling ? 'Pause showcase reel' : 'Auto-cycle showcase reel'}
+            title={isAutoCycling ? 'Pause facility tour' : 'Auto-tour studio zones'}
+            aria-label={isAutoCycling ? 'Pause facility tour' : 'Auto-tour studio zones'}
           >
             {isAutoCycling ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-            <span className="hidden md:inline">{isAutoCycling ? 'REEL ON' : 'REEL'}</span>
+            <span className="hidden md:inline">{isAutoCycling ? 'TOUR ON' : 'TOUR'}</span>
           </button>
 
-          {/* Ambient Sound Toggle */}
           <button
             type="button"
             onClick={toggleAmbientSound}
             className="min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center rounded-sm bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-colors cursor-pointer shrink-0"
-            title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-            aria-label={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            title={isMuted ? 'Enable Studio Acoustics' : 'Mute Studio Acoustics'}
+            aria-label={isMuted ? 'Enable Studio Acoustics' : 'Mute Studio Acoustics'}
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-white" />}
           </button>
 
-          {/* Work Modal Trigger */}
           <button
             type="button"
-            onClick={() => setIsWorkModalOpen(true)}
-            className="min-h-[44px] sm:min-h-[32px] px-2.5 py-1 text-[10px] font-mono text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            title="Browse Complete Work Portfolio"
+            onClick={() => setIsFacilityModalOpen(true)}
+            className="min-h-[44px] sm:min-h-[32px] px-2.5 py-1 text-[10px] font-mono text-white/85 hover:text-white bg-white/5 hover:bg-white/10 border border-white/15 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            title="View Complete Facility Architecture & Pipeline"
           >
-            <span>{t('cinemaWork') || 'WORK'}</span>
+            <span>FACILITY</span>
           </button>
 
-          {/* Studio Slide 04 Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsInfoModalOpen(true)}
+            className="hidden sm:flex min-h-[32px] px-2.5 py-1 items-center text-[10px] font-mono text-white/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            title="Studio Architecture Specs"
+          >
+            <span>SPECS</span>
+          </button>
+
           {onGoToLabs && (
             <button
               type="button"
               onClick={onGoToLabs}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono text-white bg-white/10 hover:bg-white/20 border border-white/25 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              title="Enter VAIURE Studio (Slide 04)"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-mono text-white bg-blue-600/25 hover:bg-blue-600/40 border border-blue-400/40 rounded-sm transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              title="Launch Seedance 2.5 Generation Workspace (Slide 04)"
             >
+              <Cpu className="w-3 h-3 text-blue-300" />
               <span>STUDIO</span>
             </button>
           )}
 
-          {/* Menu Drawer button */}
           {onOpenMenu && (
             <button
               type="button"
@@ -401,120 +399,157 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
       </header>
 
       {/* ======================================================== */}
-      {/* 3. CENTER FLOATING HERO METADATA (QUIET EDITORIAL KICKER) */}
+      {/* 3. HERO METADATA + SEEDANCE 2.5 PRODUCTION PIPELINE      */}
       {/* ======================================================== */}
-      <div className="relative z-20 px-4 sm:px-8 lg:px-12 flex-1 flex flex-col justify-end pb-3 sm:pb-6 md:pb-8 pointer-events-none">
-        <div className="max-w-2xl space-y-2 pointer-events-auto">
-          <div className="inline-flex items-center gap-2 text-[10px] sm:text-xs font-mono tracking-[0.22em] uppercase text-white/70">
-            <span className="w-2 h-[1px] bg-white/50" />
-            <span>{t('cinemaFeaturedSelection')} {activeProject.code}</span>
-            <span>·</span>
-            <span>{activeProject.year}</span>
+      <div className="relative z-20 px-4 sm:px-8 lg:px-12 flex-1 flex flex-col justify-end pb-3 sm:pb-5 md:pb-6 pointer-events-none">
+        <div className="w-full max-w-5xl space-y-3 pointer-events-auto">
+          {/* Quiet Kicker */}
+          <div className="inline-flex flex-wrap items-center gap-2 text-[10px] sm:text-xs font-mono tracking-[0.2em] uppercase text-white/75">
+            <span className="w-2.5 h-[1px] bg-blue-400" />
+            <span className="text-blue-400 font-semibold">AI HYBRID PRODUCTION STUDIO</span>
+            <span className="text-white/35">·</span>
+            <span>{activeDept.code}</span>
+            <span className="text-white/35">·</span>
+            <span className="text-white/55">{activeDept.zoneLabel}</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-display font-bold uppercase tracking-tight text-white leading-tight drop-shadow-md">
-            {activeProject.title}
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-display font-bold uppercase tracking-tight text-white leading-[1.05] drop-shadow-md">
+            {activeDept.title}
           </h1>
 
-          <p className="text-xs sm:text-base md:text-lg font-serif italic text-white/80 font-light max-w-lg line-clamp-2">
-            {activeProject.subtitle}
+          <p className="text-xs sm:text-base md:text-lg font-serif italic text-white/85 font-light max-w-2xl line-clamp-2">
+            {activeDept.subtitle}
           </p>
 
-          {/* Editorial Tap Prompt / Action */}
-          <div className="pt-1">
+          {/* Interactive Seedance 2.5 Production Pipeline Bar */}
+          <div className="pt-1 hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {SEEDANCE_PIPELINE_STAGES.map((stage, idx) => {
+              const isStageActive = activeDept.pipelineStageIds.includes(stage.id);
+              return (
+                <React.Fragment key={stage.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPipelineStage(stage.departmentId)}
+                    title={`${stage.label}: ${stage.summary}`}
+                    className={`px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border rounded-sm transition-all cursor-pointer whitespace-nowrap ${
+                      isStageActive
+                        ? 'bg-blue-950/75 border-blue-400/70 text-white font-semibold'
+                        : 'bg-black/55 border-white/15 text-white/55 hover:text-white hover:border-white/40'
+                    }`}
+                  >
+                    <span className="text-blue-400/90 mr-1.5">{stage.step}</span>
+                    <span>{stage.label}</span>
+                  </button>
+                  {idx < SEEDANCE_PIPELINE_STAGES.length - 1 && (
+                    <span className="text-white/25 text-[10px] font-mono select-none">→</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+
+          {/* Primary Actions */}
+          <div className="pt-1 flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => setSelectedDossierProject(activeProject)}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 border border-white/20 text-[10px] font-mono tracking-widest text-white uppercase backdrop-blur-md transition-all cursor-pointer shadow-sm"
-              title="View full project dossier"
+              type="button"
+              onClick={() => setSelectedDossierDept(activeDept)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-sm bg-white/10 hover:bg-white/20 active:scale-95 border border-white/25 text-[10px] font-mono tracking-widest text-white uppercase backdrop-blur-md transition-all cursor-pointer"
+              title="Inspect department architecture and equipment dossier"
             >
-              <span>{t('cinemaExploreDossier')}</span>
-              <ArrowRight className="w-3 h-3 text-white/70" />
+              <span>INSPECT DEPARTMENT</span>
+              <ArrowRight className="w-3 h-3 text-white/80" />
             </button>
+
+            {onGoToLabs && (
+              <button
+                type="button"
+                onClick={onGoToLabs}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-sm bg-white text-black hover:bg-white/90 active:scale-95 text-[10px] font-mono font-bold tracking-widest uppercase transition-all cursor-pointer"
+                title="Open Seedance 2.5 Generation Studio"
+              >
+                <span>LAUNCH SEEDANCE 2.5 LAB</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 4. BOTTOM PROJECT NAVIGATION STRIP (FAITHFUL TO SCREENSHOT)*/}
+      {/* 4. BOTTOM DEPARTMENT NAVIGATION RIBBON                   */}
       {/* ======================================================== */}
       <footer
         data-no-slide-swipe="true"
-        className="relative z-30 w-full bg-black/85 backdrop-blur-xl border-t border-white/10 px-4 sm:px-8 lg:px-12 py-2.5 sm:py-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] select-none"
+        className="relative z-30 w-full bg-[#050507]/90 backdrop-blur-xl border-t border-white/10 px-4 sm:px-8 lg:px-12 py-2.5 sm:py-3.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] select-none"
       >
-        {/* Top subtle progress hairline across projects */}
         <div
-          className="absolute top-0 left-0 h-[1.5px] bg-white/75 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
-          style={{ width: `${((activeProjectIdx + 1) / Math.max(1, localizedProjects.length)) * 100}%` }}
+          className="absolute top-0 left-0 h-[1.5px] bg-blue-400 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
+          style={{ width: `${((activeDeptIdx + 1) / Math.max(1, localizedDepartments.length)) * 100}%` }}
           aria-hidden="true"
         />
 
         <div className="w-full flex items-center justify-between gap-2 sm:gap-4">
-          {/* Scroll Navigation Arrow Left */}
           <button
             type="button"
             onClick={() =>
-              setActiveProjectIdx((prev) => (prev - 1 + localizedProjects.length) % localizedProjects.length)
+              setActiveDeptIdx((prev) => (prev - 1 + localizedDepartments.length) % localizedDepartments.length)
             }
-            className="hidden sm:flex min-w-[36px] min-h-[36px] items-center justify-center rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0"
-            title="Previous project (←)"
-            aria-label="Previous project"
+            className="hidden sm:flex min-w-[36px] min-h-[36px] items-center justify-center rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0"
+            title="Previous department (←)"
+            aria-label="Previous department"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          {/* Horizontal Project Strip */}
           <div
             data-no-slide-swipe="true"
             ref={ribbonScrollRef}
-            className="flex-1 flex items-center gap-3.5 sm:gap-6 lg:gap-8 overflow-x-auto no-scrollbar scroll-smooth py-1 scroll-touch-snap"
+            className="flex-1 flex items-center gap-3.5 sm:gap-5 lg:gap-7 overflow-x-auto no-scrollbar scroll-smooth py-1 scroll-touch-snap"
           >
-            {localizedProjects.map((proj, idx) => {
-              const isActive = activeProjectIdx === idx;
+            {localizedDepartments.map((dept, idx) => {
+              const isActive = activeDeptIdx === idx;
               return (
                 <div
-                  key={proj.id}
-                  onClick={() => setActiveProjectIdx(idx)}
-                  className={`touch-press scroll-touch-item flex items-center gap-2.5 sm:gap-3.5 shrink-0 cursor-pointer transition-all duration-300 group py-1 touch-target-min ${
-                    isActive ? 'opacity-100 scale-100' : 'opacity-40 hover:opacity-85'
+                  key={dept.id}
+                  onClick={() => setActiveDeptIdx(idx)}
+                  className={`touch-press scroll-touch-item flex items-center gap-2.5 sm:gap-3 shrink-0 cursor-pointer transition-all duration-300 group py-1 touch-target-min ${
+                    isActive ? 'opacity-100' : 'opacity-45 hover:opacity-85'
                   }`}
                 >
-                  {/* Active Bullet Indicator */}
                   <div className="w-1.5 flex justify-center">
-                    {isActive ? (
-                      <span className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />
-                    ) : (
-                      <span className="w-1 h-1 rounded-full bg-white/20 group-hover:bg-white/40" />
-                    )}
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isActive ? 'bg-blue-400' : 'bg-white/25 group-hover:bg-white/45'
+                      }`}
+                    />
                   </div>
 
-                  {/* Thumbnail (16:9 cinematic proportion) */}
                   <div
                     className={`relative w-14 h-9 sm:w-22 sm:h-13 md:w-28 md:h-16 overflow-hidden bg-neutral-950 flex-shrink-0 border transition-all duration-300 rounded-[2px] ${
                       isActive
-                        ? 'border-white shadow-lg ring-1 ring-white/50'
+                        ? 'border-white shadow-lg ring-1 ring-blue-400/50'
                         : 'border-white/15 group-hover:border-white/40'
                     }`}
                   >
                     <img
-                      src={proj.thumbnailImage}
-                      alt={proj.title}
-                      className="w-full h-full object-cover filter contrast-[1.1] group-hover:scale-105 transition-transform duration-500"
+                      src={dept.thumbnailImage}
+                      alt={dept.title}
+                      className="w-full h-full object-cover filter contrast-[1.08] group-hover:scale-105 transition-transform duration-500"
                     />
                   </div>
 
-                  {/* Typography Metadata */}
                   <div className="text-[10px] sm:text-[11px] font-mono leading-tight space-y-0.5 select-text min-w-0">
-                    <p className="font-bold text-white uppercase tracking-tight truncate max-w-[95px] sm:max-w-[170px] group-hover:text-white">
-                      {proj.title}
+                    <p className="font-bold text-white uppercase tracking-tight truncate max-w-[105px] sm:max-w-[175px]">
+                      {dept.title}
                     </p>
-                    <p className="font-medium text-white/70 uppercase tracking-tight truncate text-[9px] sm:text-[10px] max-w-[95px] sm:max-w-[170px]">
-                      {proj.subtitle}
+                    <p className="font-medium text-blue-400/90 uppercase tracking-tight truncate text-[9px] sm:text-[10px] max-w-[105px] sm:max-w-[175px]">
+                      {dept.code}
                     </p>
                     <p className="hidden md:block text-white/50 text-[9px] sm:text-[10px] uppercase tracking-wider truncate">
-                      {proj.campaignType}
+                      {dept.categoryLabel}
                     </p>
-                    <p className="hidden lg:block text-white/40 text-[9px] sm:text-[10px] truncate">
-                      {proj.creators}
+                    <p className="hidden lg:block text-white/40 text-[9px] sm:text-[10px] truncate max-w-[175px]">
+                      {dept.leadRole}
                     </p>
                   </div>
                 </div>
@@ -522,18 +557,18 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
             })}
           </div>
 
-          {/* Project Index Counter on Mobile */}
           <div className="flex sm:hidden items-center text-[10px] font-mono text-white/60 tracking-widest pl-1 tabular-nums">
-            <span>0{activeProjectIdx + 1}</span>
+            <span>0{activeDeptIdx + 1}</span>
             <span className="text-white/30 mx-1">/</span>
-            <span className="text-white/40">0{localizedProjects.length}</span>
+            <span className="text-white/40">0{localizedDepartments.length}</span>
           </div>
 
-          {/* Scroll Navigation Arrow Right */}
           <button
-            onClick={() => setActiveProjectIdx((prev) => (prev + 1) % localizedProjects.length)}
-            className="hidden sm:flex p-2 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0"
-            title="Next project (→)"
+            type="button"
+            onClick={() => setActiveDeptIdx((prev) => (prev + 1) % localizedDepartments.length)}
+            className="hidden sm:flex p-2 rounded-sm text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex-shrink-0"
+            title="Next department (→)"
+            aria-label="Next department"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -541,35 +576,34 @@ export const VaiureCinemaSlide: React.FC<VaiureCinemaSlideProps> = ({
       </footer>
 
       {/* ======================================================== */}
-      {/* 5. MODALS & DOSSIER OVERLAYS                             */}
+      {/* 5. ARCHITECTURAL DOSSIER & FACILITY MODALS               */}
       {/* ======================================================== */}
-      {/* Project Case Study Dossier */}
-      {selectedDossierProject && (
+      {selectedDossierDept && (
         <CinemaProjectDossierModal
-          project={selectedDossierProject}
-          onClose={() => setSelectedDossierProject(null)}
-          onSelectProject={(p) => {
-            setSelectedDossierProject(p);
-            const foundIdx = localizedProjects.findIndex((item) => item.id === p.id);
-            if (foundIdx !== -1) setActiveProjectIdx(foundIdx);
+          department={selectedDossierDept}
+          onClose={() => setSelectedDossierDept(null)}
+          onSelectDepartment={(d) => {
+            setSelectedDossierDept(d);
+            const foundIdx = localizedDepartments.findIndex((item) => item.id === d.id);
+            if (foundIdx !== -1) setActiveDeptIdx(foundIdx);
           }}
-          allProjects={localizedProjects}
+          allDepartments={localizedDepartments}
+          onGoToLabs={onGoToLabs}
         />
       )}
 
-      {/* Work Portfolio Index Modal */}
       <CinemaWorkIndexModal
-        isOpen={isWorkModalOpen}
-        onClose={() => setIsWorkModalOpen(false)}
-        projects={localizedProjects}
-        onSelectProject={(p) => {
-          const foundIdx = localizedProjects.findIndex((item) => item.id === p.id);
-          if (foundIdx !== -1) setActiveProjectIdx(foundIdx);
-          setSelectedDossierProject(p);
+        isOpen={isFacilityModalOpen}
+        onClose={() => setIsFacilityModalOpen(false)}
+        departments={localizedDepartments}
+        onSelectDepartment={(d) => {
+          const foundIdx = localizedDepartments.findIndex((item) => item.id === d.id);
+          if (foundIdx !== -1) setActiveDeptIdx(foundIdx);
+          setSelectedDossierDept(d);
         }}
+        onGoToLabs={onGoToLabs}
       />
 
-      {/* Info / Curatorial Manifesto Modal */}
       <CinemaInfoModal
         isOpen={isInfoModalOpen}
         onClose={() => setIsInfoModalOpen(false)}

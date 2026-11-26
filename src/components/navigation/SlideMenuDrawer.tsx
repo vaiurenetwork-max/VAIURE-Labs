@@ -308,7 +308,7 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
                 onSelectSlide(3);
                 onClose();
               }}
-              title="Slide 03: Cinema Editorial Archive"
+              title="Slide 03: AI Hybrid Production Studio (Seedance 2.5)"
               className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
                 currentSlide === 3
                   ? 'border-white/90 bg-white text-black font-semibold shadow-sm'
@@ -319,7 +319,7 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
               <div className="text-[10px] font-sans font-medium truncate leading-tight">
                 {t('cinemaSlideName')}
               </div>
-              <div className="text-[8px] font-mono opacity-50 mt-0.5">03 / CINEMA</div>
+              <div className="text-[8px] font-mono opacity-50 mt-0.5">03 / AI STUDIO</div>
             </button>
 
             <button

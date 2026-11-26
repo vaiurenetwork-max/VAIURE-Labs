@@ -481,7 +481,7 @@ export default function App() {
   const slideLabels: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> = {
     1: '01 / THREADS',
     2: '02 / ARCHIVE',
-    3: '03 / CINEMA',
+    3: '03 / AI STUDIO',
     4: '04 / SEEDANCE LAB',
     5: '05 / FU LABS',
     6: '06 / VX',
@@ -1037,7 +1037,7 @@ export default function App() {
               }`}
             >
               {(activeSlide === 3 || visitedSlides.has(3)) && (
-                <Suspense fallback={<SlideLoadingFallback bg="bg-[#050507]" label="LOADING CINEMA" />}>
+                <Suspense fallback={<SlideLoadingFallback bg="bg-[#050507]" label="LOADING AI HYBRID STUDIO" />}>
                   <VaiureCinemaSlide
                     onBackToSlideOne={() => setActiveSlide(1)}
                     onBackToSlideTwo={() => setActiveSlide(2)}

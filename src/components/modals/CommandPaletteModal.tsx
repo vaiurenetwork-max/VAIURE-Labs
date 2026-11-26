@@ -113,10 +113,10 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
       {
         id: 'slide-3',
         group: 'SLIDES',
-        title: '03 / Cinema Portfolio',
-        subtitle: activeSlide === 3 ? 'Active stage' : 'Curated film showcase & reels',
+        title: '03 / AI Hybrid Production Studio',
+        subtitle: activeSlide === 3 ? 'Active stage' : 'Seedance 2.5 virtual stage, command center & AI departments',
         shortcut: '03',
-        icon: <Film className="w-4 h-4 text-white/80" />,
+        icon: <Film className="w-4 h-4 text-blue-400" />,
         onSelect: () => onSelectSlide(3),
       },
       {

@@ -36,7 +36,7 @@ export const SLIDE_DEFINITIONS: Array<{
   { id: 0, code: '00', name: 'HERO' },
   { id: 1, code: '01', name: 'THREADS', badge: 'FEED' },
   { id: 2, code: '02', name: 'ARCHIVE', badge: 'MAGAZINE' },
-  { id: 3, code: '03', name: 'CINEMA', badge: 'FILM' },
+  { id: 3, code: '03', name: 'AI STUDIO', badge: 'HYBRID' },
   { id: 4, code: '04', name: 'SEEDANCE LAB', badge: 'SEEDANCE 2.5' },
   { id: 5, code: '05', name: 'FU LABS', badge: '3D' },
   { id: 6, code: '06', name: 'VX', badge: 'VISION' },
