@@ -126,12 +126,46 @@ export function subscribeToForumThreads(
         const likedBy: string[] = data.likedBy || [];
         const repostedBy: string[] = data.repostedBy || [];
 
-        // Only completed images appear in the public feed
-        const optimizedImages: OptimizedImageItem[] = data.optimizedImages || [];
-        const rawMediaUrls: string[] = data.mediaUrls || [];
-        const publicMediaUrls = optimizedImages.length > 0
-          ? optimizedImages.filter((img) => img.status === 'completed').map((img) => img.url)
-          : rawMediaUrls;
+        // Only completed, unique images appear in the public feed
+        const rawOptimized: OptimizedImageItem[] = Array.isArray(data.optimizedImages)
+          ? data.optimizedImages
+          : [];
+        const seenUrls = new Set<string>();
+        const optimizedImages: OptimizedImageItem[] = [];
+        for (const img of rawOptimized) {
+          if (!img || img.status !== 'completed') continue;
+          const canonical = (img.url || img.thumbnailUrl || '').trim();
+          if (!canonical || seenUrls.has(canonical)) continue;
+          seenUrls.add(canonical);
+          optimizedImages.push(img);
+        }
+
+        const rawMediaUrls: string[] = Array.isArray(data.mediaUrls) ? data.mediaUrls : [];
+        const publicMediaUrls =
+          optimizedImages.length > 0
+            ? optimizedImages.map((img) => img.url)
+            : Array.from(
+                new Set(
+                  rawMediaUrls
+                    .map((u) => (typeof u === 'string' ? u.trim() : ''))
+                    .filter(Boolean)
+                )
+              );
+
+        const cleanChainedThoughts = Array.isArray(data.chainedThoughts)
+          ? data.chainedThoughts.map((ct: any) => ({
+              ...ct,
+              mediaUrls: Array.isArray(ct?.mediaUrls)
+                ? Array.from(
+                    new Set(
+                      ct.mediaUrls
+                        .map((u: unknown) => (typeof u === 'string' ? u.trim() : ''))
+                        .filter(Boolean)
+                    )
+                  )
+                : [],
+            }))
+          : [];
 
         threads.push({
           id: d.id,
@@ -146,7 +180,7 @@ export function subscribeToForumThreads(
           mediaUrls: publicMediaUrls,
           imageProcessingStatus: (data.imageProcessingStatus as ImageProcessingStatus) || 'completed',
           optimizedImages,
-          chainedThoughts: data.chainedThoughts || [],
+          chainedThoughts: cleanChainedThoughts,
           replyPermission: (data.replyPermission as ReplyPermission) || 'EVERYONE',
           likesCount: typeof data.likesCount === 'number' ? data.likesCount : likedBy.length,
           likedBy,
@@ -194,20 +228,41 @@ export async function createForumThread(
   const threadId = data.id || `thread-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const nowIso = new Date().toISOString();
 
-  // Filter chained thoughts to non-empty items
+  // Filter chained thoughts to non-empty items and deduplicate their media
   const cleanChained = (data.chainedThoughts || [])
     .filter((ct) => ct.content.trim().length > 0)
     .map((ct) => ({
       id: ct.id || `chain-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       content: ct.content.trim(),
-      mediaUrls: ct.mediaUrls || [],
+      mediaUrls: Array.from(
+        new Set(
+          (ct.mediaUrls || [])
+            .map((u) => (typeof u === 'string' ? u.trim() : ''))
+            .filter(Boolean)
+        )
+      ),
     }));
 
-  const optimizedImages = data.optimizedImages || [];
-  // Media URLs in public feed strictly point to verified optimized assets
-  const verifiedMediaUrls = optimizedImages.length > 0
-    ? optimizedImages.filter((img) => img.status === 'completed').map((img) => img.url)
-    : (data.mediaUrls || []);
+  const seenMediaUrls = new Set<string>();
+  const optimizedImages = (data.optimizedImages || []).filter((img) => {
+    if (!img || img.status !== 'completed') return false;
+    const key = (img.url || img.thumbnailUrl || '').trim();
+    if (!key || seenMediaUrls.has(key)) return false;
+    seenMediaUrls.add(key);
+    return true;
+  });
+
+  // Media URLs in public feed strictly point to unique verified optimized assets
+  const verifiedMediaUrls =
+    optimizedImages.length > 0
+      ? optimizedImages.map((img) => img.url)
+      : Array.from(
+          new Set(
+            (data.mediaUrls || [])
+              .map((u) => (typeof u === 'string' ? u.trim() : ''))
+              .filter(Boolean)
+          )
+        );
 
   const threadDoc: Record<string, any> = {
     id: threadId,

@@ -96,6 +96,7 @@ export const NewThreadModal: React.FC<NewThreadModalProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [previewLightboxUrl, setPreviewLightboxUrl] = useState<string | null>(null);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -121,6 +122,7 @@ export const NewThreadModal: React.FC<NewThreadModalProps> = ({
       uploadedSignaturesRef.current.clear();
       setChainedThoughts([]);
       setSubmitError(null);
+      setAvatarLoadError(false);
       setIsTopicMenuOpen(false);
       setIsReplyOptionsOpen(false);
       threadIdRef.current = `thread-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -413,9 +415,16 @@ export const NewThreadModal: React.FC<NewThreadModalProps> = ({
       return;
     }
 
+    const seenCompleted = new Set<string>();
     const completedImages: OptimizedImageItem[] = attachedMedia
       .filter((m) => m.status === 'completed' && Boolean(m.optimizedData))
-      .map((m) => m.optimizedData!);
+      .map((m) => m.optimizedData!)
+      .filter((img) => {
+        const key = (img.url || img.thumbnailUrl || '').trim();
+        if (!key || seenCompleted.has(key)) return false;
+        seenCompleted.add(key);
+        return true;
+      });
 
     if (!content.trim() && completedImages.length === 0) return;
 
@@ -472,17 +481,18 @@ export const NewThreadModal: React.FC<NewThreadModalProps> = ({
           {/* User Row & Topic Selector */}
           <div className="flex items-start gap-3 relative">
             <div className="w-9 h-9 rounded-full overflow-hidden border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white/70">
-              {currentUser.avatar ? (
+              {currentUser.avatar && !avatarLoadError ? (
                 <img
                   src={currentUser.avatar}
                   alt={currentUser.displayName}
+                  onError={() => setAvatarLoadError(true)}
                   className="w-full h-full object-cover filter grayscale"
                 />
               ) : (
                 <span>
                   {currentUser.username
                     ? currentUser.username.slice(0, 2).toUpperCase()
-                    : 'IV'}
+                    : 'VA'}
                 </span>
               )}
             </div>
@@ -818,16 +828,8 @@ export const NewThreadModal: React.FC<NewThreadModalProps> = ({
               {/* Thread line connecting from previous item */}
               <div className="absolute left-[18px] -top-6 bottom-6 w-0.5 bg-white/15" />
 
-              <div className="w-7 h-7 rounded-full overflow-hidden border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-[10px] text-white/70 relative z-10">
-                {currentUser.avatar ? (
-                  <img
-                    src={currentUser.avatar}
-                    alt=""
-                    className="w-full h-full object-cover filter grayscale"
-                  />
-                ) : (
-                  <span>IV</span>
-                )}
+              <div className="w-7 h-7 rounded-full border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-[10px] text-white/70 relative z-10">
+                <span>{idx + 2}</span>
               </div>
 
               <div className="flex-1 min-w-0">

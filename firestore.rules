@@ -281,6 +281,27 @@ service cloud.firestore {
         && data.content is string && data.content.size() > 0 && data.content.size() <= 1500;
     }
 
+    function isValidHybridStudioProject(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.ownerId is string && data.ownerId.size() > 0 && data.ownerId.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 140
+        && (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 2000))
+        && data.resolution in ['480p', '720p', '1080p', '4K']
+        && data.frameRate in ['24fps', '30fps']
+        && data.aspectRatio is string && data.aspectRatio.size() > 0 && data.aspectRatio.size() <= 16
+        && (!data.keys().hasAny(['scenes']) || (data.scenes is list && data.scenes.size() <= 60))
+        && (!data.keys().hasAny(['assets']) || (data.assets is list && data.assets.size() <= 200))
+        && (!data.keys().hasAny(['assetFolders']) || (data.assetFolders is list && data.assetFolders.size() <= 40))
+        && (!data.keys().hasAny(['videoTransforms']) || (data.videoTransforms is list && data.videoTransforms.size() <= 100))
+        && (!data.keys().hasAny(['characters']) || (data.characters is list && data.characters.size() <= 60))
+        && (!data.keys().hasAny(['environments']) || (data.environments is list && data.environments.size() <= 60))
+        && (!data.keys().hasAny(['timelineTracks']) || (data.timelineTracks is list && data.timelineTracks.size() <= 16))
+        && (!data.keys().hasAny(['timelineClips']) || (data.timelineClips is list && data.timelineClips.size() <= 200))
+        && (!data.keys().hasAny(['versions']) || (data.versions is list && data.versions.size() <= 30))
+        && (!data.keys().hasAny(['generations']) || (data.generations is list && data.generations.size() <= 150))
+        && data.updatedAt is string && data.updatedAt.size() > 0 && data.updatedAt.size() <= 64;
+    }
+
     // 1. Public Creator Profiles (PII-isolated directory: NO email/phone/private fields allowed)
     match /publicProfiles/{userId} {
       allow get: if isValidId(userId);
@@ -1299,6 +1320,28 @@ service cloud.firestore {
       );
       allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || isAdmin());
       allow create, update, delete: if isAdmin();
+    }
+
+    // 53. VAIURE HYBRID STUDIO Productions (Strictly Owner-Private or Admin)
+    match /hybridStudioProjects/{projectId} {
+      allow get: if isValidId(projectId) && isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid || isAdmin()
+      );
+      allow create: if isValidId(projectId) && isSignedIn()
+        && isValidHybridStudioProject(incoming())
+        && incoming().id == projectId
+        && incoming().ownerId == request.auth.uid;
+      allow update: if isValidId(projectId) && isSignedIn()
+        && isValidHybridStudioProject(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && (existing().ownerId == request.auth.uid || isAdmin());
+      allow delete: if isValidId(projectId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid || isAdmin()
+      );
     }
   }
 }

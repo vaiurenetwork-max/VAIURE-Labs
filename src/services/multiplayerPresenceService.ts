@@ -34,81 +34,7 @@ const REACTIONS_COLLECTION = 'liveReactions';
 const SHARED_SCENES_COLLECTION = 'sharedScenes';
 const SHARED_PROMPTS_COLLECTION = 'sharedPrompts';
 
-// Initial curated community creators active across the ateliers
-export const SEED_ONLINE_CREATORS: LiveCreatorPresence[] = [
-  {
-    uid: 'artist-sora-01',
-    username: 'sora_cinematic',
-    displayName: 'Sora Tanaka',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    currentSlide: 5,
-    currentSlideName: 'Fu Labs 3D',
-    status: 'CREATING',
-    lastHeartbeat: new Date().toISOString(),
-    color: '#22d3ee', // Cyan
-    role: 'Cinematic Director',
-  },
-  {
-    uid: 'artist-elena-02',
-    username: 'elena_vogue',
-    displayName: 'Elena Rostova',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    currentSlide: 6,
-    currentSlideName: 'VX Vision',
-    status: 'CREATING',
-    lastHeartbeat: new Date().toISOString(),
-    color: '#f59e0b', // Amber
-    role: 'Editorial Stylist',
-  },
-  {
-    uid: 'artist-kael-03',
-    username: 'kael_brutalist',
-    displayName: 'Kael Vance',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
-    currentSlide: 4,
-    currentSlideName: 'Studio Canvas',
-    status: 'ONLINE',
-    lastHeartbeat: new Date().toISOString(),
-    color: '#10b981', // Emerald
-    role: 'Spatial Architect',
-  },
-  {
-    uid: 'artist-amara-04',
-    username: 'amara_sound',
-    displayName: 'Amara Chen',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=200&q=80',
-    currentSlide: 0,
-    currentSlideName: 'Hero Motion',
-    status: 'ONLINE',
-    lastHeartbeat: new Date().toISOString(),
-    color: '#e879f9', // Fuchsia
-    role: 'Sound Sculptor',
-  },
-  {
-    uid: 'artist-marcus-05',
-    username: 'marcus_noir',
-    displayName: 'Marcus Sterling',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-    currentSlide: 5,
-    currentSlideName: 'Fu Labs 3D',
-    status: 'CREATING',
-    lastHeartbeat: new Date().toISOString(),
-    color: '#38bdf8', // Sky
-    role: 'Action Choreographer',
-  },
-  {
-    uid: 'artist-yuki-06',
-    username: 'yuki_optics',
-    displayName: 'Yuki Morita',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-    currentSlide: 6,
-    currentSlideName: 'VX Vision',
-    status: 'ONLINE',
-    lastHeartbeat: new Date().toISOString(),
-    color: '#a78bfa', // Purple
-    role: 'Colorist & Optics',
-  },
-];
+// Seeded fake presence removed: Live Atelier presence strictly reflects real Firestore friendlist accounts
 
 // Initial community 3D stages for Slide 5 Fu Labs Co-Op
 export const INITIAL_COMMUNITY_3D_SCENES: Shared3DScene[] = [
@@ -277,6 +203,13 @@ const STORAGE_PRESENCE_KEY = 'vaiure_multiplayer_presence_v1';
 const STORAGE_SCENES_KEY = 'vaiure_shared_3d_scenes_v1';
 const STORAGE_PROMPTS_KEY = 'vaiure_shared_prompts_v1';
 
+// Purge legacy seeded presence cache so non-friend / fake entries never reappear
+if (typeof window !== 'undefined') {
+  try {
+    localStorage.removeItem(STORAGE_PRESENCE_KEY);
+  } catch {}
+}
+
 function getStored<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -300,6 +233,8 @@ const SLIDE_NAMES: Record<AtelierSlideId, string> = {
   4: 'Studio Canvas',
   5: 'Fu Labs 3D',
   6: 'VX Vision',
+  7: 'Canvas Studio',
+  8: 'Hybrid Studio',
 };
 
 // -----------------------------------------------------------------------------
@@ -316,7 +251,6 @@ export async function updateCreatorPresence(
 ): Promise<void> {
   const signedInUser = auth.currentUser;
   if (!signedInUser) {
-    // Guest sessions stay local until authenticated
     return;
   }
 
@@ -324,11 +258,9 @@ export async function updateCreatorPresence(
   const presenceData: LiveCreatorPresence & { userId: string } = {
     uid,
     userId: uid,
-    username: user?.username || 'Creator',
-    displayName: user?.displayName || user?.username || 'Creator',
-    avatar:
-      user?.avatar ||
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    username: user?.username || signedInUser.email?.split('@')[0] || 'creator',
+    displayName: user?.displayName || user?.username || signedInUser.displayName || 'Creator',
+    avatar: user?.avatar || signedInUser.photoURL || '',
     currentSlide: activeSlide,
     currentSlideName: SLIDE_NAMES[activeSlide] || 'Atelier',
     status,
@@ -341,77 +273,139 @@ export async function updateCreatorPresence(
     const presenceRef = doc(db, PRESENCE_COLLECTION, uid);
     await setDoc(presenceRef, presenceData, { merge: true });
   } catch (err) {
-    console.debug('Presence heartbeat fallback to local session:', err);
+    console.debug('Presence heartbeat update skipped:', err);
   }
 }
 
 /**
- * Subscribe to all online creators across the platform
+ * Subscribe strictly to real, actively working live accounts from the authenticated user's friendlist
  */
 export function subscribeToOnlineCreators(
   currentUserId: string,
   onUpdate: (creators: LiveCreatorPresence[]) => void
 ): () => void {
-  const initialCache = getStored<LiveCreatorPresence[]>(STORAGE_PRESENCE_KEY, SEED_ONLINE_CREATORS);
-  onUpdate(initialCache);
+  onUpdate([]);
 
-  let unsubSnapshot: (() => void) | null = null;
+  let unsubPresenceSnapshot: (() => void) | null = null;
+  let unsubFollowingSnapshot: (() => void) | null = null;
   let disposed = false;
+
+  const cleanupStreams = () => {
+    if (unsubPresenceSnapshot) {
+      unsubPresenceSnapshot();
+      unsubPresenceSnapshot = null;
+    }
+    if (unsubFollowingSnapshot) {
+      unsubFollowingSnapshot();
+      unsubFollowingSnapshot = null;
+    }
+  };
 
   const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
     if (disposed) return;
-    if (unsubSnapshot) {
-      unsubSnapshot();
-      unsubSnapshot = null;
-    }
+    cleanupStreams();
+
     if (!firebaseUser) {
-      onUpdate(initialCache);
+      onUpdate([]);
       return;
     }
 
-    try {
-      const q = query(collection(db, PRESENCE_COLLECTION), limit(40));
-      unsubSnapshot = onSnapshot(
-        q,
-        (snapshot) => {
-          const fetched: LiveCreatorPresence[] = [];
-          const now = Date.now();
+    const friendIdSet = new Set<string>();
+    const rawPresenceMap = new Map<string, LiveCreatorPresence>();
 
+    const emitFilteredLiveFriends = () => {
+      if (disposed) return;
+      const now = Date.now();
+      const liveFriends: LiveCreatorPresence[] = [];
+
+      rawPresenceMap.forEach((item, docId) => {
+        const uid = docId || item.uid;
+        if (!uid || uid === firebaseUser.uid || uid === currentUserId) return;
+        // Strictly restrict to real friendlist accounts
+        if (!friendIdSet.has(uid)) return;
+        // Require a real active heartbeat and working status
+        const heartbeatMs = item.lastHeartbeat ? new Date(item.lastHeartbeat).getTime() : 0;
+        const heartbeatAge = Number.isFinite(heartbeatMs) ? now - heartbeatMs : Infinity;
+        if (heartbeatAge < -60000 || heartbeatAge >= 90000) return;
+        if (item.status === 'IDLE') return;
+        if (!item.username && !item.displayName) return;
+
+        liveFriends.push({
+          ...item,
+          uid,
+          isCurrentUser: false,
+        });
+      });
+
+      liveFriends.sort(
+        (a, b) => new Date(b.lastHeartbeat).getTime() - new Date(a.lastHeartbeat).getTime()
+      );
+      onUpdate(liveFriends);
+    };
+
+    const pruneInterval = setInterval(emitFilteredLiveFriends, 15000);
+
+    try {
+      const followingRef = collection(db, 'users', firebaseUser.uid, 'following');
+      unsubFollowingSnapshot = onSnapshot(
+        followingRef,
+        (snapshot) => {
+          friendIdSet.clear();
           snapshot.forEach((docSnap) => {
-            const item = docSnap.data() as LiveCreatorPresence;
-            const heartbeatAge = item.lastHeartbeat ? now - new Date(item.lastHeartbeat).getTime() : 0;
-            if (heartbeatAge < 90000) {
-              fetched.push({
-                ...item,
-                uid: docSnap.id,
-                isCurrentUser: item.uid === currentUserId || docSnap.id === firebaseUser.uid,
-              });
+            const data = docSnap.data();
+            if (data?.active === false) return;
+            const targetUid =
+              typeof data?.targetUid === 'string' && data.targetUid.trim()
+                ? data.targetUid.trim()
+                : docSnap.id;
+            if (targetUid && targetUid !== firebaseUser.uid) {
+              friendIdSet.add(targetUid);
             }
           });
-
-          const seenIds = new Set(fetched.map((f) => f.uid));
-          const combined = [
-            ...fetched,
-            ...SEED_ONLINE_CREATORS.filter((s) => !seenIds.has(s.uid) && s.uid !== currentUserId),
-          ];
-
-          setStored(STORAGE_PRESENCE_KEY, combined);
-          onUpdate(combined);
+          emitFilteredLiveFriends();
         },
         (error) => {
-          console.warn('Presence snapshot warning, using cached creators:', error.message);
-          onUpdate(initialCache);
+          console.warn('Friendlist snapshot error:', error.message);
+          friendIdSet.clear();
+          emitFilteredLiveFriends();
+        }
+      );
+
+      const presenceQuery = query(collection(db, PRESENCE_COLLECTION), limit(60));
+      unsubPresenceSnapshot = onSnapshot(
+        presenceQuery,
+        (snapshot) => {
+          rawPresenceMap.clear();
+          snapshot.forEach((docSnap) => {
+            const item = docSnap.data() as LiveCreatorPresence;
+            rawPresenceMap.set(docSnap.id, { ...item, uid: docSnap.id });
+          });
+          emitFilteredLiveFriends();
+        },
+        (error) => {
+          console.warn('Presence snapshot warning:', error.message);
+          onUpdate([]);
         }
       );
     } catch {
-      onUpdate(initialCache);
+      onUpdate([]);
     }
+
+    const prevCleanup = cleanupStreams;
+    unsubFollowingSnapshot = (() => {
+      const origFollowing = unsubFollowingSnapshot;
+      return () => {
+        clearInterval(pruneInterval);
+        if (origFollowing) origFollowing();
+      };
+    })();
+    void prevCleanup;
   });
 
   return () => {
     disposed = true;
     unsubAuth();
-    if (unsubSnapshot) unsubSnapshot();
+    cleanupStreams();
   };
 }
 

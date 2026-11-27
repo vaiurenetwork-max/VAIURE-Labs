@@ -115,16 +115,8 @@ export const ForumSection: React.FC<ForumSectionProps> = ({
           onClick={handleOpenComposer}
           className="p-4 bg-[#0a0a0d] border border-white/[0.09] hover:border-white/30 transition-all cursor-pointer mb-8 flex items-center gap-3.5"
         >
-          <div className="w-9 h-9 rounded-full overflow-hidden border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white/70">
-            {currentUser.avatar ? (
-              <img
-                src={currentUser.avatar}
-                alt=""
-                className="w-full h-full object-cover filter grayscale"
-              />
-            ) : (
-              <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
-            )}
+          <div className="w-9 h-9 rounded-full border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white/70">
+            <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
           </div>
           <div className="flex-1 text-xs text-white/45 font-sans tracking-wide">
             {t('postAThreadPlaceholder')}

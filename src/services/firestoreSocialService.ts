@@ -129,7 +129,7 @@ export function subscribeToFirestoreCreators(
             id: data.uid || d.id,
             username: rawName,
             displayName: data.displayName || rawName,
-            avatar: data.photoURL || '',
+            avatar: data.photoURL || data.avatar || '',
             bannerImage: data.bannerImage,
             role: isAdminRole ? 'SUPER_ADMIN' : (data.role || data.accountType || 'CREATOR'),
             specialBadge: isAdminRole ? 'ADMINISTRATOR' : data.specialBadge,
@@ -512,6 +512,44 @@ export async function toggleFirestoreFollow(
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, `users/${currentUser.id}/following/${targetUser.id}`);
   }
+}
+
+/**
+ * Subscribe in real time to the current authenticated user's followed/friend UIDs
+ */
+export function subscribeToFollowingUserIds(
+  userId: string,
+  onUpdate: (followingIds: string[]) => void
+): () => void {
+  if (!userId || !auth.currentUser || auth.currentUser.uid !== userId) {
+    onUpdate([]);
+    return () => {};
+  }
+
+  const followingRef = collection(db, 'users', userId, 'following');
+  const unsubscribe = onSnapshot(
+    followingRef,
+    (snapshot) => {
+      const ids: string[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data?.active === false) return;
+        const targetUid = typeof data?.targetUid === 'string' && data.targetUid.trim()
+          ? data.targetUid.trim()
+          : docSnap.id;
+        if (targetUid && targetUid !== userId) {
+          ids.push(targetUid);
+        }
+      });
+      onUpdate(Array.from(new Set(ids)));
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, `users/${userId}/following`);
+      onUpdate([]);
+    }
+  );
+
+  return unsubscribe;
 }
 
 /**

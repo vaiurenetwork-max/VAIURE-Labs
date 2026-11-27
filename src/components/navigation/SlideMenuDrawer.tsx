@@ -21,6 +21,7 @@ import {
   User,
   Cpu,
   PenTool,
+  Clapperboard,
 } from 'lucide-react';
 import { VxModelId } from '../../types/vx';
 
@@ -233,7 +234,7 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
               {t('viewportSlide')}
             </span>
             <span className="text-[9px] font-mono text-white/30 tabular-nums">
-              0{currentSlide} / 07
+              0{currentSlide} / 08
             </span>
           </div>
 
@@ -406,6 +407,29 @@ export const SlideMenuDrawer: React.FC<SlideMenuDrawerProps> = ({
                 </div>
               </div>
               <div className="text-[8px] font-mono opacity-60 shrink-0 ml-2">07 / CANVAS</div>
+            </button>
+
+            <button
+              onMouseEnter={() => onPrefetchDestination?.('slide-8')}
+              onFocus={() => onPrefetchDestination?.('slide-8')}
+              onClick={() => {
+                onSelectSlide(8);
+                onClose();
+              }}
+              title="Slide 08: HYBRID STUDIO — Full AI Film Production & Creative Direction (Seedance 2.5)"
+              className={`col-span-2 sm:col-span-3 p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between ${
+                currentSlide === 8
+                  ? 'border-white/90 bg-white text-black font-semibold shadow-sm'
+                  : 'border-cyan-500/30 bg-cyan-950/20 text-white/90 hover:border-cyan-400/60 hover:text-white hover:bg-cyan-950/35'
+              }`}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Clapperboard className={`w-3 h-3 shrink-0 ${currentSlide === 8 ? 'text-black' : 'text-cyan-400'}`} />
+                <div className="text-[10px] font-sans font-semibold tracking-wide truncate leading-tight">
+                  HYBRID STUDIO
+                </div>
+              </div>
+              <div className="text-[8px] font-mono opacity-75 shrink-0 ml-2">08 / HYBRID</div>
             </button>
           </div>
 

@@ -84,6 +84,7 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [menuThread, setMenuThread] = useState<ForumThread | null>(null);
   const [savedThreadIds, setSavedThreadIds] = useState<string[]>([]);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const [isNavCompact, setIsNavCompact] = useState(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -454,12 +455,8 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
           className="px-4 py-3.5 border-b border-neutral-900 flex items-center justify-between gap-3 cursor-pointer hover:bg-neutral-950/60 transition-colors"
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-neutral-800 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white">
-              {currentUser.avatar ? (
-                <img src={currentUser.avatar} alt="" className="w-full h-full object-cover filter grayscale" />
-              ) : (
-                <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
-              )}
+            <div className="w-10 h-10 rounded-full border border-neutral-800 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white/75">
+              <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-white tracking-tight leading-none mb-1">
@@ -569,8 +566,15 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
                         onClick={() => onOpenProfile(thread.authorUsername)}
                         className="w-10 h-10 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 flex items-center justify-center cursor-pointer text-xs font-mono"
                       >
-                        {thread.authorAvatar ? (
-                          <img src={thread.authorAvatar} alt="" className="w-full h-full object-cover" />
+                        {thread.authorAvatar && !failedImages[`avatar:${thread.id}`] ? (
+                          <img
+                            src={thread.authorAvatar}
+                            alt=""
+                            onError={() =>
+                              setFailedImages((prev) => ({ ...prev, [`avatar:${thread.id}`]: true }))
+                            }
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <span>{thread.authorUsername.slice(0, 2).toUpperCase()}</span>
                         )}
@@ -635,12 +639,25 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
                       {thread.content}
                     </p>
 
-                    {/* Quoted Thread Box (Like badboy745677 post in screenshot) */}
+                    {/* Quoted Thread Box */}
                     {thread.quotedThread && (
                       <div className="mt-2.5 p-3 rounded-xl border border-neutral-800 bg-neutral-950/80 space-y-1.5 hover:border-neutral-700 transition-colors">
                         <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 flex-shrink-0">
-                            <img src={thread.quotedThread.authorAvatar} alt="" className="w-full h-full object-cover" />
+                          <div className="w-5 h-5 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 flex-shrink-0 flex items-center justify-center text-[8px] font-mono text-white/70">
+                            {thread.quotedThread.authorAvatar && !failedImages[`qavatar:${thread.id}`] ? (
+                              <img
+                                src={thread.quotedThread.authorAvatar}
+                                alt=""
+                                onError={() =>
+                                  setFailedImages((prev) => ({ ...prev, [`qavatar:${thread.id}`]: true }))
+                                }
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span>
+                                {(thread.quotedThread.authorUsername || 'VA').slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
                           </div>
                           <span className="text-xs font-semibold text-white">
                             {thread.quotedThread.authorUsername}
@@ -655,39 +672,59 @@ export const ThreadsMainFeed: React.FC<ThreadsMainFeedProps> = ({
                       </div>
                     )}
 
-                    {/* Media Gallery / Optimized WebP Images with Zero CLS */}
-                    {thread.mediaUrls && thread.mediaUrls.length > 0 && (
-                      <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 scrollbar-none snap-x">
-                        {thread.mediaUrls.map((url, imgIdx) => {
-                          const optItem = thread.optimizedImages?.[imgIdx];
-                          const previewSrc = optItem?.thumbnailUrl || url;
-                          const fullSrc = optItem?.url || url;
+                    {/* Media Gallery / Deduplicated Optimized WebP Images with Zero CLS */}
+                    {(() => {
+                      const rawUrls = Array.isArray(thread.mediaUrls) ? thread.mediaUrls : [];
+                      const seenMedia = new Set<string>();
+                      const uniqueMedia: { previewSrc: string; fullSrc: string; format?: string }[] = [];
 
-                          return (
+                      rawUrls.forEach((rawUrl, imgIdx) => {
+                        const cleanRaw = typeof rawUrl === 'string' ? rawUrl.trim() : '';
+                        const optItem = thread.optimizedImages?.[imgIdx];
+                        const previewSrc = (optItem?.thumbnailUrl || cleanRaw).trim();
+                        const fullSrc = (optItem?.url || cleanRaw).trim();
+                        const dedupeKey = fullSrc || previewSrc;
+                        if (!dedupeKey || seenMedia.has(dedupeKey)) return;
+                        if (failedImages[`media:${thread.id}:${dedupeKey}`]) return;
+                        seenMedia.add(dedupeKey);
+                        uniqueMedia.push({ previewSrc, fullSrc, format: optItem?.format });
+                      });
+
+                      if (uniqueMedia.length === 0) return null;
+
+                      return (
+                        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 scrollbar-none snap-x">
+                          {uniqueMedia.map((media) => (
                             <div
-                              key={imgIdx}
-                              onClick={() => setLightboxImage(fullSrc)}
+                              key={media.fullSrc}
+                              onClick={() => setLightboxImage(media.fullSrc)}
                               className="group/img relative w-44 sm:w-56 aspect-[3/4] rounded-2xl overflow-hidden border border-neutral-800 bg-neutral-950 flex-shrink-0 snap-start cursor-pointer hover:border-neutral-700 transition-all"
                             >
                               <img
-                                src={previewSrc}
+                                src={media.previewSrc}
                                 alt="Editorial Visual"
                                 loading="lazy"
                                 decoding="async"
+                                onError={() =>
+                                  setFailedImages((prev) => ({
+                                    ...prev,
+                                    [`media:${thread.id}:${media.fullSrc}`]: true,
+                                  }))
+                                }
                                 className="w-full h-full object-cover group-hover/img:scale-[1.02] transition-transform duration-300"
                               />
 
                               {/* Subtle WebP & Quality Indicator */}
-                              {optItem?.format && (
+                              {media.format && (
                                 <div className="absolute top-2 left-2 opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/75 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-mono uppercase tracking-wider text-white/80 border border-white/10">
-                                  {optItem.format}
+                                  {media.format}
                                 </div>
                               )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      );
+                    })()}
 
                     {/* Chained Thoughts (Add to thread items) */}
                     {thread.chainedThoughts && thread.chainedThoughts.length > 0 && (

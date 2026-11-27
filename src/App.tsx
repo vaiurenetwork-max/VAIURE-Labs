@@ -45,6 +45,8 @@ const loadVxSlide = () =>
   import('./components/vx/VxSlide').then((m) => ({ default: m.VxSlide }));
 const loadVaiByteCanvasSlide = () =>
   import('./components/canvas/VaiByteCanvasSlide').then((m) => ({ default: m.VaiByteCanvasSlide }));
+const loadHybridStudioSlide = () =>
+  import('./components/hybridStudio/HybridStudioSlide').then((m) => ({ default: m.HybridStudioSlide }));
 const loadShortsView = () =>
   import('./components/shorts/ShortsView').then((m) => ({ default: m.ShortsView }));
 
@@ -92,6 +94,7 @@ const VaiureLabsSlide = lazy(loadVaiureLabsSlide);
 const FuLabsGreyboxSlide = lazy(loadFuLabsGreyboxSlide);
 const VxSlide = lazy(loadVxSlide);
 const VaiByteCanvasSlide = lazy(loadVaiByteCanvasSlide);
+const HybridStudioSlide = lazy(loadHybridStudioSlide);
 const ShortsView = lazy(loadShortsView);
 
 // Lazy-loaded Modals
@@ -145,10 +148,11 @@ function preloadMenuWorkspaces(): void {
   safePreload('slide-6', loadVxSlide);
   safePreload('shorts', loadShortsView);
 
-  // Wave 2: Heavy 3D / Canvas workspaces after a brief idle yield
+  // Wave 2: Heavy 3D / Canvas / Hybrid Studio workspaces after a brief idle yield
   setTimeout(() => {
     safePreload('slide-5', loadFuLabsGreyboxSlide);
     safePreload('slide-7', loadVaiByteCanvasSlide);
+    safePreload('slide-8', loadHybridStudioSlide);
   }, 450);
 }
 
@@ -178,6 +182,9 @@ function preloadDestination(target: string): void {
       break;
     case 'slide-7':
       safePreload('slide-7', loadVaiByteCanvasSlide);
+      break;
+    case 'slide-8':
+      safePreload('slide-8', loadHybridStudioSlide);
       break;
     case 'shorts':
       safePreload('shorts', loadShortsView);
@@ -278,6 +285,7 @@ export default function App() {
     posts,
     currentUser,
     creators,
+    followingUsernames,
     comments,
     notifications,
     conversations,
@@ -373,9 +381,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
-  // Hideable / Minimizable Workspace State for Slides 1–7 over Slide 0 Hero
+  // Hideable / Minimizable Workspace State for Slides 1–8 over Slide 0 Hero
   const [isSlidesMinimized, setIsSlidesMinimized] = useState(false);
-  const [minimizedSlideIndex, setMinimizedSlideIndex] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | null>(null);
+  const [minimizedSlideIndex, setMinimizedSlideIndex] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | null>(null);
   const [canvasToSeedanceImages, setCanvasToSeedanceImages] = useState<string[]>([]);
   const [seedanceInitialView, setSeedanceInitialView] = useState<
     'overview' | 'generator' | 'reference' | 'history' | 'plans' | 'credits' | 'agent' | 'streams' | 'rooms' | 'account' | 'admin' | undefined
@@ -387,7 +395,7 @@ export default function App() {
     goToSlide: rawSetActiveSlide,
   } = useSlideNavigation({
     initialSlide: 0,
-    totalSlides: 8,
+    totalSlides: 9,
     swipeThreshold: 75,
     transitionDurationMs: 240,
     isModalOpen: isAnyModalOpen,
@@ -437,7 +445,7 @@ export default function App() {
   }, [isSlideMenuOpen]);
 
   // Safe explicit slide navigation helper
-  const setActiveSlide = (targetSlide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7) => {
+  const setActiveSlide = (targetSlide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) => {
     if (targetSlide === 0) {
       setIsSlidesMinimized(false);
       rawSetActiveSlide(0);
@@ -454,16 +462,16 @@ export default function App() {
     }
   };
 
-  // Minimize current active slide (1-7) down to compact bar over Slide 0 Hero
+  // Minimize current active slide (1-8) down to compact bar over Slide 0 Hero
   const handleMinimizeCurrentSlide = () => {
     if (activeSlide > 0) {
-      setMinimizedSlideIndex(activeSlide as 1 | 2 | 3 | 4 | 5 | 6 | 7);
+      setMinimizedSlideIndex(activeSlide as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8);
       setIsSlidesMinimized(true);
       rawSetActiveSlide(0);
     }
   };
 
-  // Completely hide/close Slides 1-7 and return to full-screen Slide 0 Hero
+  // Completely hide/close Slides 1-8 and return to full-screen Slide 0 Hero
   const handleHideAllSlides = () => {
     setIsSlidesMinimized(false);
     setMinimizedSlideIndex(null);
@@ -478,7 +486,7 @@ export default function App() {
     }
   };
 
-  const slideLabels: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, string> = {
+  const slideLabels: Record<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8, string> = {
     1: '01 / THREADS',
     2: '02 / ARCHIVE',
     3: '03 / AI STUDIO',
@@ -486,6 +494,7 @@ export default function App() {
     5: '05 / FU LABS',
     6: '06 / VX',
     7: '07 / VAIBYTE CANVAS',
+    8: '08 / HYBRID STUDIO',
   };
 
   // Check server-side admin privileges for current authenticated user
@@ -807,7 +816,7 @@ export default function App() {
                     currentUser={currentUser}
                     unreadNotificationsCount={unreadNotificationsCount}
                     unreadMessagesCount={unreadMessagesCount}
-                    followingUsernames={creators ? Object.keys(creators) : []}
+                    followingUsernames={followingUsernames}
                     onOpenMenu={() => setIsSlideMenuOpen(true)}
                     onOpenSlideTwo={() => setActiveSlide(2)}
                     onOpenSlideThree={() => setActiveSlide(3)}
@@ -1161,6 +1170,27 @@ export default function App() {
                 </Suspense>
               )}
             </div>
+
+            {/* SLIDE 8: VAIURE — HYBRID STUDIO (Slide 08) */}
+            <div
+              id="slide-hybrid-studio-viewport"
+              className={`inset-0 w-full h-full overflow-hidden bg-[#050507] ${
+                activeSlide === 8
+                  ? 'fixed pointer-events-auto z-10 opacity-100'
+                  : 'hidden pointer-events-none z-0 opacity-0'
+              }`}
+            >
+              {(activeSlide === 8 || visitedSlides.has(8)) && (
+                <Suspense fallback={<SlideLoadingFallback bg="bg-[#050507]" label="LOADING HYBRID STUDIO" />}>
+                  <HybridStudioSlide
+                    onOpenMenu={() => setIsSlideMenuOpen(true)}
+                    onBackToHero={() => setActiveSlide(0)}
+                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                    currentUser={currentUser}
+                  />
+                </Suspense>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1173,7 +1203,7 @@ export default function App() {
         isAdmin={isAdmin}
         unreadMessagesCount={unreadMessagesCount}
         onClose={() => setIsSlideMenuOpen(false)}
-        onSelectSlide={(slideIdx) => setActiveSlide(slideIdx as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7)}
+        onSelectSlide={(slideIdx) => setActiveSlide(slideIdx as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8)}
         selectedVxModel={selectedVxModel}
         onSelectVxModel={setSelectedVxModel}
         onPrefetchDestination={preloadDestination}
@@ -1486,7 +1516,7 @@ export default function App() {
           <div className="fixed inset-0 z-50 w-full h-full bg-black animate-in fade-in duration-300">
             <ShortsView
               currentUser={currentUser}
-              followingUsernames={creators ? Object.keys(creators) : []}
+              followingUsernames={followingUsernames}
               onBackToHome={() => setIsShortsOpen(false)}
               onOpenSlideArchive={() => {
                 setIsShortsOpen(false);
@@ -1519,6 +1549,8 @@ export default function App() {
           setSeedanceInitialView('rooms');
           setActiveSlide(4);
         }}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenProfile={handleOpenProfile}
       />
     </div>
     </MotionConfig>

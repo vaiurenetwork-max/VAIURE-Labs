@@ -505,30 +505,45 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           {thread.content}
                         </p>
 
-                        {/* Thread Optimized Images */}
-                        {thread.mediaUrls && thread.mediaUrls.length > 0 && (
-                          <div className="flex gap-2.5 overflow-x-auto py-1">
-                            {thread.mediaUrls.map((imgUrl, i) => {
-                              const opt = thread.optimizedImages?.[i];
-                              const preview = opt?.thumbnailUrl || imgUrl;
-                              const full = opt?.url || imgUrl;
-                              return (
+                        {/* Thread Optimized Images (Deduplicated) */}
+                        {(() => {
+                          const rawUrls = Array.isArray(thread.mediaUrls) ? thread.mediaUrls : [];
+                          const seen = new Set<string>();
+                          const items: { preview: string; full: string }[] = [];
+                          rawUrls.forEach((imgUrl, i) => {
+                            const clean = typeof imgUrl === 'string' ? imgUrl.trim() : '';
+                            const opt = thread.optimizedImages?.[i];
+                            const preview = (opt?.thumbnailUrl || clean).trim();
+                            const full = (opt?.url || clean).trim();
+                            const key = full || preview;
+                            if (!key || seen.has(key)) return;
+                            seen.add(key);
+                            items.push({ preview, full });
+                          });
+                          if (items.length === 0) return null;
+                          return (
+                            <div className="flex gap-2.5 overflow-x-auto py-1">
+                              {items.map((item) => (
                                 <div
-                                  key={i}
-                                  onClick={() => setLightboxThreadImage(full)}
+                                  key={item.full}
+                                  onClick={() => setLightboxThreadImage(item.full)}
                                   className="w-28 sm:w-36 aspect-[3/4] rounded-sm overflow-hidden border border-white/10 bg-neutral-900 shrink-0 cursor-pointer hover:border-white/40 transition-colors"
                                 >
                                   <img
-                                    src={preview}
+                                    src={item.preview}
                                     alt="Thread asset"
                                     loading="lazy"
+                                    onError={(e) => {
+                                      const wrapper = (e.currentTarget as HTMLImageElement).parentElement;
+                                      if (wrapper) wrapper.style.display = 'none';
+                                    }}
                                     className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-300"
                                   />
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center gap-5 pt-1 text-xs font-mono text-white/40">
                           <span className="flex items-center gap-1">

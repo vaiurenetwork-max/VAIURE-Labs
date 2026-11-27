@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { LiquidGlassWordmark } from './LiquidGlassWordmark';
 
 interface Slide0MotionHeroProps {
   onOpenMenu?: () => void;
@@ -22,6 +23,7 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
 }) => {
   const stageRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [isTitleHovered, setIsTitleHovered] = useState(false);
 
   // Synchronize exact --sc and --u scale tokens on PC and Mobile viewports
   useEffect(() => {
@@ -131,12 +133,14 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
   const handleTitlePointerEnter = () => {
     const stage = stageRef.current;
     if (stage) stage.classList.add('is-title-hovered');
+    setIsTitleHovered(true);
     setRingsPlaybackRate(1.75);
   };
 
   const handleTitlePointerLeave = () => {
     const stage = stageRef.current;
     if (stage) stage.classList.remove('is-title-hovered');
+    setIsTitleHovered(false);
     setRingsPlaybackRate(1.0);
   };
 
@@ -214,6 +218,22 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
           }
         );
       });
+
+      const liquidCanvas = stage.querySelector('.title-liquid-canvas');
+      if (liquidCanvas) {
+        add(
+          liquidCanvas,
+          [
+            { translate: '0 105%', opacity: 0 },
+            { translate: '0 0', opacity: 1 },
+          ],
+          {
+            duration: 1000,
+            delay: 200,
+            easing: EXPO,
+          }
+        );
+      }
 
       add(
         stage.querySelector('.nav'),
@@ -565,16 +585,59 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
           filter:brightness(1.22) drop-shadow(0 0 18px rgba(255, 255, 255, 0.28));
         }
         .vaiure-slide0-stage .title-kinetic {
+          position:relative;
           display:inline-block;
           transform-origin:50% 50%;
           animation:vaiureCentralLogoBreath 6.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
           will-change:transform, opacity;
         }
+        .vaiure-slide0-stage .title-liquid-canvas {
+          position:absolute;
+          pointer-events:none;
+          display:block;
+          opacity:0;
+          transition:opacity 0.35s ease;
+          z-index:1;
+        }
+        .vaiure-slide0-stage .title-kinetic.is-liquid-webgl .title-liquid-canvas {
+          opacity:1;
+        }
         .vaiure-slide0-stage .title .title-char {
+          position:relative;
+          z-index:2;
           display:inline-block;
           margin-left:calc(var(--k,0) * var(--sc));
           animation:vaiureLetterExpand 6.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
           will-change:transform;
+        }
+        /* Keep underlying accessible lettering aligned 1:1 with the WebGL crystal letters */
+        .vaiure-slide0-stage .title-kinetic.is-liquid-webgl .title-char {
+          color:transparent;
+          -webkit-text-fill-color:transparent;
+          animation:none;
+          user-select:text;
+        }
+        .vaiure-slide0-stage .title-kinetic.is-liquid-webgl .title-char::selection {
+          background:rgba(255, 255, 255, 0.22);
+          color:rgba(255, 255, 255, 0.96);
+          -webkit-text-fill-color:rgba(255, 255, 255, 0.96);
+        }
+        /* Sculpted glass CSS fallback if WebGL context is unavailable */
+        @keyframes vaiureGlassShimmerFallback {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        .vaiure-slide0-stage .title-kinetic.is-liquid-fallback .title-char {
+          background:linear-gradient(125deg, rgba(255,255,255,0.96) 0%, rgba(196,214,234,0.72) 28%, rgba(255,255,255,0.98) 50%, rgba(176,198,224,0.78) 72%, rgba(255,255,255,0.96) 100%);
+          background-size:220% 220%;
+          -webkit-background-clip:text;
+          background-clip:text;
+          color:transparent;
+          -webkit-text-fill-color:transparent;
+          filter:drop-shadow(0 2px 10px rgba(8, 14, 24, 0.42)) drop-shadow(0 0 12px rgba(220, 236, 255, 0.2));
+          animation:
+            vaiureLetterExpand 6.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite,
+            vaiureGlassShimmerFallback 7.5s ease-in-out infinite;
         }
         .vaiure-slide0-stage .ui {
           position:absolute;
@@ -735,7 +798,8 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
           .vaiure-slide0-stage .ring-orbit,
           .vaiure-slide0-stage .rings path,
           .vaiure-slide0-stage .title-kinetic,
-          .vaiure-slide0-stage .title .title-char {
+          .vaiure-slide0-stage .title .title-char,
+          .vaiure-slide0-stage .title-kinetic.is-liquid-fallback .title-char {
             transition:none!important;
             animation:none!important;
           }
@@ -745,6 +809,7 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
         .vaiure-slide0-stage.px-intro .rings path { stroke-dasharray:0 100000; }
         .vaiure-slide0-stage.px-intro .title { overflow:hidden; }
         .vaiure-slide0-stage.px-intro .title .title-char { translate:0 105%; }
+        .vaiure-slide0-stage.px-intro .title .title-liquid-canvas { translate:0 105%; opacity:0; }
         .vaiure-slide0-stage.px-intro .ln { overflow:hidden; }
         .vaiure-slide0-stage.px-intro .ln>span { translate:0 105%; }
         .vaiure-slide0-stage.px-intro .nav { clip-path:inset(0 50% 0 50%); }
@@ -864,59 +929,13 @@ export const Slide0MotionHero: React.FC<Slide0MotionHeroProps> = ({
             </g>
           </svg>
 
-          {/* Center Title "VAIURE" with Continuous Breathing, Letter Expansion & Interactive Hover */}
-          <h1 className="title" aria-label="VAIURE">
-            <span
-              className="title-interactive"
-              onPointerEnter={handleTitlePointerEnter}
-              onPointerLeave={handleTitlePointerLeave}
-            >
-              <span className="title-kinetic">
-                <span
-                  className="title-char"
-                  aria-hidden="true"
-                  style={{ ['--k' as any]: 1.5, ['--char-idx' as any]: -2.5 }}
-                >
-                  V
-                </span>
-                <span
-                  className="title-char"
-                  aria-hidden="true"
-                  style={{ ['--k' as any]: -3.0, ['--char-idx' as any]: -1.5 }}
-                >
-                  A
-                </span>
-                <span
-                  className="title-char"
-                  aria-hidden="true"
-                  style={{ ['--k' as any]: 0.5, ['--char-idx' as any]: -0.5 }}
-                >
-                  I
-                </span>
-                <span
-                  className="title-char"
-                  aria-hidden="true"
-                  style={{ ['--k' as any]: 1.5, ['--char-idx' as any]: 0.5 }}
-                >
-                  U
-                </span>
-                <span
-                  className="title-char"
-                  aria-hidden="true"
-                  style={{ ['--k' as any]: 1.0, ['--char-idx' as any]: 1.5 }}
-                >
-                  R
-                </span>
-                <span
-                  className="title-char"
-                  aria-hidden="true"
-                  style={{ ['--k' as any]: -1.0, ['--char-idx' as any]: 2.5 }}
-                >
-                  E
-                </span>
-              </span>
-            </span>
-          </h1>
+          {/* Center Title "VAIURE" — Optical Liquid Glass Wordmark */}
+          <LiquidGlassWordmark
+            isActive={isActive}
+            isHovered={isTitleHovered}
+            onPointerEnter={handleTitlePointerEnter}
+            onPointerLeave={handleTitlePointerLeave}
+          />
         </div>
 
         {/* UI Chrome Layer */}

@@ -18,6 +18,7 @@ import {
   FileText,
   Command,
   PenTool,
+  Clapperboard,
 } from 'lucide-react';
 import { SocialPost, UserProfile } from '../../types/social';
 import { Z_LAYERS } from '../../constants/zLayers';
@@ -38,7 +39,7 @@ interface CommandPaletteModalProps {
   posts: SocialPost[];
   creators: Record<string, UserProfile>;
   onClose: () => void;
-  onSelectSlide: (slide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
+  onSelectSlide: (slide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) => void;
   onNavigateArchiveSection: (sectionId: string) => void;
   onOpenCreatePost: () => void;
   onOpenShorts: () => void;
@@ -154,6 +155,15 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         shortcut: '07',
         icon: <PenTool className="w-4 h-4 text-white/85" />,
         onSelect: () => onSelectSlide(7),
+      },
+      {
+        id: 'slide-8',
+        group: 'SLIDES',
+        title: '08 / HYBRID STUDIO',
+        subtitle: activeSlide === 8 ? 'Active stage' : 'Full AI film production, storyboard, timeline & Seedance 2.5 direction',
+        shortcut: '08',
+        icon: <Clapperboard className="w-4 h-4 text-cyan-400" />,
+        onSelect: () => onSelectSlide(8),
       },
     ];
 

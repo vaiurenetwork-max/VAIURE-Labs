@@ -30,6 +30,7 @@ export const ThreadReplyModal: React.FC<ThreadReplyModalProps> = ({
   const [replyText, setReplyText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedAvatars, setFailedAvatars] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isOpen || !thread) {
@@ -93,12 +94,19 @@ export const ThreadReplyModal: React.FC<ThreadReplyModalProps> = ({
             <div className="flex flex-col items-center">
               <div
                 onClick={() => onOpenProfile(thread.authorUsername)}
-                className="w-10 h-10 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 cursor-pointer flex-shrink-0"
+                className="w-10 h-10 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 cursor-pointer flex-shrink-0 flex items-center justify-center text-xs font-mono"
               >
-                {thread.authorAvatar ? (
-                  <img src={thread.authorAvatar} alt="" className="w-full h-full object-cover" />
+                {thread.authorAvatar && !failedAvatars[`thread:${thread.id}`] ? (
+                  <img
+                    src={thread.authorAvatar}
+                    alt=""
+                    onError={() =>
+                      setFailedAvatars((prev) => ({ ...prev, [`thread:${thread.id}`]: true }))
+                    }
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
-                  <span className="w-full h-full flex items-center justify-center text-xs font-mono">
+                  <span>
                     {thread.authorUsername.slice(0, 2).toUpperCase()}
                   </span>
                 )}
@@ -122,24 +130,6 @@ export const ThreadReplyModal: React.FC<ThreadReplyModalProps> = ({
               <p className="text-sm text-neutral-200 font-sans font-light mt-1 whitespace-pre-wrap leading-relaxed">
                 {thread.content}
               </p>
-
-              {thread.mediaUrls && thread.mediaUrls.length > 0 && (
-                <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
-                  {thread.mediaUrls.map((url, i) => {
-                    const opt = thread.optimizedImages?.[i];
-                    return (
-                      <img
-                        key={i}
-                        src={opt?.thumbnailUrl || url}
-                        alt="Thread visual"
-                        loading="lazy"
-                        decoding="async"
-                        className="w-32 aspect-[3/4] object-cover rounded-xl border border-neutral-800 bg-neutral-900"
-                      />
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
 
@@ -150,12 +140,19 @@ export const ThreadReplyModal: React.FC<ThreadReplyModalProps> = ({
                 <div key={reply.id} className="flex gap-3">
                   <div
                     onClick={() => onOpenProfile(reply.authorUsername)}
-                    className="w-8 h-8 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 cursor-pointer flex-shrink-0"
+                    className="w-8 h-8 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 cursor-pointer flex-shrink-0 flex items-center justify-center text-[10px] font-mono"
                   >
-                    {reply.authorAvatar ? (
-                      <img src={reply.authorAvatar} alt="" className="w-full h-full object-cover" />
+                    {reply.authorAvatar && !failedAvatars[`reply:${reply.id}`] ? (
+                      <img
+                        src={reply.authorAvatar}
+                        alt=""
+                        onError={() =>
+                          setFailedAvatars((prev) => ({ ...prev, [`reply:${reply.id}`]: true }))
+                        }
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
-                      <span className="w-full h-full flex items-center justify-center text-[10px] font-mono">
+                      <span>
                         {reply.authorUsername.slice(0, 2).toUpperCase()}
                       </span>
                     )}
@@ -196,12 +193,8 @@ export const ThreadReplyModal: React.FC<ThreadReplyModalProps> = ({
             </div>
           )}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-neutral-800 bg-neutral-900 flex-shrink-0 flex items-center justify-center text-xs font-mono">
-              {currentUser.avatar ? (
-                <img src={currentUser.avatar} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
-              )}
+            <div className="w-8 h-8 rounded-full border border-neutral-800 bg-neutral-900 flex-shrink-0 flex items-center justify-center text-xs font-mono text-white/75">
+              <span>{currentUser.username ? currentUser.username.slice(0, 2).toUpperCase() : 'VA'}</span>
             </div>
 
             <input

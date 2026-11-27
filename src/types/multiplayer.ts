@@ -3,7 +3,7 @@
  * Live Studio Presence, Ambient Spatial Reactions, Shared 3D Stages & Prompt Matrix
  */
 
-export type AtelierSlideId = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type AtelierSlideId = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export interface LiveCreatorPresence {
   uid: string;

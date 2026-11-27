@@ -20,7 +20,7 @@
       "animationStyle": "PULSE",
       "enabled": true,
       "sortOrder": 1,
-      "updatedAt": "2026-11-20T09:42:01.990Z"
+      "updatedAt": "2026-11-26T13:44:22.656Z"
     },
     {
       "id": "gift-reel",
@@ -32,7 +32,7 @@
       "animationStyle": "PULSE",
       "enabled": true,
       "sortOrder": 2,
-      "updatedAt": "2026-11-20T09:42:01.990Z"
+      "updatedAt": "2026-11-26T13:44:22.656Z"
     },
     {
       "id": "gift-prism",
@@ -44,7 +44,7 @@
       "animationStyle": "RADIANT",
       "enabled": true,
       "sortOrder": 3,
-      "updatedAt": "2026-11-20T09:42:01.990Z"
+      "updatedAt": "2026-11-26T13:44:22.656Z"
     },
     {
       "id": "gift-flame",
@@ -56,7 +56,7 @@
       "animationStyle": "CINEMA_BURST",
       "enabled": true,
       "sortOrder": 4,
-      "updatedAt": "2026-11-20T09:42:01.990Z"
+      "updatedAt": "2026-11-26T13:44:22.656Z"
     },
     {
       "id": "gift-orb",
@@ -68,7 +68,7 @@
       "animationStyle": "CINEMA_BURST",
       "enabled": true,
       "sortOrder": 5,
-      "updatedAt": "2026-11-20T09:42:01.990Z"
+      "updatedAt": "2026-11-26T13:44:22.656Z"
     },
     {
       "id": "gift-crown",
@@ -80,7 +80,7 @@
       "animationStyle": "SUPERNOVA",
       "enabled": true,
       "sortOrder": 6,
-      "updatedAt": "2026-11-20T09:42:01.990Z"
+      "updatedAt": "2026-11-26T13:44:22.656Z"
     }
   ],
   "giftTransactions": [],
@@ -138,8 +138,26 @@
     "allowVirtualGifts": true,
     "globalBlockedKeywords": [],
     "communityGuidelinesText": "Respect fellow Seedance creators, honor private group confidentiality, attribute remixed workflows clearly, and keep live critique constructive.",
-    "updatedAt": "2026-11-20T09:42:01.990Z",
+    "updatedAt": "2026-11-26T13:44:22.656Z",
     "updatedBy": "system"
   },
-  "profiles": {}
+  "profiles": {
+    "85onNLx7daVxHVy79E6sHmw2hFT2": {
+      "userId": "85onNLx7daVxHVy79E6sHmw2hFT2",
+      "username": "vaiurenetwork",
+      "displayName": "vaiure network",
+      "avatar": "https://lh3.googleusercontent.com/a/ACg8ocIfELjKbn-MlWanSVdRGNMAY2u7nsR8cRinjc7IcoBdFxfVmw=s96-c",
+      "bio": "",
+      "interests": [],
+      "followerIds": [],
+      "followingIds": [],
+      "privacy": {
+        "showJoinedGroups": true,
+        "showReceivedGifts": true,
+        "showPosts": true
+      },
+      "createdAt": "2026-11-26T16:42:06.319Z",
+      "updatedAt": "2026-11-26T16:42:06.319Z"
+    }
+  }
 }

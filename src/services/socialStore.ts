@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   SocialPost,
   UserProfile,
@@ -23,6 +23,7 @@ import {
 import {
   subscribeToFirestorePosts,
   subscribeToFirestoreCreators,
+  subscribeToFollowingUserIds,
   createFirestorePost,
   toggleFirestorePostLike,
   toggleFirestorePostSave,
@@ -84,6 +85,7 @@ export function useSocialStore() {
   const [posts, setPosts] = useState<SocialPost[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile>(EMPTY_USER);
   const [creators, setCreators] = useState<Record<string, UserProfile>>({});
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [comments, setComments] = useState<Record<string, PostComment[]>>({});
   const [notifications, setNotifications] = useState<SocialNotification[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -134,6 +136,18 @@ export function useSocialStore() {
 
     return () => unsubCreators();
   }, []);
+
+  // 3b. Real-time Firestore Friendlist (Following UIDs) subscription
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setFollowingIds([]);
+      return;
+    }
+    const unsubFollowing = subscribeToFollowingUserIds(firebaseUser.uid, (ids) => {
+      setFollowingIds(ids);
+    });
+    return () => unsubFollowing();
+  }, [firebaseUser?.uid]);
 
   // 4. Real-time Firestore Notifications subscription for current user
   useEffect(() => {
@@ -287,39 +301,66 @@ export function useSocialStore() {
     }
   }, [currentUser]);
 
+  const followingIdSet = useMemo(() => new Set(followingIds), [followingIds]);
+
+  const creatorsWithFollowing = useMemo<Record<string, UserProfile>>(() => {
+    const next: Record<string, UserProfile> = {};
+    for (const [key, profile] of Object.entries(creators) as [string, UserProfile][]) {
+      next[key] = {
+        ...profile,
+        isFollowing: followingIdSet.has(profile.id),
+      };
+    }
+    return next;
+  }, [creators, followingIdSet]);
+
+  const followingUsernames = useMemo<string[]>(
+    () =>
+      (Object.values(creatorsWithFollowing) as UserProfile[])
+        .filter((c) => c.isFollowing && c.username)
+        .map((c) => c.username),
+    [creatorsWithFollowing]
+  );
+
   const toggleFollowCreator = useCallback((username: string) => {
     if (!currentUser.id) return;
-    let targetCreator: UserProfile | undefined;
-    let willFollow = false;
+    const targetCreator =
+      creatorsWithFollowing[username] ||
+      (Object.values(creatorsWithFollowing) as UserProfile[]).find((c) => c.username === username);
+    if (!targetCreator) return;
+
+    const currentlyFollowing = followingIdSet.has(targetCreator.id) || Boolean(targetCreator.isFollowing);
+    const willFollow = !currentlyFollowing;
+
+    setFollowingIds((prev) =>
+      willFollow
+        ? Array.from(new Set([...prev, targetCreator.id]))
+        : prev.filter((id) => id !== targetCreator.id)
+    );
 
     setCreators((prev) => {
-      const creator =
-        prev[username] || (Object.values(prev) as UserProfile[]).find((c) => c.username === username);
-      if (!creator) return prev;
-      targetCreator = creator;
-      willFollow = !creator.isFollowing;
-      const updatedCreator = {
-        ...creator,
-        isFollowing: willFollow,
-        followersCount: willFollow
-          ? creator.followersCount + 1
-          : Math.max(0, creator.followersCount - 1),
+      const existing = prev[targetCreator.username] || targetCreator;
+      return {
+        ...prev,
+        [existing.username]: {
+          ...existing,
+          isFollowing: willFollow,
+          followersCount: willFollow
+            ? existing.followersCount + 1
+            : Math.max(0, existing.followersCount - 1),
+        },
       };
-
-      setCurrentUser((u) => ({
-        ...u,
-        followingCount: willFollow ? u.followingCount + 1 : Math.max(0, u.followingCount - 1),
-      }));
-
-      return { ...prev, [creator.username]: updatedCreator };
     });
 
-    if (targetCreator) {
-      toggleFirestoreFollow(currentUser, targetCreator, !willFollow).catch((err) =>
-        console.warn('Firestore follow sync notice:', err)
-      );
-    }
-  }, [currentUser]);
+    setCurrentUser((u) => ({
+      ...u,
+      followingCount: willFollow ? u.followingCount + 1 : Math.max(0, u.followingCount - 1),
+    }));
+
+    toggleFirestoreFollow(currentUser, targetCreator, currentlyFollowing).catch((err) =>
+      console.warn('Firestore follow sync notice:', err)
+    );
+  }, [currentUser, creatorsWithFollowing, followingIdSet]);
 
   const repostPost = useCallback((postId: string, quote?: string) => {
     if (!currentUser.id) return;
@@ -685,7 +726,9 @@ export function useSocialStore() {
     posts: visiblePosts,
     allPosts: posts,
     currentUser,
-    creators,
+    creators: creatorsWithFollowing,
+    followingIds,
+    followingUsernames,
     comments,
     notifications,
     conversations,

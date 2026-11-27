@@ -19,8 +19,8 @@ import {
 import { Z_LAYERS } from '../../constants/zLayers';
 
 export interface FloatingSlideSwitchProps {
-  activeSlide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  onSelectSlide: (slideIdx: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
+  activeSlide: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  onSelectSlide: (slideIdx: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) => void;
   onMinimize?: () => void;
   onHide?: () => void;
   onOpenCommandPalette?: () => void;
@@ -28,7 +28,7 @@ export interface FloatingSlideSwitchProps {
 }
 
 export const SLIDE_DEFINITIONS: Array<{
-  id: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  id: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   code: string;
   name: string;
   badge?: string;
@@ -41,6 +41,7 @@ export const SLIDE_DEFINITIONS: Array<{
   { id: 5, code: '05', name: 'FU LABS', badge: '3D' },
   { id: 6, code: '06', name: 'VX', badge: 'VISION' },
   { id: 7, code: '07', name: 'VAIBYTE CANVAS', badge: 'STUDIO' },
+  { id: 8, code: '08', name: 'HYBRID STUDIO', badge: 'DIRECTOR' },
 ];
 
 type DockPosition = 'bottom-left' | 'top-right' | 'bottom-center';

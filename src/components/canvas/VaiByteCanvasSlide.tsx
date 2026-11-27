@@ -1,10 +1,15 @@
 /**
- * SLIDE 7: VaiByte - Canvas Studio
- * High-FPS interactive multi-layer 2D painting, vector blockout, typography,
- * image compositing, AI reference synthesis, and direct Seedance 2.5 frame bridge.
+ * SLIDE 7: VAIURE Canvas Studio (Unified Multi-Provider Video & Keyframe Workspace)
+ * Core Philosophy: SIMPLE TO OPERATE. POWERFUL UNDER THE HOOD.
+ *
+ * Three-Area Workspace:
+ * - Left Panel: Collapsible & Minimizable Production Tools (Creation, Assets, Advanced Tools)
+ * - Center Panel: Spacious Stage (Video Preview, References, Timeline), Node Workflow DAG & 2D Plate Painter
+ * - Right Panel: Collapsible & Minimizable Generation Settings (Basic, Prompt, Default-Collapsed Advanced) + Layer/Brush Dock
+ * - Smart Simple Mode vs Advanced Mode toggle preserving all prompts, media, node graphs & painted layers
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Menu,
   MousePointer2,
@@ -46,6 +51,10 @@ import {
   AlertCircle,
   Workflow,
   PenTool,
+  MonitorPlay,
+  Minimize2,
+  Maximize2,
+  Wrench,
 } from 'lucide-react';
 import {
   CanvasToolId,
@@ -57,11 +66,40 @@ import {
   CANVAS_BG_SWATCHES,
   CANVAS_COLOR_SWATCHES,
   DEFAULT_LAYER_FILTERS,
+  SCENE_DIRECTORS,
+  CAMERA_MOVEMENTS,
+  FILM_STOCK_LENSES,
 } from './canvasTypes';
-import { WorkflowNodeGraph } from './WorkflowNodeGraph';
-import { seedanceLabService } from '../../services/seedanceLabService';
+import {
+  CanvasAssetItem,
+  CanvasCenterStage,
+  CanvasCreationMode,
+  CanvasEstimateState,
+  CanvasExperienceMode,
+  CanvasGenerationConfig,
+  CanvasLayoutPreferences,
+  CanvasLeftSectionsState,
+  CanvasRightSectionsState,
+  CanvasTimelineClip,
+  deriveModelCapabilities,
+  loadCanvasLayoutPreferences,
+  saveCanvasLayoutPreferences,
+} from './canvasWorkspaceTypes';
+import { CanvasLeftToolsPanel } from './CanvasLeftToolsPanel';
+import { CanvasCenterWorkspace } from './CanvasCenterWorkspace';
+import { CanvasRightSettingsPanel } from './CanvasRightSettingsPanel';
+import { extractExactLastFrame } from './videoFrameExtractor';
+import { seedanceLabService, SEEDANCE_MODELS } from '../../services/seedanceLabService';
+import {
+  computeLocalMuapiPricePreview,
+  multiProviderGenerationService,
+} from '../../services/multiProviderGenerationService';
 import { getAuthHeaders } from '../../services/authTokenHelper';
 import { UserProfile } from '../../types/social';
+import {
+  GenerationResolution,
+  ProviderConfigPublic,
+} from '../../types/multiProvider';
 
 interface VaiByteCanvasSlideProps {
   onOpenMenu?: () => void;
@@ -94,24 +132,149 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+function buildFallbackProviders(): ProviderConfigPublic[] {
+  return [
+    {
+      providerId: 'bytedance',
+      displayName: 'ByteDance Official',
+      enabled: true,
+      configured: true,
+      baseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
+      autoFallbackEnabled: false,
+      pollIntervalMs: 3500,
+      maxPollTimeoutMs: 600000,
+      creditsPerUsd: 27,
+      enforceWalletOnUsdProviders: false,
+      safetyCheckerLockedOn: true,
+      safetyNotice: 'ByteDance ModelArk policy enforced.',
+      updatedAt: new Date().toISOString(),
+      models: Object.values(SEEDANCE_MODELS).map((m) => ({
+        providerId: 'bytedance',
+        modelId: m.id,
+        displayName: m.name,
+        enabled: true,
+        category: m.isR2V ? 'Motion / R2V' : 'Video',
+        supportsImageToVideo: true,
+        supportsTextToVideo: !m.isR2V,
+        requiresStartImage: false,
+        supportsLastImage: true,
+        supportsReferencePlates: true,
+        maxReferenceImages: m.maxReferenceImages,
+        supportsDraftMode: false,
+        supportsAudio: true,
+        supportsCameraFixed: true,
+        supportsHighBitrate: false,
+        resolutions: ['480p', '720p', '1080p'],
+        durations: m.durationSeconds === 30 ? [15, 20, 30] : [5, 10, 15],
+        enabledResolutions: ['480p', '720p', '1080p'],
+        enabledDurations: m.durationSeconds === 30 ? [15, 20, 30] : [5, 10, 15],
+        pricingCurrency: 'CREDITS',
+        appMarkupPercent: 0,
+        appMarkupFlatUsd: 0,
+        safetyCheckerLockedOn: true,
+        safetyNotice: 'ByteDance ModelArk policy enforced.',
+      })),
+    },
+  ];
+}
+
 export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
   onOpenMenu,
   onGoToSeedance,
   onGoToFuLabs,
   onBackToHero,
+  currentUser,
 }) => {
-  // Primary studio mode: 'workflow' (Node Connecting-Dots Studio) | 'painter' (2D Multi-Layer Sketch/Plate Pad)
-  const [studioMode, setStudioMode] = useState<'workflow' | 'painter'>('workflow');
+  // Persisted UI panel & layout configuration (never clears creative state)
+  const [layoutPrefs, setLayoutPrefs] = useState<CanvasLayoutPreferences>(() =>
+    loadCanvasLayoutPreferences()
+  );
+
+  const updateLayoutPrefs = useCallback(
+    (updater: (prev: CanvasLayoutPreferences) => CanvasLayoutPreferences) => {
+      setLayoutPrefs((prev) => {
+        const next = updater(prev);
+        saveCanvasLayoutPreferences(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  // Responsive mobile drawer toggles
+  const [isMobileLeftOpen, setIsMobileLeftOpen] = useState(false);
+  const [isMobileRightOpen, setIsMobileRightOpen] = useState(false);
+
+  // Providers, Assets, Timeline & Generation State
+  const [providers, setProviders] = useState<ProviderConfigPublic[]>(() => buildFallbackProviders());
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [assets, setAssets] = useState<CanvasAssetItem[]>([]);
+  const [timelineClips, setTimelineClips] = useState<CanvasTimelineClip[]>([]);
+  const [activeClipId, setActiveClipId] = useState<string | null>(null);
+
+  const [config, setConfig] = useState<CanvasGenerationConfig>({
+    providerId: 'bytedance',
+    modelId: 'seedance_25_15s',
+    creationMode: 'text_to_video',
+    prompt: '',
+    sceneDescription: '',
+    visualStyleId: '',
+    aspectRatio: '16:9',
+    resolution: '720p',
+    duration: 15,
+    quantity: 1,
+    cameraMovementId: '',
+    filmStockId: '',
+    cameraFixed: false,
+    physicsPriority: true,
+    generateAudio: true,
+    highBitrate: false,
+    draft: false,
+    draftRequestId: '',
+    seedInput: '',
+    contentRating: 'standard',
+    startImageUrl: '',
+    endImageUrl: '',
+    referenceImageUrls: [],
+    extensionVideoUrl: '',
+  });
+
+  const capabilities = useMemo(
+    () => deriveModelCapabilities(providers, config.providerId, config.modelId),
+    [providers, config.providerId, config.modelId]
+  );
+
+  const [estimateState, setEstimateState] = useState<CanvasEstimateState>({
+    loading: false,
+    estimate: null,
+  });
+
+  const [activeGenStatus, setActiveGenStatus] = useState<{
+    status: 'idle' | 'submitting' | 'processing' | 'completed' | 'failed';
+    progress: number;
+    stageLabel?: string;
+    error?: string | null;
+    isFinalizing?: boolean;
+  }>({ status: 'idle', progress: 0 });
+
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
+  const [isAnalyzingMedia, setIsAnalyzingMedia] = useState(false);
+  const [isExtractingLastFrame, setIsExtractingLastFrame] = useState(false);
+
+  const activeJobCleanupRef = useRef<(() => void) | null>(null);
+
+  // Workflow bridge
   const [pendingFlowImageUrl, setPendingFlowImageUrl] = useState<string | null>(null);
   const [isPushingToFlow, setIsPushingToFlow] = useState<boolean>(false);
 
-  // Artboard configuration
+  // 2D Plate Painter Artboard Configuration
   const [aspectPreset, setAspectPreset] = useState<CanvasAspectPreset>('16:9');
   const [artWidth, setArtWidth] = useState<number>(1920);
   const [artHeight, setArtHeight] = useState<number>(1080);
   const [backgroundColor, setBackgroundColor] = useState<string>('#090a0f');
 
-  // Tool state
+  // Tool state (Painter)
   const [activeTool, setActiveTool] = useState<CanvasToolId>('brush');
   const [brushColor, setBrushColor] = useState<string>('#ffffff');
   const [brushSize, setBrushSize] = useState<number>(12);
@@ -119,17 +282,14 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
   const [shapeFilled, setShapeFilled] = useState<boolean>(false);
   const [fontSize, setFontSize] = useState<number>(64);
 
-  // Viewport transform
+  // Viewport transform (Painter)
   const [zoom, setZoom] = useState<number>(0.45);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [showGuides, setShowGuides] = useState<boolean>(true);
   const [isSpaceHeld, setIsSpaceHeld] = useState<boolean>(false);
+  const [painterDockTab, setPainterDockTab] = useState<'layers' | 'properties'>('layers');
 
-  // Inspector & panels
-  const [inspectorTab, setInspectorTab] = useState<'layers' | 'properties'>('layers');
-  const [isInspectorOpen, setIsInspectorOpen] = useState<boolean>(true);
-
-  // Layer stack (index 0 = bottom, last index = top)
+  // Layer stack
   const initialLayerIdRef = useRef<string>(makeLayerId());
   const [layers, setLayers] = useState<CanvasLayerMeta[]>([
     {
@@ -153,25 +313,24 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
   const [historyStack, setHistoryStack] = useState<CanvasHistorySnapshot[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
-  // Live drawing & interaction state
+  // Live drawing & notices
   const [cursorArtCoords, setCursorArtCoords] = useState<{ x: number; y: number } | null>(null);
   const [textPlacement, setTextPlacement] = useState<TextPlacementState | null>(null);
   const [statusNotice, setStatusNotice] = useState<{ message: string; isError?: boolean } | null>(null);
   const [isSendingToSeedance, setIsSendingToSeedance] = useState<boolean>(false);
 
-  // AI Concept Plate Generator modal state
+  // AI Concept Plate Modal
   const [isAiPlateOpen, setIsAiPlateOpen] = useState<boolean>(false);
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const [isGeneratingAiPlate, setIsGeneratingAiPlate] = useState<boolean>(false);
 
-  // Refs for offscreen layer canvases & composite canvas
+  // Refs for Painter canvases
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const compositeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const layerCanvasesRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const jsonInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Active pointer stroke refs
   const pointerStateRef = useRef<{
     active: boolean;
     mode: 'draw' | 'erase' | 'shape' | 'pan' | 'move_layer';
@@ -187,14 +346,882 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
   const shapeDragRef = useRef<ShapeDragState | null>(null);
   const renderRafRef = useRef<number | null>(null);
 
+  // Desktop Panel Resizer state
+  const resizeDragRef = useRef<{
+    side: 'left' | 'right';
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
   const showNotice = useCallback((message: string, isError = false) => {
     setStatusNotice({ message, isError });
     setTimeout(() => {
       setStatusNotice((prev) => (prev?.message === message ? null : prev));
-    }, 3200);
+    }, 3400);
   }, []);
 
-  // Ensure an offscreen canvas exists for a given layer
+  // Load live backend providers, balance & history
+  useEffect(() => {
+    let mounted = true;
+    multiProviderGenerationService
+      .getProviders()
+      .then((list) => {
+        if (!mounted || !Array.isArray(list) || list.length === 0) return;
+        setProviders(list);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!currentUser) return;
+
+    seedanceLabService
+      .getBalance()
+      .then((b) => {
+        if (mounted && typeof b.balance_generate === 'number') {
+          setCreditBalance(b.balance_generate);
+        }
+      })
+      .catch(() => undefined);
+
+    Promise.all([
+      multiProviderGenerationService.getUnifiedHistory().catch(() => []),
+      seedanceLabService.getHistory().catch(() => []),
+    ]).then(([unifiedJobs, legacyItems]) => {
+      if (!mounted) return;
+      const clipsFromUnified: CanvasTimelineClip[] = unifiedJobs
+        .filter((j) => Boolean(j.playback_url || j.provider_output_url))
+        .slice(0, 12)
+        .map((j) => ({
+          id: j.job_id,
+          jobId: j.job_id,
+          title: j.prompt?.slice(0, 48) || j.model_name,
+          videoUrl: j.playback_url || j.provider_output_url || '',
+          thumbnailUrl: j.thumbnail_url || j.image_url || undefined,
+          duration: j.duration,
+          resolution: j.resolution,
+          provider: j.provider,
+          modelName: j.model_name,
+          status: j.status,
+          createdAt: j.created_at,
+          isDraft: j.draft,
+        }));
+
+      const clipsFromLegacy: CanvasTimelineClip[] = legacyItems
+        .filter((item) => Boolean(item.result_url) && !clipsFromUnified.some((c) => c.id === item.job_code))
+        .slice(0, 10)
+        .map((item) => ({
+          id: item.job_code || item.id,
+          jobId: item.job_code || item.id,
+          title: item.prompt?.slice(0, 48) || item.model_name,
+          videoUrl: item.result_url || '',
+          duration: Number(item.parameters?.duration || 15),
+          resolution: String(item.parameters?.resolution || '720p'),
+          provider: 'bytedance',
+          modelName: item.model_name || 'Seedance 2.5',
+          status: 'completed',
+          createdAt: item.created_at,
+        }));
+
+      const combined = [...clipsFromUnified, ...clipsFromLegacy].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setTimelineClips(combined);
+
+      const historyAssets: CanvasAssetItem[] = [];
+      combined.slice(0, 8).forEach((clip) => {
+        historyAssets.push({
+          id: `asset-vid-${clip.id}`,
+          kind: 'video',
+          name: clip.title || 'Generated Clip',
+          url: clip.videoUrl,
+          thumbnailUrl: clip.thumbnailUrl,
+          createdAt: clip.createdAt,
+          source: 'generated',
+          duration: clip.duration,
+          resolution: clip.resolution,
+        });
+      });
+
+      unifiedJobs.forEach((j) => {
+        if (j.image_url && !historyAssets.some((a) => a.url === j.image_url)) {
+          historyAssets.push({
+            id: `asset-img-${j.job_id}`,
+            kind: 'image',
+            name: 'Reference Start Frame',
+            url: j.image_url,
+            createdAt: j.created_at,
+            source: 'uploaded',
+          });
+        }
+      });
+
+      if (historyAssets.length > 0) {
+        setAssets((prev) => {
+          const existingUrls = new Set(prev.map((p) => p.url));
+          const merged = [...prev];
+          historyAssets.forEach((item) => {
+            if (!existingUrls.has(item.url)) {
+              merged.push(item);
+            }
+          });
+          return merged;
+        });
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser]);
+
+  // Cleanup active SSE / polling on unmount
+  useEffect(() => {
+    return () => {
+      activeJobCleanupRef.current?.();
+      activeJobCleanupRef.current = null;
+    };
+  }, []);
+
+  // Desktop Panel Resizing
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      const drag = resizeDragRef.current;
+      if (!drag) return;
+      const dx = e.clientX - drag.startX;
+      if (drag.side === 'left') {
+        const nextW = Math.max(230, Math.min(360, drag.startWidth + dx));
+        updateLayoutPrefs((prev) => ({ ...prev, leftWidth: nextW }));
+      } else {
+        const nextW = Math.max(280, Math.min(440, drag.startWidth - dx));
+        updateLayoutPrefs((prev) => ({ ...prev, rightWidth: nextW }));
+      }
+    };
+    const onUp = () => {
+      resizeDragRef.current = null;
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [updateLayoutPrefs]);
+
+  // Price Estimate calculation (live backend sync + instant local MUAPI matrix fallback)
+  useEffect(() => {
+    let cancelled = false;
+    const localPreview = computeLocalMuapiPricePreview(
+      capabilities.model,
+      config.resolution,
+      config.duration,
+      config.draft
+    );
+
+    if (localPreview) {
+      setEstimateState({
+        loading: true,
+        estimate: {
+          provider: config.providerId,
+          modelId: config.modelId,
+          effectiveResolution: localPreview.effectiveResolution,
+          duration: config.duration,
+          draft: config.draft,
+          currency: 'USD',
+          providerCostUsd: localPreview.providerCostUsd,
+          appMarkupUsd: localPreview.appMarkupUsd,
+          finalPriceUsd: localPreview.finalPriceUsd,
+          creditsRequired: Math.ceil(localPreview.finalPriceUsd * 27),
+          displayLabel: `$${localPreview.finalPriceUsd.toFixed(2)} USD`,
+          billingMode: 'USD',
+        },
+      });
+    } else {
+      setEstimateState((prev) => ({ ...prev, loading: true }));
+    }
+
+    const timer = setTimeout(() => {
+      multiProviderGenerationService
+        .estimateCost({
+          provider: config.providerId,
+          modelId: config.modelId,
+          resolution: config.resolution,
+          duration: config.duration,
+          draft: config.draft,
+          referenceImagesCount: config.referenceImageUrls.length,
+          physicsPriority: config.physicsPriority,
+        })
+        .then((est) => {
+          if (!cancelled) {
+            setEstimateState({ loading: false, estimate: est });
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setEstimateState((prev) => ({ ...prev, loading: false }));
+          }
+        });
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    capabilities.model,
+    config.providerId,
+    config.modelId,
+    config.resolution,
+    config.duration,
+    config.draft,
+    config.referenceImageUrls.length,
+    config.physicsPriority,
+  ]);
+
+  // Helper: update generation config cleanly
+  const updateConfig = useCallback((patch: Partial<CanvasGenerationConfig>) => {
+    setConfig((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleSelectProviderAndModel = useCallback(
+    (providerId: string, modelId: string) => {
+      const caps = deriveModelCapabilities(providers, providerId, modelId);
+      setConfig((prev) => {
+        const nextRes = caps.resolutions.includes(prev.resolution)
+          ? prev.resolution
+          : caps.resolutions.includes('720p')
+          ? '720p'
+          : caps.resolutions[0];
+        const nextDur = caps.durations.includes(prev.duration)
+          ? prev.duration
+          : caps.durations[0];
+
+        let nextCreationMode = prev.creationMode;
+        if (caps.isMuapi) {
+          nextCreationMode = 'image_to_video';
+        } else if (!caps.supportsTextToVideo && nextCreationMode === 'text_to_video') {
+          nextCreationMode = 'reference_to_video';
+        }
+
+        return {
+          ...prev,
+          providerId,
+          modelId,
+          resolution: nextRes,
+          duration: nextDur,
+          creationMode: nextCreationMode,
+          draft: caps.supportsDraftMode ? prev.draft : false,
+          highBitrate: caps.supportsHighBitrate ? prev.highBitrate : false,
+          quantity: caps.supportsQuantity ? prev.quantity : 1,
+        };
+      });
+    },
+    [providers]
+  );
+
+  const handleSelectCreationMode = useCallback(
+    (mode: CanvasCreationMode) => {
+      if (capabilities.isMuapi && (mode === 'text_to_video' || mode === 'reference_to_video')) {
+        // Switch automatically to the supporting ByteDance model so the user is never stuck
+        const bytedanceProv = providers.find((p) => p.providerId === 'bytedance');
+        const targetModel =
+          mode === 'reference_to_video'
+            ? bytedanceProv?.models.find((m) => m.modelId.includes('r2v')) || bytedanceProv?.models[0]
+            : bytedanceProv?.models.find((m) => m.supportsTextToVideo) || bytedanceProv?.models[0];
+
+        if (targetModel) {
+          handleSelectProviderAndModel('bytedance', targetModel.modelId);
+          showNotice(
+            `Switched to ${targetModel.displayName} for ${mode.replace(/_/g, ' ')}.`
+          );
+        }
+      }
+      setConfig((prev) => ({ ...prev, creationMode: mode }));
+      if (layoutPrefs.centerStage !== 'stage') {
+        updateLayoutPrefs((p) => ({ ...p, centerStage: 'stage' }));
+      }
+    },
+    [
+      capabilities.isMuapi,
+      handleSelectProviderAndModel,
+      layoutPrefs.centerStage,
+      providers,
+      showNotice,
+      updateLayoutPrefs,
+    ]
+  );
+
+  // Upload media files directly to /api/ai/upload-media and attach cleanly
+  const handleUploadMediaFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      setIsUploadingMedia(true);
+      try {
+        for (const file of Array.from(files)) {
+          const isVideo = file.type.startsWith('video/');
+          const isImage = file.type.startsWith('image/');
+          if (!isVideo && !isImage) continue;
+
+          const dataUrl = await new Promise<string>((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = () => res(String(reader.result || ''));
+            reader.onerror = rej;
+            reader.readAsDataURL(file);
+          });
+
+          const uploadedUrl = await seedanceLabService.uploadMedia(dataUrl, file.name);
+          const item: CanvasAssetItem = {
+            id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            kind: isVideo ? 'video' : 'image',
+            name: file.name,
+            url: uploadedUrl,
+            createdAt: new Date().toISOString(),
+            source: 'uploaded',
+          };
+
+          setAssets((prev) => [item, ...prev]);
+          setConfig((prev) => {
+            if (isVideo) {
+              return {
+                ...prev,
+                extensionVideoUrl: uploadedUrl,
+                creationMode: capabilities.isMuapi ? prev.creationMode : 'video_extension',
+              };
+            }
+            if (!prev.startImageUrl) {
+              return {
+                ...prev,
+                startImageUrl: uploadedUrl,
+                creationMode: prev.creationMode === 'text_to_video' ? 'image_to_video' : prev.creationMode,
+              };
+            }
+            if (capabilities.supportsReferencePlates) {
+              return {
+                ...prev,
+                referenceImageUrls: [...prev.referenceImageUrls, uploadedUrl].slice(
+                  0,
+                  capabilities.maxReferenceImages
+                ),
+              };
+            }
+            return { ...prev, endImageUrl: uploadedUrl };
+          });
+        }
+        showNotice('Uploaded media added to Assets & Stage.');
+      } catch (err: unknown) {
+        showNotice(
+          err instanceof Error ? err.message : 'Failed to upload media file.',
+          true
+        );
+      } finally {
+        setIsUploadingMedia(false);
+      }
+    },
+    [capabilities.isMuapi, capabilities.maxReferenceImages, capabilities.supportsReferencePlates, showNotice]
+  );
+
+  // Enhance prompt physics via /api/prompt/optimize
+  const handleEnhancePrompt = useCallback(async () => {
+    if (!config.prompt.trim() || isEnhancingPrompt) return;
+    setIsEnhancingPrompt(true);
+    try {
+      const res = await seedanceLabService.optimizePromptPhysics({
+        prompt: config.prompt,
+        durationSeconds: config.duration,
+        aspectRatio: config.aspectRatio || '16:9',
+        physicsPriority: config.physicsPriority,
+        contentRating: config.contentRating,
+      });
+      if (res.optimizedPrompt) {
+        updateConfig({ prompt: res.optimizedPrompt });
+        showNotice('Enhanced prompt for temporal physics & cinematic fidelity.');
+      }
+    } catch (err: unknown) {
+      showNotice(err instanceof Error ? err.message : 'Failed to enhance prompt.', true);
+    } finally {
+      setIsEnhancingPrompt(false);
+    }
+  }, [
+    config.aspectRatio,
+    config.contentRating,
+    config.duration,
+    config.physicsPriority,
+    config.prompt,
+    isEnhancingPrompt,
+    showNotice,
+    updateConfig,
+  ]);
+
+  // Vision Prompt Reader via /api/prompt/analyze-media
+  const handleAnalyzeAttachedMedia = useCallback(async () => {
+    if ((!config.startImageUrl && !config.extensionVideoUrl) || isAnalyzingMedia) return;
+    setIsAnalyzingMedia(true);
+    try {
+      const images = [
+        ...(config.startImageUrl ? [config.startImageUrl] : []),
+        ...config.referenceImageUrls,
+      ].slice(0, 6);
+      const videos = config.extensionVideoUrl ? [config.extensionVideoUrl] : undefined;
+      const result = await seedanceLabService.analyzeMediaPrompt({
+        images: images.length > 0 ? images : undefined,
+        videos,
+        userNotes: config.prompt || undefined,
+        durationSeconds: config.duration,
+        physicsPriority: config.physicsPriority,
+        contentRating: config.contentRating,
+      });
+      if (result.analyzedPrompt) {
+        updateConfig({
+          prompt: result.analyzedPrompt,
+          cameraFixed: result.recommendedCameraFixed,
+        });
+        showNotice('Analyzed attached media into a structured Seedance prompt.');
+      }
+    } catch (err: unknown) {
+      showNotice(err instanceof Error ? err.message : 'Vision analysis failed.', true);
+    } finally {
+      setIsAnalyzingMedia(false);
+    }
+  }, [
+    config.contentRating,
+    config.duration,
+    config.extensionVideoUrl,
+    config.physicsPriority,
+    config.prompt,
+    config.referenceImageUrls,
+    config.startImageUrl,
+    isAnalyzingMedia,
+    showNotice,
+    updateConfig,
+  ]);
+
+  // Compile full prompt incorporating optional Scene Description, Visual Style, Camera Rig & Film Stock
+  const compileProductionPrompt = useCallback((): string => {
+    const parts: string[] = [];
+    const main = config.prompt.trim();
+    if (main) parts.push(main);
+
+    if (config.sceneDescription.trim()) {
+      parts.push(`Scene Notes: ${config.sceneDescription.trim()}`);
+    }
+    if (config.visualStyleId) {
+      const dir = SCENE_DIRECTORS.find((d) => d.id === config.visualStyleId);
+      if (dir) parts.push(`Visual Direction (${dir.name}): ${dir.promptDirective}`);
+    }
+    if (config.cameraMovementId) {
+      const cam = CAMERA_MOVEMENTS.find((c) => c.id === config.cameraMovementId);
+      if (cam) parts.push(`Camera: ${cam.seedanceKeyword}`);
+    }
+    if (config.filmStockId) {
+      const film = FILM_STOCK_LENSES.find((f) => f.id === config.filmStockId);
+      if (film) parts.push(`Optics & Film Stock: ${film.spec}`);
+    }
+    return parts.join(' — ');
+  }, [
+    config.cameraMovementId,
+    config.filmStockId,
+    config.prompt,
+    config.sceneDescription,
+    config.visualStyleId,
+  ]);
+
+  // Attach completed job/take cleanly to timeline & assets
+  const registerCompletedClip = useCallback(
+    (clip: CanvasTimelineClip) => {
+      setTimelineClips((prev) => {
+        const filtered = prev.filter((c) => c.id !== clip.id);
+        return [clip, ...filtered];
+      });
+      setActiveClipId(clip.id);
+      if (clip.videoUrl) {
+        setAssets((prev) => {
+          if (prev.some((a) => a.url === clip.videoUrl)) return prev;
+          return [
+            {
+              id: `asset-gen-${clip.id}`,
+              kind: 'video',
+              name: clip.title || clip.modelName,
+              url: clip.videoUrl,
+              thumbnailUrl: clip.thumbnailUrl,
+              createdAt: clip.createdAt,
+              source: 'generated',
+              duration: clip.duration,
+              resolution: clip.resolution,
+            },
+            ...prev,
+          ];
+        });
+      }
+      updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'stage' }));
+    },
+    [updateLayoutPrefs]
+  );
+
+  // Track Unified Generation Job via SSE + fallback polling
+  const trackUnifiedJob = useCallback(
+    (jobId: string, initialMeta: { modelName: string; title: string; resolution: string; duration: number; provider: string; isDraft?: boolean }) => {
+      activeJobCleanupRef.current?.();
+
+      let finished = false;
+      let pollInterval: ReturnType<typeof setInterval> | null = null;
+      let sseCleanup: (() => void) | null = null;
+
+      const finish = () => {
+        finished = true;
+        if (pollInterval) clearInterval(pollInterval);
+        sseCleanup?.();
+        activeJobCleanupRef.current = null;
+      };
+
+      const handleUpdate = (job: any) => {
+        if (!job || finished) return;
+        const status = String(job.status || '').toLowerCase();
+        if (status === 'completed' && (job.playback_url || job.provider_output_url)) {
+          finish();
+          const url = job.playback_url || job.provider_output_url;
+          setActiveGenStatus({ status: 'completed', progress: 100, stageLabel: 'Completed' });
+          registerCompletedClip({
+            id: job.job_id || jobId,
+            jobId: job.job_id || jobId,
+            title: initialMeta.title,
+            videoUrl: url,
+            thumbnailUrl: job.thumbnail_url || job.image_url || undefined,
+            duration: job.duration || initialMeta.duration,
+            resolution: job.resolution || initialMeta.resolution,
+            provider: job.provider || initialMeta.provider,
+            modelName: job.model_name || initialMeta.modelName,
+            status: 'completed',
+            createdAt: job.created_at || new Date().toISOString(),
+            isDraft: Boolean(job.draft),
+          });
+          showNotice('Video generation completed.');
+          return;
+        }
+        if (status === 'failed') {
+          finish();
+          const errText = job.error || 'Video generation failed.';
+          setActiveGenStatus({ status: 'failed', progress: 0, error: errText });
+          showNotice(errText, true);
+          return;
+        }
+        setActiveGenStatus({
+          status: 'processing',
+          progress: Number(job.progress || 35),
+          stageLabel: `Rendering via ${initialMeta.modelName}...`,
+        });
+      };
+
+      sseCleanup = multiProviderGenerationService.subscribeToJobRealtimeStream(jobId, {
+        onInit: ({ job }) => {
+          if (job) handleUpdate(job);
+        },
+        onJobUpdate: (job) => handleUpdate(job),
+      });
+
+      pollInterval = setInterval(async () => {
+        if (finished) return;
+        try {
+          const job = await multiProviderGenerationService.getJobStatus(jobId);
+          handleUpdate(job);
+        } catch {
+          // keep polling briefly
+        }
+      }, 3500);
+
+      activeJobCleanupRef.current = finish;
+    },
+    [registerCompletedClip, showNotice]
+  );
+
+  // Execute Video Generation from Canvas Right Settings Panel
+  const handleGenerateVideo = useCallback(async () => {
+    const compiledPrompt = compileProductionPrompt();
+    if (!compiledPrompt) {
+      showNotice('Enter a prompt before generating.', true);
+      return;
+    }
+
+    if ((capabilities.requiresStartImage || config.creationMode === 'image_to_video') && !config.startImageUrl && config.referenceImageUrls.length === 0) {
+      showNotice('Attach a Start Frame image first.', true);
+      return;
+    }
+
+    activeJobCleanupRef.current?.();
+    setActiveClipId(null);
+    setActiveGenStatus({
+      status: 'submitting',
+      progress: 8,
+      stageLabel: `Submitting to ${capabilities.provider?.displayName || 'Seedance'}...`,
+      error: null,
+    });
+
+    const parsedSeed =
+      config.seedInput.trim() && /^-?\d+$/.test(config.seedInput.trim())
+        ? Number(config.seedInput.trim())
+        : undefined;
+
+    const useDirectByteDanceEndpoint =
+      !capabilities.isMuapi &&
+      (config.quantity > 1 ||
+        typeof parsedSeed === 'number' ||
+        Boolean(config.extensionVideoUrl));
+
+    try {
+      if (useDirectByteDanceEndpoint) {
+        const res = await seedanceLabService.submitGeneration({
+          model: config.modelId,
+          prompt: compiledPrompt,
+          aspect_ratio: config.aspectRatio || '16:9',
+          resolution: config.resolution,
+          duration: config.duration,
+          quantity: config.quantity,
+          sound_enabled: config.generateAudio,
+          camera_fixed: config.cameraFixed,
+          physics_priority: config.physicsPriority,
+          content_rating: config.contentRating,
+          seed: parsedSeed,
+          image_url: config.startImageUrl || undefined,
+          end_image_url: config.endImageUrl || undefined,
+          video_url: config.extensionVideoUrl || undefined,
+          reference_image_urls:
+            config.referenceImageUrls.length > 0 ? config.referenceImageUrls : undefined,
+        });
+
+        if (typeof res.remainingBalance === 'number') {
+          setCreditBalance(res.remainingBalance);
+        }
+
+        if (res.immediateResultUrl) {
+          setActiveGenStatus({ status: 'completed', progress: 100 });
+          registerCompletedClip({
+            id: res.jobCode,
+            jobId: res.jobCode,
+            title: config.prompt.slice(0, 48),
+            videoUrl: res.immediateResultUrl,
+            duration: config.duration,
+            resolution: config.resolution,
+            provider: config.providerId,
+            modelName: capabilities.model?.displayName || config.modelId,
+            status: 'completed',
+            createdAt: new Date().toISOString(),
+          });
+          return;
+        }
+
+        setActiveGenStatus({
+          status: 'processing',
+          progress: 20,
+          stageLabel: `Rendering via ${capabilities.model?.displayName || 'Seedance 2.5'}...`,
+        });
+
+        let stopped = false;
+        const timer = setInterval(async () => {
+          if (stopped) return;
+          try {
+            const st = await seedanceLabService.pollJobStatus(res.jobCode);
+            if (st.status === 'completed' && st.resultUrl) {
+              stopped = true;
+              clearInterval(timer);
+              activeJobCleanupRef.current = null;
+              setActiveGenStatus({ status: 'completed', progress: 100 });
+              registerCompletedClip({
+                id: res.jobCode,
+                jobId: res.jobCode,
+                title: config.prompt.slice(0, 48),
+                videoUrl: st.resultUrl,
+                duration: config.duration,
+                resolution: config.resolution,
+                provider: config.providerId,
+                modelName: capabilities.model?.displayName || config.modelId,
+                status: 'completed',
+                createdAt: new Date().toISOString(),
+              });
+            } else if (st.status === 'failed') {
+              stopped = true;
+              clearInterval(timer);
+              activeJobCleanupRef.current = null;
+              setActiveGenStatus({
+                status: 'failed',
+                progress: 0,
+                error: st.error || 'Generation failed.',
+              });
+              showNotice(st.error || 'Generation failed.', true);
+            } else {
+              setActiveGenStatus({
+                status: 'processing',
+                progress: st.progress || 40,
+                stageLabel: `Rendering via ${capabilities.model?.displayName || 'Seedance 2.5'}...`,
+              });
+            }
+          } catch {
+            // continue polling
+          }
+        }, 3500);
+
+        activeJobCleanupRef.current = () => {
+          stopped = true;
+          clearInterval(timer);
+        };
+      } else {
+        const res = await multiProviderGenerationService.submitGeneration({
+          provider: config.providerId,
+          model_id: config.modelId,
+          prompt: compiledPrompt,
+          image_url: config.startImageUrl || config.referenceImageUrls[0] || undefined,
+          last_image: config.endImageUrl || undefined,
+          reference_image_urls:
+            capabilities.supportsReferencePlates && config.referenceImageUrls.length > 0
+              ? config.referenceImageUrls
+              : undefined,
+          aspect_ratio: capabilities.supportsAspectRatio ? config.aspectRatio : undefined,
+          resolution: config.resolution,
+          duration: config.duration,
+          generate_audio: config.generateAudio,
+          camera_fixed: config.cameraFixed,
+          high_bitrate: capabilities.supportsHighBitrate ? config.highBitrate : undefined,
+          draft: capabilities.supportsDraftMode ? config.draft : undefined,
+          draft_request_id:
+            capabilities.supportsDraftMode && config.draftRequestId.trim()
+              ? config.draftRequestId.trim()
+              : undefined,
+          physics_priority: capabilities.supportsPhysicsPriority ? config.physicsPriority : undefined,
+          content_rating: capabilities.supportsContentRating ? config.contentRating : undefined,
+        });
+
+        if (typeof res.remainingBalance === 'number') {
+          setCreditBalance(res.remainingBalance);
+        }
+
+        const job = res.job;
+        if (job.status === 'completed' && (job.playback_url || job.provider_output_url)) {
+          setActiveGenStatus({ status: 'completed', progress: 100 });
+          registerCompletedClip({
+            id: job.job_id,
+            jobId: job.job_id,
+            title: config.prompt.slice(0, 48),
+            videoUrl: job.playback_url || job.provider_output_url || '',
+            thumbnailUrl: job.thumbnail_url || job.image_url || undefined,
+            duration: job.duration,
+            resolution: job.resolution,
+            provider: job.provider,
+            modelName: job.model_name,
+            status: 'completed',
+            createdAt: job.created_at,
+            isDraft: job.draft,
+          });
+        } else {
+          setActiveGenStatus({
+            status: 'processing',
+            progress: job.progress || 18,
+            stageLabel: `Rendering via ${job.model_name}...`,
+          });
+          trackUnifiedJob(job.job_id, {
+            modelName: job.model_name,
+            title: config.prompt.slice(0, 48) || job.model_name,
+            resolution: job.resolution,
+            duration: job.duration,
+            provider: job.provider,
+            isDraft: job.draft,
+          });
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to submit video generation.';
+      setActiveGenStatus({ status: 'failed', progress: 0, error: msg });
+      showNotice(msg, true);
+    }
+  }, [
+    capabilities,
+    compileProductionPrompt,
+    config,
+    registerCompletedClip,
+    showNotice,
+    trackUnifiedJob,
+  ]);
+
+  const activeClip = useMemo(
+    () => timelineClips.find((c) => c.id === activeClipId) || null,
+    [activeClipId, timelineClips]
+  );
+
+  // Finalize MUAPI 480p Draft to 1080p
+  const handleFinalizeActiveDraft = useCallback(async () => {
+    if (!activeClip?.jobId || activeGenStatus.isFinalizing) return;
+    setActiveGenStatus((prev) => ({
+      ...prev,
+      status: 'processing',
+      progress: 15,
+      stageLabel: 'Finalizing Draft to 1080p High Bitrate...',
+      isFinalizing: true,
+    }));
+    try {
+      const res = await multiProviderGenerationService.finalizeDraft(activeClip.jobId, {
+        resolution: '1080p',
+        high_bitrate: true,
+      });
+      setActiveClipId(null);
+      trackUnifiedJob(res.job.job_id, {
+        modelName: res.job.model_name,
+        title: `${activeClip.title} (1080p Final)`,
+        resolution: res.job.resolution,
+        duration: res.job.duration,
+        provider: res.job.provider,
+        isDraft: false,
+      });
+    } catch (err: unknown) {
+      setActiveGenStatus((prev) => ({ ...prev, isFinalizing: false }));
+      showNotice(err instanceof Error ? err.message : 'Failed to finalize draft.', true);
+    }
+  }, [activeClip, activeGenStatus.isFinalizing, showNotice, trackUnifiedJob]);
+
+  // Extend Next Scene from active preview video (extract exact last frame & bind)
+  const handleExtendFromActiveClip = useCallback(async () => {
+    if (!activeClip?.videoUrl || isExtractingLastFrame) return;
+    setIsExtractingLastFrame(true);
+    try {
+      const frameDataUrl = await extractExactLastFrame(activeClip.videoUrl);
+      const hostedFrameUrl = await seedanceLabService.uploadMedia(
+        frameDataUrl,
+        `vaibyte_lastframe_${Date.now()}.png`
+      );
+      setAssets((prev) => [
+        {
+          id: `asset-frame-${Date.now()}`,
+          kind: 'image',
+          name: `Last Frame (${activeClip.title.slice(0, 18)})`,
+          url: hostedFrameUrl,
+          createdAt: new Date().toISOString(),
+          source: 'generated',
+        },
+        ...prev,
+      ]);
+      setConfig((prev) => ({
+        ...prev,
+        startImageUrl: hostedFrameUrl,
+        extensionVideoUrl: capabilities.isMuapi ? '' : activeClip.videoUrl,
+        creationMode: capabilities.isMuapi ? 'image_to_video' : 'video_extension',
+      }));
+      setActiveClipId(null);
+      showNotice('Extracted final frame as Start Frame for next scene continuation.');
+    } catch (err: unknown) {
+      showNotice(
+        err instanceof Error ? err.message : 'Unable to extract last frame from video.',
+        true
+      );
+    } finally {
+      setIsExtractingLastFrame(false);
+    }
+  }, [activeClip, capabilities.isMuapi, isExtractingLastFrame, showNotice]);
+
+  // =========================================================================
+  // 2D Plate Painter Engine (preserved intact in memory across mode switches)
+  // =========================================================================
+
   const ensureLayerCanvas = useCallback(
     (layerId: string, w = artWidth, h = artHeight): HTMLCanvasElement => {
       let c = layerCanvasesRef.current.get(layerId);
@@ -219,7 +1246,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     [artWidth, artHeight]
   );
 
-  // Composite all visible layers + guide overlay onto compositeCanvasRef
   const renderComposite = useCallback(() => {
     const canvas = compositeCanvasRef.current;
     if (!canvas) return;
@@ -233,13 +1259,11 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
 
     ctx.clearRect(0, 0, artWidth, artHeight);
 
-    // 1. Background fill
     if (backgroundColor !== 'transparent') {
       ctx.fillStyle = backgroundColor;
       ctx.fillRect(0, 0, artWidth, artHeight);
     }
 
-    // 2. Composite visible layers bottom-to-top
     for (const layer of layers) {
       if (!layer.visible) continue;
       const offscreen = layerCanvasesRef.current.get(layer.id);
@@ -258,9 +1282,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
       ]
         .filter(Boolean)
         .join(' ');
-      if (filterStr) {
-        ctx.filter = filterStr;
-      }
+      if (filterStr) ctx.filter = filterStr;
 
       const cx = artWidth / 2 + layer.offsetX;
       const cy = artHeight / 2 + layer.offsetY;
@@ -270,7 +1292,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
       ctx.restore();
     }
 
-    // 3. Live shape preview (if dragging line / rect / ellipse)
     const sd = shapeDragRef.current;
     if (sd) {
       ctx.save();
@@ -330,12 +1351,12 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     scheduleRender();
   }, [layers, artWidth, artHeight, backgroundColor, ensureLayerCanvas, scheduleRender]);
 
-  // Fit artboard smoothly into viewport on mount or preset change
   const fitViewport = useCallback(
     (targetW = artWidth, targetH = artHeight) => {
       const vp = viewportRef.current;
       if (!vp) return;
       const rect = vp.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
       const padW = Math.max(240, rect.width - 72);
       const padH = Math.max(200, rect.height - 72);
       const fitZoom = Math.min(padW / targetW, padH / targetH, 1.25);
@@ -346,11 +1367,11 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
   );
 
   useEffect(() => {
+    if (layoutPrefs.centerStage !== 'painter') return;
     const timer = setTimeout(() => fitViewport(artWidth, artHeight), 80);
     return () => clearTimeout(timer);
-  }, [artWidth, artHeight, fitViewport]);
+  }, [artWidth, artHeight, fitViewport, layoutPrefs.centerStage]);
 
-  // Snapshot capture for Undo/Redo
   const captureHistorySnapshot = useCallback(
     (
       nextLayers: CanvasLayerMeta[],
@@ -384,7 +1405,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     [artWidth, artHeight, backgroundColor, ensureLayerCanvas, historyIndex]
   );
 
-  // Record initial empty snapshot once on mount
   const initializedSnapshotRef = useRef(false);
   useEffect(() => {
     if (!initializedSnapshotRef.current) {
@@ -451,9 +1471,9 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     restoreHistorySnapshot(snap);
   }, [historyIndex, historyStack, restoreHistorySnapshot]);
 
-  // Keyboard shortcuts (only active in 2D Plate Painter mode)
+  // Painter keyboard shortcuts
   useEffect(() => {
-    if (studioMode !== 'painter') return;
+    if (layoutPrefs.centerStage !== 'painter') return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -517,9 +1537,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        setIsSpaceHeld(false);
-      }
+      if (e.code === 'Space') setIsSpaceHeld(false);
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -528,9 +1546,8 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [studioMode, handleUndo, handleRedo]);
+  }, [layoutPrefs.centerStage, handleUndo, handleRedo]);
 
-  // Convert screen pointer coordinates into Artboard pixel coordinates
   const clientToArtboard = (clientX: number, clientY: number) => {
     const canvas = compositeCanvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -540,7 +1557,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     return { x, y };
   };
 
-  // Convert Artboard coordinate into active layer's local coordinate space
   const artToLayerLocal = (artX: number, artY: number, layer: CanvasLayerMeta) => {
     const cx = artWidth / 2 + layer.offsetX;
     const cy = artHeight / 2 + layer.offsetY;
@@ -552,7 +1568,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
   const activeLayer = layers.find((l) => l.id === activeLayerId) || layers[0];
 
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Allow right/middle click pan or Spacebar pan or Pan tool
     const effectivePan = isSpaceHeld || activeTool === 'pan' || e.button === 1;
     const target = e.target as HTMLElement;
     if (target.closest('[data-canvas-ui="true"]')) return;
@@ -594,7 +1609,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     }
 
     if (!activeLayer || activeLayer.locked) {
-      showNotice('Selected layer is locked. Unlock it in the Layer Stack to edit.', true);
+      showNotice('Selected layer is locked. Unlock it in Layers & FX to edit.', true);
       return;
     }
 
@@ -637,7 +1652,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
       return;
     }
 
-    // Brush or Eraser stroke
     const offscreen = ensureLayerCanvas(activeLayer.id);
     const lctx = offscreen.getContext('2d');
     if (!lctx) return;
@@ -648,7 +1662,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     lctx.globalAlpha = brushOpacity;
     lctx.fillStyle = brushColor;
     lctx.beginPath();
-    lctx.arc(lx, ly, (brushSize / activeLayer.scale) / 2, 0, Math.PI * 2);
+    lctx.arc(lx, ly, brushSize / activeLayer.scale / 2, 0, Math.PI * 2);
     lctx.fill();
     lctx.restore();
 
@@ -692,7 +1706,11 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
       setLayers((prev) =>
         prev.map((l) =>
           l.id === activeLayer.id
-            ? { ...l, offsetX: Math.round(p.initialOffsetX + dx), offsetY: Math.round(p.initialOffsetY + dy) }
+            ? {
+                ...l,
+                offsetX: Math.round(p.initialOffsetX + dx),
+                offsetY: Math.round(p.initialOffsetY + dy),
+              }
             : l
         )
       );
@@ -806,7 +1824,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
       lctx.textBaseline = 'top';
       const lines = textPlacement.value.split('\n');
       lines.forEach((line, i) => {
-        lctx.fillText(line, lx, ly + i * (fontSize * 1.2) / activeLayer.scale);
+        lctx.fillText(line, lx, ly + (i * (fontSize * 1.2)) / activeLayer.scale);
       });
       lctx.restore();
       scheduleRender();
@@ -815,7 +1833,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     setTextPlacement(null);
   };
 
-  // Switch Artboard aspect preset
   const handleSelectAspect = (preset: CanvasAspectPreset) => {
     const dim = CANVAS_ASPECT_DIMENSIONS[preset];
     setAspectPreset(preset);
@@ -829,7 +1846,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     }, 20);
   };
 
-  // Layer actions
   const addNewLayer = (customName?: string, drawCb?: (ctx: CanvasRenderingContext2D) => void) => {
     const newId = makeLayerId();
     const offscreen = ensureLayerCanvas(newId, artWidth, artHeight);
@@ -918,7 +1934,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     }, 10);
   };
 
-  // Import image(s) directly onto new canvas layer(s)
   const handleImportImageFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     for (const file of Array.from(files)) {
@@ -950,7 +1965,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     showNotice('Imported image onto new layer.');
   };
 
-  // Generate AI reference backdrop / keyframe onto a new layer via /api/prompt/generate-image
+  // Generate AI concept plate onto both Canvas Layer & Workspace Assets
   const handleGenerateAiPlate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiPrompt.trim() || isGeneratingAiPlate) return;
@@ -984,9 +1999,24 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
         img.src = data.imageUrl;
       });
 
+      // Also expose inside unified Canvas Assets & attach as Start Frame if stage is empty
+      const item: CanvasAssetItem = {
+        id: `ai-plate-${Date.now()}`,
+        kind: 'image',
+        name: `AI Plate: ${aiPrompt.trim().slice(0, 24)}`,
+        url: data.imageUrl,
+        createdAt: new Date().toISOString(),
+        source: 'ai_plate',
+      };
+      setAssets((prev) => [item, ...prev]);
+      setConfig((prev) => ({
+        ...prev,
+        startImageUrl: prev.startImageUrl || data.imageUrl,
+      }));
+
       setIsAiPlateOpen(false);
       setAiPrompt('');
-      showNotice('Added AI synthesized plate to layer stack.');
+      showNotice('Added AI synthesized plate to Canvas Assets & Layer Stack.');
     } catch (err: unknown) {
       showNotice(err instanceof Error ? err.message : 'AI plate generation failed.', true);
     } finally {
@@ -994,7 +2024,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     }
   };
 
-  // Build crisp composited PNG data URL
   const exportCompositeDataUrl = (): string => {
     renderComposite();
     const c = compositeCanvasRef.current;
@@ -1058,7 +2087,35 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     }
   };
 
-  // Export composite frame directly into Slide 4 Seedance Lab
+  const handleCapturePainterFrameToAssets = useCallback(async () => {
+    try {
+      const dataUrl = exportCompositeDataUrl();
+      if (!dataUrl) throw new Error('Unable to read painter frame.');
+      const hostedUrl = await seedanceLabService.uploadMedia(
+        dataUrl,
+        `vaibyte_plate_${Date.now()}.png`
+      );
+      const item: CanvasAssetItem = {
+        id: `canvas-frame-${Date.now()}`,
+        kind: 'canvas_frame',
+        name: `Painter Frame ${new Date().toLocaleTimeString()}`,
+        url: hostedUrl,
+        createdAt: new Date().toISOString(),
+        source: 'canvas',
+      };
+      setAssets((prev) => [item, ...prev]);
+      setConfig((prev) => ({
+        ...prev,
+        startImageUrl: hostedUrl,
+        creationMode: prev.creationMode === 'text_to_video' ? 'image_to_video' : prev.creationMode,
+      }));
+      updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'stage' }));
+      showNotice('Captured Painter frame as Start Frame.');
+    } catch (err: unknown) {
+      showNotice(err instanceof Error ? err.message : 'Failed to capture painted frame.', true);
+    }
+  }, [exportCompositeDataUrl, showNotice, updateLayoutPrefs]);
+
   const handleSendToSeedance = async () => {
     if (!onGoToSeedance || isSendingToSeedance) return;
     setIsSendingToSeedance(true);
@@ -1080,7 +2137,6 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     }
   };
 
-  // Push painted frame directly into the connecting-dots Node Workflow
   const handlePushFrameToWorkflow = async () => {
     if (isPushingToFlow) return;
     setIsPushingToFlow(true);
@@ -1092,7 +2148,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
         `vaibyte_flow_${Date.now()}.png`
       );
       setPendingFlowImageUrl(hostedUrl);
-      setStudioMode('workflow');
+      updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'workflow' }));
     } catch (err: unknown) {
       showNotice(
         err instanceof Error ? err.message : 'Failed to push frame to Node Workflow.',
@@ -1120,6 +2176,610 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     { id: 'eyedropper', label: 'Eyedropper', keyHint: 'I', icon: <Pipette className="w-4 h-4" /> },
   ];
 
+  // Painter Layer & Brush Inspector (slotted into Right Panel when in Painter Mode)
+  const painterInspectorSlot = (
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="grid grid-cols-2 border-b border-white/[0.08] text-[10px] font-mono shrink-0">
+        <button
+          type="button"
+          onClick={() => setPainterDockTab('layers')}
+          className={`py-2 uppercase tracking-wider cursor-pointer ${
+            painterDockTab === 'layers' ? 'bg-white/[0.06] text-white font-semibold' : 'text-white/50'
+          }`}
+        >
+          Layer Stack
+        </button>
+        <button
+          type="button"
+          onClick={() => setPainterDockTab('properties')}
+          className={`py-2 uppercase tracking-wider cursor-pointer ${
+            painterDockTab === 'properties' ? 'bg-white/[0.06] text-white font-semibold' : 'text-white/50'
+          }`}
+        >
+          Brush & FX
+        </button>
+      </div>
+
+      {painterDockTab === 'layers' ? (
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3.5 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => addNewLayer()}
+              className="flex-1 py-2 px-3 rounded-lg bg-white text-black text-[11px] font-mono font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 hover:bg-white/90 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Layer</span>
+            </button>
+            {activeLayer && (
+              <button
+                type="button"
+                onClick={() => duplicateLayer(activeLayer.id)}
+                title="Duplicate Active Layer"
+                className="p-2 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/80 hover:text-white cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-1.5 flex-1 overflow-y-auto pr-0.5">
+            {[...layers].reverse().map((layer) => {
+              const isSelected = layer.id === activeLayerId;
+              const actualIdx = layers.findIndex((l) => l.id === layer.id);
+              return (
+                <div
+                  key={layer.id}
+                  onClick={() => setActiveLayerId(layer.id)}
+                  className={`p-2.5 rounded-xl border transition-all cursor-pointer space-y-1.5 ${
+                    isSelected
+                      ? 'border-white/45 bg-white/[0.08]'
+                      : 'border-white/[0.08] bg-white/[0.025] hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    {editingLayerNameId === layer.id ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingLayerNameVal}
+                        onChange={(e) => setEditingLayerNameVal(e.target.value)}
+                        onBlur={() => {
+                          setLayers((prev) =>
+                            prev.map((l) =>
+                              l.id === layer.id
+                                ? { ...l, name: editingLayerNameVal.trim() || l.name }
+                                : l
+                            )
+                          );
+                          setEditingLayerNameId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 bg-black border border-white/30 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setEditingLayerNameId(layer.id);
+                          setEditingLayerNameVal(layer.name);
+                        }}
+                        title="Double-click to rename"
+                        className="text-xs font-medium text-white truncate flex-1"
+                      >
+                        {layer.name}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLayers((prev) =>
+                            prev.map((l) =>
+                              l.id === layer.id ? { ...l, visible: !l.visible } : l
+                            )
+                          );
+                        }}
+                        className="p-1 text-white/60 hover:text-white cursor-pointer"
+                        title={layer.visible ? 'Hide layer' : 'Show layer'}
+                      >
+                        {layer.visible ? (
+                          <Eye className="w-3.5 h-3.5" />
+                        ) : (
+                          <EyeOff className="w-3.5 h-3.5 text-white/30" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLayers((prev) =>
+                            prev.map((l) =>
+                              l.id === layer.id ? { ...l, locked: !l.locked } : l
+                            )
+                          );
+                        }}
+                        className="p-1 text-white/60 hover:text-white cursor-pointer"
+                        title={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                      >
+                        {layer.locked ? (
+                          <Lock className="w-3.5 h-3.5 text-white" />
+                        ) : (
+                          <Unlock className="w-3.5 h-3.5 text-white/40" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actualIdx >= layers.length - 1}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveLayerOrder(layer.id, 1);
+                        }}
+                        className="p-1 text-white/50 hover:text-white disabled:opacity-25 cursor-pointer"
+                        title="Move Up"
+                      >
+                        <ArrowUp className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actualIdx <= 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveLayerOrder(layer.id, -1);
+                        }}
+                        className="p-1 text-white/50 hover:text-white disabled:opacity-25 cursor-pointer"
+                        title="Move Down"
+                      >
+                        <ArrowDown className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteLayer(layer.id);
+                        }}
+                        className="p-1 text-white/45 hover:text-white cursor-pointer"
+                        title={layers.length > 1 ? 'Delete Layer' : 'Clear Layer'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] font-mono text-white/45">
+                    <span>{layer.blendMode}</span>
+                    <span className="tabular-nums">{Math.round(layer.opacity * 100)}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {activeLayer && (
+            <div className="p-3 rounded-xl border border-white/[0.08] bg-black/40 space-y-3 text-xs">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
+                  <span>Layer Opacity</span>
+                  <span className="tabular-nums">{Math.round(activeLayer.opacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(activeLayer.opacity * 100)}
+                  onChange={(e) => updateActiveLayerProp({ opacity: Number(e.target.value) / 100 })}
+                  className="w-full accent-white cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <span className="font-mono text-[10px] text-white/70 block">Blend Mode</span>
+                <select
+                  value={activeLayer.blendMode}
+                  onChange={(e) =>
+                    updateActiveLayerProp({ blendMode: e.target.value as CanvasBlendMode })
+                  }
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-white/[0.12] bg-[#090b10] text-xs font-mono text-white focus:outline-none"
+                >
+                  <option value="source-over">Normal</option>
+                  <option value="multiply">Multiply</option>
+                  <option value="screen">Screen</option>
+                  <option value="overlay">Overlay</option>
+                  <option value="soft-light">Soft Light</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
+            <span className="font-mono text-[10px] text-white/50 uppercase block">
+              Canvas Backdrop
+            </span>
+            <div className="flex items-center gap-1.5">
+              {CANVAS_BG_SWATCHES.map((bg) => (
+                <button
+                  key={bg.id}
+                  type="button"
+                  onClick={() => setBackgroundColor(bg.value)}
+                  title={bg.label}
+                  style={{
+                    backgroundColor: bg.value === 'transparent' ? '#141720' : bg.value,
+                  }}
+                  className={`flex-1 h-7 rounded-md border text-[9px] font-mono cursor-pointer ${
+                    backgroundColor === bg.value
+                      ? 'border-white ring-1 ring-white/40'
+                      : 'border-white/20'
+                  }`}
+                >
+                  {bg.value === 'transparent' ? 'TR' : ''}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={handleExportProjectJson}
+                className="py-1.5 px-2.5 rounded-lg border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.08] text-[10px] font-mono text-white/75 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <FileJson className="w-3.5 h-3.5" />
+                <span>Save JSON</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => jsonInputRef.current?.click()}
+                className="py-1.5 px-2.5 rounded-lg border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.08] text-[10px] font-mono text-white/75 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>Load JSON</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs">
+          <div className="space-y-3 p-3 rounded-xl border border-white/[0.08] bg-black/40">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-white/60">
+              Tool Calibration
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
+                <span>Stroke Size</span>
+                <span className="tabular-nums">{brushSize}px</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={120}
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                className="w-full accent-white cursor-pointer"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
+                <span>Ink Opacity</span>
+                <span className="tabular-nums">{Math.round(brushOpacity * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={100}
+                value={Math.round(brushOpacity * 100)}
+                onChange={(e) => setBrushOpacity(Number(e.target.value) / 100)}
+                className="w-full accent-white cursor-pointer"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
+                <span>Headline Size</span>
+                <span className="tabular-nums">{fontSize}px</span>
+              </div>
+              <input
+                type="range"
+                min={18}
+                max={180}
+                value={fontSize}
+                onChange={(e) => setFontSize(Number(e.target.value))}
+                className="w-full accent-white cursor-pointer"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="font-mono text-[10px] text-white/70">Fill Shapes</span>
+              <button
+                type="button"
+                onClick={() => setShapeFilled((f) => !f)}
+                className={`px-2.5 py-1 rounded border text-[10px] font-mono cursor-pointer ${
+                  shapeFilled ? 'bg-white text-black border-white font-semibold' : 'border-white/15 text-white/60'
+                }`}
+              >
+                {shapeFilled ? 'FILLED' : 'OUTLINE'}
+              </button>
+            </div>
+          </div>
+
+          {activeLayer && (
+            <div className="space-y-3 p-3 rounded-xl border border-white/[0.08] bg-black/40">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-white/60">
+                  Layer Transform & Grade
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateActiveLayerProp({
+                      offsetX: 0,
+                      offsetY: 0,
+                      scale: 1,
+                      filters: { ...DEFAULT_LAYER_FILTERS },
+                    })
+                  }
+                  className="text-[10px] font-mono text-white/55 hover:text-white flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-mono text-[10px] text-white/70">
+                  <span>Scale</span>
+                  <span className="tabular-nums">{Math.round(activeLayer.scale * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={250}
+                  value={Math.round(activeLayer.scale * 100)}
+                  onChange={(e) => updateActiveLayerProp({ scale: Number(e.target.value) / 100 })}
+                  className="w-full accent-white cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-mono text-[10px] text-white/70">
+                  <span>Brightness</span>
+                  <span className="tabular-nums">{activeLayer.filters.brightness}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={40}
+                  max={180}
+                  value={activeLayer.filters.brightness}
+                  onChange={(e) =>
+                    updateActiveLayerProp({
+                      filters: { ...activeLayer.filters, brightness: Number(e.target.value) },
+                    })
+                  }
+                  className="w-full accent-white cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-mono text-[10px] text-white/70">
+                  <span>Contrast</span>
+                  <span className="tabular-nums">{activeLayer.filters.contrast}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={40}
+                  max={180}
+                  value={activeLayer.filters.contrast}
+                  onChange={(e) =>
+                    updateActiveLayerProp({
+                      filters: { ...activeLayer.filters, contrast: Number(e.target.value) },
+                    })
+                  }
+                  className="w-full accent-white cursor-pointer"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // 2D Painter Center Stage Element
+  const painterStageElement = (
+    <div className="flex-1 min-h-0 flex relative overflow-hidden">
+      {/* Compact Vertical Drawing Tool Strip */}
+      <aside className="w-12 bg-[#0b0d12] border-r border-white/[0.1] flex flex-col items-center py-2.5 gap-1.5 overflow-y-auto no-scrollbar shrink-0 z-10">
+        {toolItems.map((tool) => {
+          const isSelected = activeTool === tool.id;
+          return (
+            <button
+              key={tool.id}
+              type="button"
+              onClick={() => setActiveTool(tool.id)}
+              title={`${tool.label} (${tool.keyHint})`}
+              className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                isSelected ? 'bg-white text-black shadow-sm' : 'text-white/60 hover:text-white hover:bg-white/[0.07]'
+              }`}
+            >
+              {tool.icon}
+            </button>
+          );
+        })}
+
+        <div className="w-7 h-px bg-white/10 my-1" />
+
+        <label
+          title="Active Brush Color"
+          className="w-7 h-7 rounded-lg border border-white/25 cursor-pointer overflow-hidden shrink-0"
+          style={{ backgroundColor: brushColor }}
+        >
+          <input
+            type="color"
+            value={brushColor}
+            onChange={(e) => setBrushColor(e.target.value)}
+            className="opacity-0 w-full h-full cursor-pointer"
+          />
+        </label>
+
+        <div className="grid grid-cols-2 gap-1 pt-1">
+          {CANVAS_COLOR_SWATCHES.slice(0, 6).map((hex) => (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => setBrushColor(hex)}
+              style={{ backgroundColor: hex }}
+              className={`w-3 h-3 rounded-sm border cursor-pointer ${
+                brushColor.toLowerCase() === hex ? 'border-white scale-110' : 'border-white/20'
+              }`}
+              title={hex}
+            />
+          ))}
+        </div>
+      </aside>
+
+      {/* Painter Canvas Artboard */}
+      <div
+        ref={viewportRef}
+        onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMove}
+        onPointerUp={handleCanvasPointerUp}
+        onPointerCancel={handleCanvasPointerUp}
+        onTouchStart={(e) => e.stopPropagation()}
+        onWheel={(e) => {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.08 : 0.08;
+            setZoom((z) => Math.max(0.15, Math.min(4, Number((z + delta).toFixed(2)))));
+          }
+        }}
+        style={{ touchAction: 'none' }}
+        className={`flex-1 relative overflow-hidden bg-[#06070a] flex items-center justify-center ${
+          isSpaceHeld || activeTool === 'pan'
+            ? 'cursor-grab active:cursor-grabbing'
+            : activeTool === 'select'
+            ? 'cursor-move'
+            : 'cursor-crosshair'
+        }`}
+      >
+        <div
+          style={{
+            width: artWidth,
+            height: artHeight,
+            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+            transformOrigin: 'center center',
+          }}
+          className="relative shadow-[0_24px_90px_rgba(0,0,0,0.95)] ring-1 ring-white/20 shrink-0"
+        >
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage:
+                'linear-gradient(45deg, #161820 25%, transparent 25%), linear-gradient(-45deg, #161820 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #161820 75%), linear-gradient(-45deg, transparent 75%, #161820 75%)',
+              backgroundSize: '32px 32px',
+              backgroundPosition: '0 0, 0 16px, 16px -16px, -16px 0',
+            }}
+          />
+
+          <canvas
+            ref={compositeCanvasRef}
+            width={artWidth}
+            height={artHeight}
+            className="relative w-full h-full block"
+          />
+
+          {showGuides && (
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/15" />
+              <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/15" />
+              <div className="absolute top-1/3 left-0 right-0 h-px bg-white/15" />
+              <div className="absolute top-2/3 left-0 right-0 h-px bg-white/15" />
+              <div className="absolute inset-8 border border-white/10" />
+            </div>
+          )}
+
+          {textPlacement?.active && (
+            <div
+              data-canvas-ui="true"
+              style={{
+                left: Math.min(artWidth - 360, Math.max(16, textPlacement.x)),
+                top: Math.min(artHeight - 120, Math.max(16, textPlacement.y)),
+              }}
+              className="absolute z-30 p-2 rounded-xl bg-[#0a0c12]/95 border border-white/30 shadow-2xl flex items-center gap-2 min-w-[320px]"
+            >
+              <input
+                type="text"
+                autoFocus
+                value={textPlacement.value}
+                onChange={(e) =>
+                  setTextPlacement((prev) => (prev ? { ...prev, value: e.target.value } : null))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitTextPlacement();
+                  if (e.key === 'Escape') setTextPlacement(null);
+                }}
+                placeholder="Type canvas headline..."
+                className="flex-1 bg-black/70 border border-white/15 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-white"
+              />
+              <button
+                type="button"
+                onClick={commitTextPlacement}
+                className="p-2 rounded-lg bg-white text-black hover:bg-white/90 cursor-pointer"
+                title="Place Text"
+              >
+                <Check className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTextPlacement(null)}
+                className="p-2 rounded-lg border border-white/15 text-white/60 hover:text-white cursor-pointer"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Painter Viewport HUD */}
+        <div
+          data-canvas-ui="true"
+          className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-[#0b0d12]/90 backdrop-blur-md border border-white/[0.12] text-[10px] font-mono text-white/65 flex items-center gap-3 pointer-events-auto"
+        >
+          <span className="tabular-nums">
+            {artWidth} × {artHeight}px
+          </span>
+          {cursorArtCoords && (
+            <span className="tabular-nums hidden sm:inline">
+              X:{cursorArtCoords.x} Y:{cursorArtCoords.y}
+            </span>
+          )}
+          <span className="text-white uppercase">{activeTool}</span>
+          <button
+            type="button"
+            onClick={handleCapturePainterFrameToAssets}
+            className="text-white hover:underline cursor-pointer"
+          >
+            Send Frame to Stage
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const stageButtons: Array<{
+    id: CanvasCenterStage;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    { id: 'stage', label: 'Stage', icon: MonitorPlay },
+    { id: 'workflow', label: 'Node Flow', icon: Workflow },
+    { id: 'painter', label: 'Painter', icon: PenTool },
+  ];
+
   return (
     <div
       data-no-swipe="true"
@@ -1127,7 +2787,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
     >
       {/* Top Studio Header Bar */}
       <header className="h-14 px-3 sm:px-4 bg-[#0b0d12]/95 backdrop-blur-xl border-b border-white/[0.1] flex items-center justify-between gap-2 shrink-0 z-20 overflow-x-auto no-scrollbar">
-        {/* Left: Menu + Brand + Aspect Preset */}
+        {/* Left Zone: Navigation + Brand + Mode Switches */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {onOpenMenu && (
             <button
@@ -1150,46 +2810,68 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
             </button>
             <span className="text-white/25">/</span>
             <span className="text-xs sm:text-sm font-mono font-semibold tracking-wider text-white">
-              VaiByte — Canvas Studio
+              Canvas
             </span>
           </div>
 
-          {/* Primary Mode Switch: Connecting-Dots Node Workflow vs Plate Painter */}
-          <div className="flex items-center gap-1 p-1 rounded-lg border border-white/[0.12] bg-black/60 text-[11px] font-mono shrink-0">
-            <button
-              type="button"
-              onClick={() => setStudioMode('workflow')}
-              className={`px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                studioMode === 'workflow'
-                  ? 'bg-white text-black font-bold'
-                  : 'text-white/65 hover:text-white'
-              }`}
-            >
-              <Workflow className="w-3.5 h-3.5" />
-              <span>Node Workflow</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setStudioMode('painter')}
-              className={`px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                studioMode === 'painter'
-                  ? 'bg-white text-black font-bold'
-                  : 'text-white/65 hover:text-white'
-              }`}
-            >
-              <PenTool className="w-3.5 h-3.5" />
-              <span>Plate Painter</span>
-            </button>
+          {/* Simple vs Advanced Mode Segmented Switch */}
+          <div
+            role="group"
+            aria-label="Workspace Complexity Mode"
+            className="flex items-center gap-0.5 p-1 rounded-lg border border-white/[0.12] bg-black/60 text-[11px] font-mono shrink-0"
+          >
+            {(['simple', 'advanced'] as CanvasExperienceMode[]).map((mode) => {
+              const active = layoutPrefs.experienceMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() =>
+                    updateLayoutPrefs((prev) => ({
+                      ...prev,
+                      experienceMode: mode,
+                      // In Simple mode stay clean on Stage if desired, without destroying Node/Painter data
+                    }))
+                  }
+                  className={`px-2.5 py-1 rounded capitalize transition-colors cursor-pointer whitespace-nowrap ${
+                    active ? 'bg-white text-black font-bold' : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  {mode}
+                </button>
+              );
+            })}
           </div>
 
-          {studioMode === 'painter' && (
+          {/* Center Workspace Stage Switcher */}
+          <div className="flex items-center gap-0.5 p-1 rounded-lg border border-white/[0.1] bg-black/50 text-[11px] font-mono shrink-0">
+            {stageButtons.map((btn) => {
+              const Icon = btn.icon;
+              const active = layoutPrefs.centerStage === btn.id;
+              return (
+                <button
+                  key={btn.id}
+                  type="button"
+                  onClick={() => updateLayoutPrefs((prev) => ({ ...prev, centerStage: btn.id }))}
+                  className={`px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                    active ? 'bg-white/[0.16] text-white font-semibold' : 'text-white/55 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{btn.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {layoutPrefs.centerStage === 'painter' && (
             <div className="hidden xl:flex items-center gap-1 p-1 rounded-lg border border-white/[0.1] bg-black/50 text-[10px] font-mono">
               {(Object.keys(CANVAS_ASPECT_DIMENSIONS) as CanvasAspectPreset[]).map((preset) => (
                 <button
                   key={preset}
                   type="button"
                   onClick={() => handleSelectAspect(preset)}
-                  className={`px-2 py-1 rounded transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`px-2 py-1 rounded transition-colors cursor-pointer whitespace-nowrap ${
                     aspectPreset === preset
                       ? 'bg-white text-black font-bold'
                       : 'text-white/60 hover:text-white'
@@ -1202,894 +2884,391 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
           )}
         </div>
 
-        {/* Center/Right Controls */}
-        {studioMode === 'painter' ? (
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <div className="flex items-center border border-white/[0.1] bg-white/[0.03] rounded-lg p-0.5">
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={historyIndex <= 0}
-                title="Undo (⌘Z)"
-                className="w-8 h-8 rounded flex items-center justify-center text-white/75 hover:text-white hover:bg-white/[0.08] disabled:opacity-30 cursor-pointer"
-              >
-                <Undo2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleRedo}
-                disabled={historyIndex >= historyStack.length - 1}
-                title="Redo (⌘⇧Z)"
-                className="w-8 h-8 rounded flex items-center justify-center text-white/75 hover:text-white hover:bg-white/[0.08] disabled:opacity-30 cursor-pointer"
-              >
-                <Redo2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
+        {/* Right Zone: Contextual Painter Controls + Layout Compactness + Mobile Drawers + Studio Bridges */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {layoutPrefs.centerStage === 'painter' && (
+            <>
+              <div className="flex items-center border border-white/[0.1] bg-white/[0.03] rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={historyIndex <= 0}
+                  title="Undo (⌘Z)"
+                  className="w-8 h-8 rounded flex items-center justify-center text-white/75 hover:text-white hover:bg-white/[0.08] disabled:opacity-30 cursor-pointer"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRedo}
+                  disabled={historyIndex >= historyStack.length - 1}
+                  title="Redo (⌘⇧Z)"
+                  className="w-8 h-8 rounded flex items-center justify-center text-white/75 hover:text-white hover:bg-white/[0.08] disabled:opacity-30 cursor-pointer"
+                >
+                  <Redo2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-            <div className="hidden md:flex items-center border border-white/[0.1] bg-white/[0.03] rounded-lg p-0.5 text-[11px] font-mono">
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(0.15, Number((z - 0.1).toFixed(2))))}
-                className="w-7 h-7 rounded flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer"
-                title="Zoom Out"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="px-2 tabular-nums text-white/80 min-w-[46px] text-center">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(4, Number((z + 0.1).toFixed(2))))}
-                className="w-7 h-7 rounded flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => fitViewport()}
-                className="w-7 h-7 rounded flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer"
-                title="Fit Artboard"
-              >
-                <Maximize className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowGuides((g) => !g)}
-              title="Toggle Rule-of-Thirds Guides"
-              className={`h-9 px-2.5 rounded-lg border text-[11px] font-mono flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
-                showGuides
-                  ? 'border-white/40 bg-white/15 text-white'
-                  : 'border-white/[0.1] bg-white/[0.03] text-white/60 hover:text-white'
-              }`}
-            >
-              <Grid className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">Guides</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => imageInputRef.current?.click()}
-              className="h-9 px-2.5 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/85 text-[11px] font-mono flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-              title="Import image onto new layer"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Import</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsAiPlateOpen(true)}
-              className="h-9 px-2.5 rounded-lg border border-white/[0.16] bg-white/[0.06] hover:bg-white/[0.14] text-white text-[11px] font-mono flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-              title="Synthesize AI Concept Plate onto Layer"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">AI Plate</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePushFrameToWorkflow}
-              disabled={isPushingToFlow}
-              className="h-9 px-2.5 rounded-lg border border-white/25 bg-white/[0.08] hover:bg-white/[0.16] text-white text-[11px] font-mono flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-              title="Send Painted Frame into Connecting-Dots Workflow"
-            >
-              <Workflow className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{isPushingToFlow ? 'Pushing...' : 'Push to Flow'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleDownloadPng}
-              className="h-9 px-2.5 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/85 text-[11px] font-mono flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-              title="Export Composited PNG"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">PNG</span>
-            </button>
-
-            {onGoToSeedance && (
-              <button
-                type="button"
-                onClick={handleSendToSeedance}
-                disabled={isSendingToSeedance}
-                className="h-9 px-3 rounded-lg bg-[#ecece9] hover:bg-white text-black text-[11px] font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-60"
-                title="Send composited frame to Seedance 2.5 (Slide 04)"
-              >
-                {isSendingToSeedance ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <ArrowRight className="w-3.5 h-3.5" />
-                )}
-                <span className="hidden sm:inline">
-                  {isSendingToSeedance ? 'Sending...' : 'To Seedance 2.5'}
+              <div className="hidden xl:flex items-center border border-white/[0.1] bg-white/[0.03] rounded-lg p-0.5 text-[11px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.15, Number((z - 0.1).toFixed(2))))}
+                  className="w-7 h-7 rounded flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <span className="px-2 tabular-nums text-white/80 min-w-[44px] text-center">
+                  {Math.round(zoom * 100)}%
                 </span>
-              </button>
-            )}
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(4, Number((z + 0.1).toFixed(2))))}
+                  className="w-7 h-7 rounded flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fitViewport()}
+                  className="w-7 h-7 rounded flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.08] cursor-pointer"
+                  title="Fit Artboard"
+                >
+                  <Maximize className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
+              <button
+                type="button"
+                onClick={() => setShowGuides((g) => !g)}
+                title="Toggle Rule-of-Thirds Guides"
+                className={`h-9 px-2.5 rounded-lg border text-[11px] font-mono hidden md:flex items-center gap-1.5 cursor-pointer ${
+                  showGuides ? 'border-white/40 bg-white/15 text-white' : 'border-white/[0.1] text-white/60'
+                }`}
+              >
+                <Grid className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                className="h-9 px-2.5 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/85 text-[11px] font-mono hidden sm:flex items-center gap-1.5 cursor-pointer"
+                title="Import image onto new layer"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">Import</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePushFrameToWorkflow}
+                disabled={isPushingToFlow}
+                className="h-9 px-2.5 rounded-lg border border-white/20 bg-white/[0.06] hover:bg-white/[0.14] text-white text-[11px] font-mono hidden md:flex items-center gap-1.5 cursor-pointer"
+                title="Send Painted Frame into Node Flow"
+              >
+                <Workflow className="w-3.5 h-3.5" />
+                <span className="hidden xl:inline">{isPushingToFlow ? 'Pushing...' : 'To Flow'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadPng}
+                className="h-9 px-2.5 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/85 text-[11px] font-mono hidden sm:flex items-center gap-1.5 cursor-pointer"
+                title="Export Composited PNG"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+
+          {/* Compact Toolbar Mode Toggle (Desktop) */}
+          <button
+            type="button"
+            onClick={() =>
+              updateLayoutPrefs((prev) => ({ ...prev, compactToolbar: !prev.compactToolbar }))
+            }
+            title={layoutPrefs.compactToolbar ? 'Expand Tool Descriptions' : 'Compact Toolbars'}
+            className={`hidden lg:flex w-9 h-9 rounded-lg border items-center justify-center cursor-pointer transition-colors ${
+              layoutPrefs.compactToolbar
+                ? 'border-white/40 bg-white/[0.14] text-white'
+                : 'border-white/[0.12] bg-white/[0.04] text-white/65 hover:text-white'
+            }`}
+          >
+            {layoutPrefs.compactToolbar ? (
+              <Maximize2 className="w-3.5 h-3.5" />
+            ) : (
+              <Minimize2 className="w-3.5 h-3.5" />
+            )}
+          </button>
+
+          {/* Mobile/Tablet Left & Right Panel Triggers */}
+          <button
+            type="button"
+            onClick={() => setIsMobileLeftOpen(true)}
+            className="lg:hidden h-9 px-2.5 rounded-lg border border-white/[0.14] bg-white/[0.04] text-xs font-mono text-white flex items-center gap-1.5 cursor-pointer"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Tools</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsMobileRightOpen(true)}
+            className="lg:hidden h-9 px-2.5 rounded-lg border border-white/[0.14] bg-white/[0.04] text-xs font-mono text-white flex items-center gap-1.5 cursor-pointer"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Settings</span>
+          </button>
+
+          {onGoToFuLabs && (
             <button
               type="button"
-              onClick={() => setIsInspectorOpen((v) => !v)}
-              className="w-9 h-9 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] flex items-center justify-center text-white/80 hover:text-white cursor-pointer shrink-0"
-              title="Toggle Layer & Inspector Panel"
+              onClick={onGoToFuLabs}
+              className="h-9 px-2.5 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/80 text-[11px] font-mono cursor-pointer whitespace-nowrap hidden xl:block"
             >
-              <SlidersHorizontal className="w-4 h-4" />
+              05 Fu Labs 3D
             </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 shrink-0">
-            {onGoToFuLabs && (
-              <button
-                type="button"
-                onClick={onGoToFuLabs}
-                className="h-9 px-2.5 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/80 text-[11px] font-mono cursor-pointer whitespace-nowrap hidden md:block"
-              >
-                05 Fu Labs 3D
-              </button>
-            )}
-            {onGoToSeedance && (
-              <button
-                type="button"
-                onClick={() => onGoToSeedance()}
-                className="h-9 px-3 rounded-lg bg-[#ecece9] hover:bg-white text-black text-[11px] font-mono font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <span>Open Seedance Lab</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        )}
+          )}
+
+          {onGoToSeedance && (
+            <button
+              type="button"
+              onClick={() => {
+                if (layoutPrefs.centerStage === 'painter') {
+                  void handleSendToSeedance();
+                } else {
+                  onGoToSeedance(config.startImageUrl || undefined);
+                }
+              }}
+              disabled={isSendingToSeedance}
+              className="h-9 px-3 rounded-lg bg-[#ecece9] hover:bg-white text-black text-[11px] font-mono font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-60"
+            >
+              {isSendingToSeedance ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Seedance Lab</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </header>
 
-      {/* Global Status Notice (visible across Workflow & Painter modes) */}
-      {statusNotice && studioMode === 'workflow' && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-lg border border-white/20 bg-black/92 text-xs font-mono text-white backdrop-blur-xl shadow-2xl flex items-center gap-2 z-40">
+      {/* Global Toast Notice */}
+      {statusNotice && (
+        <div
+          className={`absolute top-16 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-lg border text-xs font-mono backdrop-blur-xl shadow-2xl flex items-center gap-2 z-50 ${
+            statusNotice.isError
+              ? 'bg-neutral-950/95 border-amber-400/40 text-amber-100'
+              : 'bg-black/92 border-white/20 text-white'
+          }`}
+        >
           {statusNotice.isError && <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-300" />}
           <span>{statusNotice.message}</span>
         </div>
       )}
 
-      {/* Primary Workspace Mode A: Connecting-Dots Node Workflow Studio */}
-      {studioMode === 'workflow' && (
-        <WorkflowNodeGraph
-          externalPaintedImageUrl={pendingFlowImageUrl}
-          onConsumePaintedImage={() => setPendingFlowImageUrl(null)}
-          onSendImagesToSeedanceSlide4={(urls) => {
-            if (urls.length > 0 && onGoToSeedance) {
-              onGoToSeedance(urls);
-            }
+      {/* Three-Area Workspace */}
+      <div className="flex-1 min-h-0 flex relative overflow-hidden">
+        {/* A. LEFT PANEL — PRODUCTION TOOLS */}
+        <CanvasLeftToolsPanel
+          experienceMode={layoutPrefs.experienceMode}
+          minimized={layoutPrefs.leftMinimized}
+          onToggleMinimize={() =>
+            updateLayoutPrefs((prev) => ({ ...prev, leftMinimized: !prev.leftMinimized }))
+          }
+          sections={layoutPrefs.leftSections}
+          onToggleSection={(key: keyof CanvasLeftSectionsState) =>
+            updateLayoutPrefs((prev) => ({
+              ...prev,
+              leftSections: {
+                ...prev.leftSections,
+                [key]: !prev.leftSections[key],
+              },
+            }))
+          }
+          width={layoutPrefs.leftWidth}
+          compactToolbar={layoutPrefs.compactToolbar}
+          config={config}
+          capabilities={capabilities}
+          assets={assets}
+          isUploadingMedia={isUploadingMedia}
+          onSelectCreationMode={handleSelectCreationMode}
+          onUploadFiles={handleUploadMediaFiles}
+          onOpenAiPlateModal={() => setIsAiPlateOpen(true)}
+          onCapturePainterFrame={handleCapturePainterFrameToAssets}
+          onAttachAssetAsStart={(asset) => {
+            updateConfig({
+              startImageUrl: asset.url,
+              creationMode:
+                config.creationMode === 'text_to_video' ? 'image_to_video' : config.creationMode,
+            });
+            setActiveClipId(null);
+            updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'stage' }));
+            showNotice(`Attached "${asset.name}" as Start Frame.`);
           }}
-          onStatusNotice={showNotice}
+          onAttachAssetAsEnd={(asset) => {
+            updateConfig({ endImageUrl: asset.url });
+            updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'stage' }));
+            showNotice(`Attached "${asset.name}" as End Frame.`);
+          }}
+          onAddAssetAsReference={(asset) => {
+            setConfig((prev) => {
+              const exists = prev.referenceImageUrls.includes(asset.url);
+              const nextRefs = exists
+                ? prev.referenceImageUrls.filter((u) => u !== asset.url)
+                : [...prev.referenceImageUrls, asset.url].slice(0, capabilities.maxReferenceImages);
+              return { ...prev, referenceImageUrls: nextRefs };
+            });
+          }}
+          onAttachAssetAsExtensionVideo={(asset) => {
+            updateConfig({
+              extensionVideoUrl: asset.url,
+              creationMode: capabilities.isMuapi ? config.creationMode : 'video_extension',
+            });
+            setActiveClipId(null);
+            updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'stage' }));
+            showNotice(`Attached "${asset.name}" for Video Extension.`);
+          }}
+          onUpdateConfig={updateConfig}
+          onFocusAdvancedSettings={() => {
+            updateLayoutPrefs((prev) => ({
+              ...prev,
+              rightMinimized: false,
+              rightSections: { ...prev.rightSections, advanced: true },
+            }));
+          }}
+          onSwitchCenterStage={(stage) => {
+            updateLayoutPrefs((prev) => ({ ...prev, centerStage: stage }));
+            setIsMobileLeftOpen(false);
+          }}
+          isMobileOpen={isMobileLeftOpen}
+          onCloseMobile={() => setIsMobileLeftOpen(false)}
         />
-      )}
 
-      {/* Primary Workspace Mode B: Multi-Layer 2D Plate Painter (kept mounted hidden when switching so painted layers stay alive in memory) */}
-      <div className={studioMode === 'painter' ? 'flex-1 min-h-0 flex relative overflow-hidden' : 'hidden'}>
-        {/* Left Vertical Tool Rail */}
-        <aside className="w-14 bg-[#0b0d12] border-r border-white/[0.1] flex flex-col items-center py-2.5 gap-1.5 overflow-y-auto no-scrollbar shrink-0 z-10">
-          {toolItems.map((tool) => {
-            const isSelected = activeTool === tool.id;
-            return (
-              <button
-                key={tool.id}
-                type="button"
-                onClick={() => setActiveTool(tool.id)}
-                title={`${tool.label} (${tool.keyHint})`}
-                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                  isSelected
-                    ? 'bg-white text-black shadow-sm'
-                    : 'text-white/60 hover:text-white hover:bg-white/[0.07]'
-                }`}
-              >
-                {tool.icon}
-              </button>
-            );
-          })}
+        {/* Desktop Left Panel Drag Resizer */}
+        {!layoutPrefs.leftMinimized && (
+          <div
+            onPointerDown={(e) => {
+              resizeDragRef.current = {
+                side: 'left',
+                startX: e.clientX,
+                startWidth: layoutPrefs.leftWidth,
+              };
+            }}
+            title="Drag to resize Production Tools panel"
+            className="hidden lg:block w-1 hover:w-1.5 bg-transparent hover:bg-white/25 cursor-col-resize transition-colors shrink-0 z-20"
+          />
+        )}
 
-          <div className="w-8 h-px bg-white/10 my-1" />
-
-          {/* Active Color Picker & Swatches */}
-          <label
-            title="Active Brush / Ink Color"
-            className="w-8 h-8 rounded-lg border border-white/25 cursor-pointer overflow-hidden shrink-0"
-            style={{ backgroundColor: brushColor }}
-          >
-            <input
-              type="color"
-              value={brushColor}
-              onChange={(e) => setBrushColor(e.target.value)}
-              className="opacity-0 w-full h-full cursor-pointer"
-            />
-          </label>
-
-          <div className="grid grid-cols-2 gap-1 pt-1">
-            {CANVAS_COLOR_SWATCHES.slice(0, 6).map((hex) => (
-              <button
-                key={hex}
-                type="button"
-                onClick={() => setBrushColor(hex)}
-                style={{ backgroundColor: hex }}
-                className={`w-3.5 h-3.5 rounded-sm border cursor-pointer ${
-                  brushColor.toLowerCase() === hex ? 'border-white scale-110' : 'border-white/20'
-                }`}
-                title={hex}
-              />
-            ))}
-          </div>
-        </aside>
-
-        {/* Center Interactive Canvas Stage */}
-        <div
-          ref={viewportRef}
-          onPointerDown={handleCanvasPointerDown}
-          onPointerMove={handleCanvasPointerMove}
-          onPointerUp={handleCanvasPointerUp}
-          onPointerCancel={handleCanvasPointerUp}
-          onTouchStart={(e) => e.stopPropagation()}
-          onWheel={(e) => {
-            if (e.ctrlKey || e.metaKey) {
-              e.preventDefault();
-              const delta = e.deltaY > 0 ? -0.08 : 0.08;
-              setZoom((z) => Math.max(0.15, Math.min(4, Number((z + delta).toFixed(2)))));
+        {/* B. CENTER PANEL — MAIN CANVAS */}
+        <CanvasCenterWorkspace
+          centerStage={layoutPrefs.centerStage}
+          experienceMode={layoutPrefs.experienceMode}
+          showTimeline={layoutPrefs.showTimeline}
+          onToggleTimeline={() =>
+            updateLayoutPrefs((prev) => ({ ...prev, showTimeline: !prev.showTimeline }))
+          }
+          config={config}
+          capabilities={capabilities}
+          activeClip={activeClip}
+          timelineClips={timelineClips}
+          activeGenerationStatus={activeGenStatus}
+          isExtractingLastFrame={isExtractingLastFrame}
+          onSelectClip={(clip) => {
+            setActiveClipId(clip.id);
+          }}
+          onDeleteClip={(clipId) => {
+            setTimelineClips((prev) => prev.filter((c) => c.id !== clipId));
+            if (activeClipId === clipId) setActiveClipId(null);
+            if (clipId) {
+              void multiProviderGenerationService.deleteJob(clipId).catch(() => undefined);
             }
           }}
-          style={{ touchAction: 'none' }}
-          className={`flex-1 relative overflow-hidden bg-[#06070a] flex items-center justify-center ${
-            isSpaceHeld || activeTool === 'pan'
-              ? 'cursor-grab active:cursor-grabbing'
-              : activeTool === 'select'
-              ? 'cursor-move'
-              : 'cursor-crosshair'
-          }`}
-        >
-          {/* Scaled & Panned Artboard Container */}
+          onClearActivePreview={() => setActiveClipId(null)}
+          onExtendFromActiveClip={handleExtendFromActiveClip}
+          onFinalizeActiveDraft={handleFinalizeActiveDraft}
+          onSendUrlToSeedance={onGoToSeedance ? (url) => onGoToSeedance(url) : undefined}
+          onUploadStageFiles={handleUploadMediaFiles}
+          onClearStartImage={() => updateConfig({ startImageUrl: '' })}
+          onClearEndImage={() => updateConfig({ endImageUrl: '' })}
+          onRemoveReferenceImage={(url) =>
+            updateConfig({
+              referenceImageUrls: config.referenceImageUrls.filter((u) => u !== url),
+            })
+          }
+          onClearExtensionVideo={() => updateConfig({ extensionVideoUrl: '' })}
+          onOpenPainter={() =>
+            updateLayoutPrefs((prev) => ({ ...prev, centerStage: 'painter' }))
+          }
+          pendingFlowImageUrl={pendingFlowImageUrl}
+          onConsumePaintedImage={() => setPendingFlowImageUrl(null)}
+          onSendImagesToSeedance={onGoToSeedance}
+          onStatusNotice={showNotice}
+          painterStageElement={painterStageElement}
+        />
+
+        {/* Desktop Right Panel Drag Resizer */}
+        {!layoutPrefs.rightMinimized && (
           <div
-            style={{
-              width: artWidth,
-              height: artHeight,
-              transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-              transformOrigin: 'center center',
+            onPointerDown={(e) => {
+              resizeDragRef.current = {
+                side: 'right',
+                startX: e.clientX,
+                startWidth: layoutPrefs.rightWidth,
+              };
             }}
-            className="relative shadow-[0_24px_90px_rgba(0,0,0,0.95)] ring-1 ring-white/20 shrink-0"
-          >
-            {/* Transparency Checkerboard Underlay */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                backgroundImage:
-                  'linear-gradient(45deg, #161820 25%, transparent 25%), linear-gradient(-45deg, #161820 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #161820 75%), linear-gradient(-45deg, transparent 75%, #161820 75%)',
-                backgroundSize: '32px 32px',
-                backgroundPosition: '0 0, 0 16px, 16px -16px, -16px 0',
-              }}
-            />
-
-            {/* Main Live Composite Canvas */}
-            <canvas
-              ref={compositeCanvasRef}
-              width={artWidth}
-              height={artHeight}
-              className="relative w-full h-full block"
-            />
-
-            {/* Rule-of-Thirds & Safe Area Overlay */}
-            {showGuides && (
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute left-1/3 top-0 bottom-0 w-px bg-white/15" />
-                <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/15" />
-                <div className="absolute top-1/3 left-0 right-0 h-px bg-white/15" />
-                <div className="absolute top-2/3 left-0 right-0 h-px bg-white/15" />
-                <div className="absolute inset-8 border border-white/10" />
-              </div>
-            )}
-
-            {/* Inline Text Tool Composer Overlay */}
-            {textPlacement?.active && (
-              <div
-                data-canvas-ui="true"
-                style={{
-                  left: Math.min(artWidth - 360, Math.max(16, textPlacement.x)),
-                  top: Math.min(artHeight - 120, Math.max(16, textPlacement.y)),
-                }}
-                className="absolute z-30 p-2 rounded-xl bg-[#0a0c12]/95 border border-white/30 shadow-2xl flex items-center gap-2 min-w-[320px]"
-              >
-                <input
-                  type="text"
-                  autoFocus
-                  value={textPlacement.value}
-                  onChange={(e) =>
-                    setTextPlacement((prev) => (prev ? { ...prev, value: e.target.value } : null))
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') commitTextPlacement();
-                    if (e.key === 'Escape') setTextPlacement(null);
-                  }}
-                  placeholder="Type canvas headline..."
-                  className="flex-1 bg-black/70 border border-white/15 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-white"
-                />
-                <button
-                  type="button"
-                  onClick={commitTextPlacement}
-                  className="p-2 rounded-lg bg-white text-black hover:bg-white/90 cursor-pointer"
-                  title="Place Text"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTextPlacement(null)}
-                  className="p-2 rounded-lg border border-white/15 text-white/60 hover:text-white cursor-pointer"
-                  title="Cancel"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom-Right Viewport HUD */}
-          <div
-            data-canvas-ui="true"
-            className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-[#0b0d12]/90 backdrop-blur-md border border-white/[0.12] text-[10px] font-mono text-white/65 flex items-center gap-3 pointer-events-auto"
-          >
-            <span className="tabular-nums">
-              {artWidth} × {artHeight}px
-            </span>
-            {cursorArtCoords && (
-              <span className="tabular-nums hidden sm:inline">
-                X:{cursorArtCoords.x} Y:{cursorArtCoords.y}
-              </span>
-            )}
-            <span className="text-white uppercase">{activeTool}</span>
-            {onGoToFuLabs && (
-              <button
-                type="button"
-                onClick={onGoToFuLabs}
-                className="text-white/75 hover:text-white underline cursor-pointer hidden md:inline"
-              >
-                05 Fu Labs 3D
-              </button>
-            )}
-          </div>
-
-          {/* Status Toast inside Canvas */}
-          {statusNotice && (
-            <div
-              data-canvas-ui="true"
-              className={`absolute top-4 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-lg border text-xs font-mono backdrop-blur-xl shadow-xl flex items-center gap-2 z-30 ${
-                statusNotice.isError
-                  ? 'bg-neutral-950/95 border-white/30 text-white'
-                  : 'bg-black/90 border-white/20 text-white'
-              }`}
-            >
-              {statusNotice.isError && <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-              <span>{statusNotice.message}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Right Layer Stack & Properties Dock */}
-        {isInspectorOpen && (
-          <aside className="w-72 sm:w-80 bg-[#0b0d12] border-l border-white/[0.1] flex flex-col shrink-0 z-10 overflow-hidden">
-            {/* Inspector Tabs */}
-            <div className="grid grid-cols-2 border-b border-white/[0.08] text-[11px] font-mono">
-              <button
-                type="button"
-                onClick={() => setInspectorTab('layers')}
-                className={`py-2.5 uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
-                  inspectorTab === 'layers'
-                    ? 'bg-white/[0.08] text-white font-semibold border-b-2 border-white'
-                    : 'text-white/50 hover:text-white'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Layers ({layers.length})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setInspectorTab('properties')}
-                className={`py-2.5 uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
-                  inspectorTab === 'properties'
-                    ? 'bg-white/[0.08] text-white font-semibold border-b-2 border-white'
-                    : 'text-white/50 hover:text-white'
-                }`}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>Brush & FX</span>
-              </button>
-            </div>
-
-            {inspectorTab === 'layers' ? (
-              <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3.5 space-y-4">
-                {/* Layer Stack Header Actions */}
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => addNewLayer()}
-                    className="flex-1 py-2 px-3 rounded-lg bg-white text-black text-[11px] font-mono font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 hover:bg-white/90 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>New Layer</span>
-                  </button>
-                  {activeLayer && (
-                    <button
-                      type="button"
-                      onClick={() => duplicateLayer(activeLayer.id)}
-                      title="Duplicate Active Layer"
-                      className="p-2 rounded-lg border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.1] text-white/80 hover:text-white cursor-pointer"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Layer Stack List (Rendered top-to-bottom) */}
-                <div className="space-y-1.5 flex-1 overflow-y-auto pr-0.5">
-                  {[...layers].reverse().map((layer) => {
-                    const isSelected = layer.id === activeLayerId;
-                    const actualIdx = layers.findIndex((l) => l.id === layer.id);
-                    return (
-                      <div
-                        key={layer.id}
-                        onClick={() => setActiveLayerId(layer.id)}
-                        className={`p-2.5 rounded-xl border transition-all cursor-pointer space-y-1.5 ${
-                          isSelected
-                            ? 'border-white/45 bg-white/[0.08]'
-                            : 'border-white/[0.08] bg-white/[0.025] hover:border-white/20'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1.5">
-                          {editingLayerNameId === layer.id ? (
-                            <input
-                              type="text"
-                              autoFocus
-                              value={editingLayerNameVal}
-                              onChange={(e) => setEditingLayerNameVal(e.target.value)}
-                              onBlur={() => {
-                                setLayers((prev) =>
-                                  prev.map((l) =>
-                                    l.id === layer.id
-                                      ? { ...l, name: editingLayerNameVal.trim() || l.name }
-                                      : l
-                                  )
-                                );
-                                setEditingLayerNameId(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex-1 bg-black border border-white/30 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none"
-                            />
-                          ) : (
-                            <span
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingLayerNameId(layer.id);
-                                setEditingLayerNameVal(layer.name);
-                              }}
-                              title="Double-click to rename"
-                              className="text-xs font-medium text-white truncate flex-1"
-                            >
-                              {layer.name}
-                            </span>
-                          )}
-
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLayers((prev) =>
-                                  prev.map((l) =>
-                                    l.id === layer.id ? { ...l, visible: !l.visible } : l
-                                  )
-                                );
-                              }}
-                              className="p-1 text-white/60 hover:text-white cursor-pointer"
-                              title={layer.visible ? 'Hide layer' : 'Show layer'}
-                            >
-                              {layer.visible ? (
-                                <Eye className="w-3.5 h-3.5" />
-                              ) : (
-                                <EyeOff className="w-3.5 h-3.5 text-white/30" />
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLayers((prev) =>
-                                  prev.map((l) =>
-                                    l.id === layer.id ? { ...l, locked: !l.locked } : l
-                                  )
-                                );
-                              }}
-                              className="p-1 text-white/60 hover:text-white cursor-pointer"
-                              title={layer.locked ? 'Unlock layer' : 'Lock layer'}
-                            >
-                              {layer.locked ? (
-                                <Lock className="w-3.5 h-3.5 text-white" />
-                              ) : (
-                                <Unlock className="w-3.5 h-3.5 text-white/40" />
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={actualIdx >= layers.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveLayerOrder(layer.id, 1);
-                              }}
-                              className="p-1 text-white/50 hover:text-white disabled:opacity-25 cursor-pointer"
-                              title="Move Up"
-                            >
-                              <ArrowUp className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={actualIdx <= 0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                moveLayerOrder(layer.id, -1);
-                              }}
-                              className="p-1 text-white/50 hover:text-white disabled:opacity-25 cursor-pointer"
-                              title="Move Down"
-                            >
-                              <ArrowDown className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteLayer(layer.id);
-                              }}
-                              className="p-1 text-white/45 hover:text-white cursor-pointer"
-                              title={layers.length > 1 ? 'Delete Layer' : 'Clear Layer'}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between text-[10px] font-mono text-white/45">
-                          <span>{layer.blendMode}</span>
-                          <span className="tabular-nums">{Math.round(layer.opacity * 100)}%</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Active Layer Opacity & Blend Mode */}
-                {activeLayer && (
-                  <div className="p-3 rounded-xl border border-white/[0.08] bg-black/40 space-y-3 text-xs">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
-                        <span>Layer Opacity</span>
-                        <span className="tabular-nums">{Math.round(activeLayer.opacity * 100)}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={Math.round(activeLayer.opacity * 100)}
-                        onChange={(e) =>
-                          updateActiveLayerProp({ opacity: Number(e.target.value) / 100 })
-                        }
-                        className="w-full accent-white cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="font-mono text-[10px] text-white/70 block">Blend Mode</span>
-                      <select
-                        value={activeLayer.blendMode}
-                        onChange={(e) =>
-                          updateActiveLayerProp({ blendMode: e.target.value as CanvasBlendMode })
-                        }
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-white/[0.12] bg-[#090b10] text-xs font-mono text-white focus:outline-none"
-                      >
-                        <option value="source-over">Normal</option>
-                        <option value="multiply">Multiply</option>
-                        <option value="screen">Screen</option>
-                        <option value="overlay">Overlay</option>
-                        <option value="soft-light">Soft Light</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {/* Artboard Backdrop & Project Save/Load */}
-                <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
-                  <span className="font-mono text-[10px] text-white/50 uppercase block">
-                    Canvas Backdrop
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {CANVAS_BG_SWATCHES.map((bg) => (
-                      <button
-                        key={bg.id}
-                        type="button"
-                        onClick={() => setBackgroundColor(bg.value)}
-                        title={bg.label}
-                        style={{
-                          backgroundColor: bg.value === 'transparent' ? '#141720' : bg.value,
-                        }}
-                        className={`flex-1 h-7 rounded-md border text-[9px] font-mono cursor-pointer ${
-                          backgroundColor === bg.value
-                            ? 'border-white ring-1 ring-white/40'
-                            : 'border-white/20'
-                        }`}
-                      >
-                        {bg.value === 'transparent' ? 'TR' : ''}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleExportProjectJson}
-                      className="py-1.5 px-2.5 rounded-lg border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.08] text-[10px] font-mono text-white/75 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <FileJson className="w-3.5 h-3.5" />
-                      <span>Save JSON</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => jsonInputRef.current?.click()}
-                      className="py-1.5 px-2.5 rounded-lg border border-white/[0.1] bg-white/[0.03] hover:bg-white/[0.08] text-[10px] font-mono text-white/75 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5" />
-                      <span>Load JSON</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* Brush, Typography, Transform & Non-Destructive Layer Filters */
-              <div className="flex-1 overflow-y-auto p-3.5 space-y-5 text-xs">
-                {/* Brush / Stroke Controls */}
-                <div className="space-y-3 p-3 rounded-xl border border-white/[0.08] bg-black/40">
-                  <div className="font-mono text-[10px] uppercase tracking-wider text-white/60">
-                    Tool Calibration
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
-                      <span>Stroke Size</span>
-                      <span className="tabular-nums">{brushSize}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={1}
-                      max={120}
-                      value={brushSize}
-                      onChange={(e) => setBrushSize(Number(e.target.value))}
-                      className="w-full accent-white cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
-                      <span>Ink Opacity</span>
-                      <span className="tabular-nums">{Math.round(brushOpacity * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={5}
-                      max={100}
-                      value={Math.round(brushOpacity * 100)}
-                      onChange={(e) => setBrushOpacity(Number(e.target.value) / 100)}
-                      className="w-full accent-white cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
-                      <span>Headline Size (Text Tool)</span>
-                      <span className="tabular-nums">{fontSize}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={18}
-                      max={180}
-                      value={fontSize}
-                      onChange={(e) => setFontSize(Number(e.target.value))}
-                      className="w-full accent-white cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="font-mono text-[10px] text-white/70">Fill Shapes</span>
-                    <button
-                      type="button"
-                      onClick={() => setShapeFilled((f) => !f)}
-                      className={`px-2.5 py-1 rounded border text-[10px] font-mono cursor-pointer ${
-                        shapeFilled
-                          ? 'bg-white text-black border-white font-semibold'
-                          : 'border-white/15 text-white/60'
-                      }`}
-                    >
-                      {shapeFilled ? 'FILLED' : 'OUTLINE'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Active Layer Transform */}
-                {activeLayer && (
-                  <div className="space-y-3 p-3 rounded-xl border border-white/[0.08] bg-black/40">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-white/60">
-                        Layer Transform
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateActiveLayerProp({ offsetX: 0, offsetY: 0, scale: 1 })
-                        }
-                        className="text-[10px] font-mono text-white/55 hover:text-white flex items-center gap-1 cursor-pointer"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Reset</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between font-mono text-[10px] text-white/70">
-                        <span>Layer Scale</span>
-                        <span className="tabular-nums">{Math.round(activeLayer.scale * 100)}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={20}
-                        max={250}
-                        value={Math.round(activeLayer.scale * 100)}
-                        onChange={(e) =>
-                          updateActiveLayerProp({ scale: Number(e.target.value) / 100 })
-                        }
-                        className="w-full accent-white cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Non-Destructive Layer Filters */}
-                {activeLayer && (
-                  <div className="space-y-3 p-3 rounded-xl border border-white/[0.08] bg-black/40">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-white/60">
-                        Layer Color Grade
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateActiveLayerProp({ filters: { ...DEFAULT_LAYER_FILTERS } })
-                        }
-                        className="text-[10px] font-mono text-white/55 hover:text-white cursor-pointer"
-                      >
-                        Reset Grade
-                      </button>
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex justify-between font-mono text-[10px] text-white/70">
-                        <span>Brightness</span>
-                        <span className="tabular-nums">{activeLayer.filters.brightness}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={40}
-                        max={180}
-                        value={activeLayer.filters.brightness}
-                        onChange={(e) =>
-                          updateActiveLayerProp({
-                            filters: {
-                              ...activeLayer.filters,
-                              brightness: Number(e.target.value),
-                            },
-                          })
-                        }
-                        className="w-full accent-white cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex justify-between font-mono text-[10px] text-white/70">
-                        <span>Contrast</span>
-                        <span className="tabular-nums">{activeLayer.filters.contrast}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={40}
-                        max={180}
-                        value={activeLayer.filters.contrast}
-                        onChange={(e) =>
-                          updateActiveLayerProp({
-                            filters: {
-                              ...activeLayer.filters,
-                              contrast: Number(e.target.value),
-                            },
-                          })
-                        }
-                        className="w-full accent-white cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <div className="flex justify-between font-mono text-[10px] text-white/70">
-                        <span>Saturation</span>
-                        <span className="tabular-nums">{activeLayer.filters.saturate}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={200}
-                        value={activeLayer.filters.saturate}
-                        onChange={(e) =>
-                          updateActiveLayerProp({
-                            filters: {
-                              ...activeLayer.filters,
-                              saturate: Number(e.target.value),
-                            },
-                          })
-                        }
-                        className="w-full accent-white cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="font-mono text-[10px] text-white/70">Monochrome Noir</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateActiveLayerProp({
-                            filters: {
-                              ...activeLayer.filters,
-                              grayscale: !activeLayer.filters.grayscale,
-                            },
-                          })
-                        }
-                        className={`px-2.5 py-1 rounded border text-[10px] font-mono cursor-pointer ${
-                          activeLayer.filters.grayscale
-                            ? 'bg-white text-black border-white font-semibold'
-                            : 'border-white/15 text-white/60'
-                        }`}
-                      >
-                        {activeLayer.filters.grayscale ? 'NOIR ON' : 'COLOR'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </aside>
+            title="Drag to resize Generation Settings panel"
+            className="hidden lg:block w-1 hover:w-1.5 bg-transparent hover:bg-white/25 cursor-col-resize transition-colors shrink-0 z-20"
+          />
         )}
+
+        {/* C. RIGHT PANEL — GENERATION SETTINGS & PAINTER DOCK */}
+        <CanvasRightSettingsPanel
+          experienceMode={layoutPrefs.experienceMode}
+          centerStage={layoutPrefs.centerStage}
+          minimized={layoutPrefs.rightMinimized}
+          onToggleMinimize={() =>
+            updateLayoutPrefs((prev) => ({ ...prev, rightMinimized: !prev.rightMinimized }))
+          }
+          sections={layoutPrefs.rightSections}
+          onToggleSection={(key: keyof CanvasRightSectionsState) =>
+            updateLayoutPrefs((prev) => ({
+              ...prev,
+              rightSections: {
+                ...prev.rightSections,
+                [key]: !prev.rightSections[key],
+              },
+            }))
+          }
+          width={layoutPrefs.rightWidth}
+          providers={providers}
+          config={config}
+          capabilities={capabilities}
+          estimateState={estimateState}
+          creditBalance={creditBalance}
+          isGenerating={
+            activeGenStatus.status === 'submitting' ||
+            activeGenStatus.status === 'processing'
+          }
+          isEnhancingPrompt={isEnhancingPrompt}
+          isAnalyzingMedia={isAnalyzingMedia}
+          onUpdateConfig={updateConfig}
+          onSelectProviderAndModel={handleSelectProviderAndModel}
+          onEnhancePrompt={handleEnhancePrompt}
+          onAnalyzeAttachedMedia={handleAnalyzeAttachedMedia}
+          onGenerateVideo={handleGenerateVideo}
+          painterInspectorSlot={painterInspectorSlot}
+          painterLayerCount={layers.length}
+          isMobileOpen={isMobileRightOpen}
+          onCloseMobile={() => setIsMobileRightOpen(false)}
+        />
       </div>
 
-      {/* Hidden File Inputs */}
+      {/* Hidden File Inputs for 2D Painter */}
       <input
         ref={imageInputRef}
         type="file"
@@ -2131,7 +3310,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
               </button>
             </div>
             <p className="text-xs text-white/60">
-              Generate a visual keyframe plate onto a dedicated layer in {aspectPreset} framing ({artWidth} × {artHeight}px).
+              Generate a visual keyframe plate onto your Canvas Assets & Painter stack ({aspectPreset} · {artWidth} × {artHeight}px).
             </p>
             <textarea
               rows={4}
@@ -2161,7 +3340,7 @@ export const VaiByteCanvasSlide: React.FC<VaiByteCanvasSlideProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Add AI Layer</span>
+                    <span>Generate Plate</span>
                   </>
                 )}
               </button>

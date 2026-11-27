@@ -1401,6 +1401,33 @@
         "appreciations": { "type": "number" }
       },
       "required": ["publishedCreationId", "ownerId", "totalViews"]
+    },
+    "hybridStudioProjects": {
+      "title": "VAIURE Hybrid Studio Production Project",
+      "description": "Director-owned multi-scene AI film production workspace containing storyboard scenes, shots, continuity profiles, timeline tracks/clips, and version snapshots",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "resolution": { "type": "string", "enum": ["480p", "720p", "1080p", "4K"] },
+        "frameRate": { "type": "string", "enum": ["24fps", "30fps"] },
+        "aspectRatio": { "type": "string", "maxLength": 16 },
+        "scenes": { "type": "array" },
+        "characters": { "type": "array" },
+        "environments": { "type": "array" },
+        "assets": { "type": "array" },
+        "assetFolders": { "type": "array" },
+        "videoTransforms": { "type": "array" },
+        "timelineTracks": { "type": "array" },
+        "timelineClips": { "type": "array" },
+        "generations": { "type": "array" },
+        "versions": { "type": "array" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "ownerId", "name", "resolution", "frameRate", "aspectRatio", "updatedAt"]
     }
   },
   "firestore": {
@@ -1747,6 +1774,10 @@
     "/creationAnalytics/{analyticsId}": {
       "schema": "creationAnalytics",
       "description": "Engagement metrics readable only by creation owner or admins"
+    },
+    "/hybridStudioProjects/{projectId}": {
+      "schema": "hybridStudioProjects",
+      "description": "Owner-private HYBRID STUDIO AI film productions, scenes, shots, timeline edits, and snapshots"
     }
   }
 }

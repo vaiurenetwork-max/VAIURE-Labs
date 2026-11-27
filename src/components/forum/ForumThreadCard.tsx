@@ -46,6 +46,7 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   // Sync state with thread prop
   useEffect(() => {
@@ -149,10 +150,13 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
             onClick={() => onOpenProfile?.(thread.authorId)}
             className="w-10 h-10 rounded-full overflow-hidden border border-white/20 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-xs text-white/70 cursor-pointer"
           >
-            {thread.authorAvatar ? (
+            {thread.authorAvatar && !failedImages[`avatar:${thread.id}`] ? (
               <img
                 src={thread.authorAvatar}
                 alt={thread.authorDisplayName}
+                onError={() =>
+                  setFailedImages((prev) => ({ ...prev, [`avatar:${thread.id}`]: true }))
+                }
                 className="w-full h-full object-cover filter grayscale"
               />
             ) : (
@@ -231,42 +235,76 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
           {thread.content}
         </p>
 
-        {/* Attached Media Grid */}
-        {thread.mediaUrls && thread.mediaUrls.length > 0 && (
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {thread.mediaUrls.map((url, i) => (
-              <div
-                key={i}
-                className="rounded-xl overflow-hidden border border-white/15 bg-black aspect-[4/3]"
-              >
-                <img src={url} alt="Attached" className="w-full h-full object-cover" />
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Attached Media Grid (Deduplicated) */}
+        {(() => {
+          const uniqueMedia = Array.from(
+            new Set(
+              (thread.mediaUrls || [])
+                .map((u) => (typeof u === 'string' ? u.trim() : ''))
+                .filter((u) => Boolean(u) && !failedImages[`media:${u}`])
+            )
+          );
+          if (uniqueMedia.length === 0) return null;
+          return (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {uniqueMedia.map((url) => (
+                <div
+                  key={url}
+                  className="rounded-xl overflow-hidden border border-white/15 bg-black aspect-[4/3]"
+                >
+                  <img
+                    src={url}
+                    alt="Attached"
+                    onError={() =>
+                      setFailedImages((prev) => ({ ...prev, [`media:${url}`]: true }))
+                    }
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Chained Thoughts (Connected Thread) */}
         {thread.chainedThoughts && thread.chainedThoughts.length > 0 && (
           <div className="mt-4 space-y-4 relative pl-4 border-l border-white/20">
-            {thread.chainedThoughts.map((chained, idx) => (
-              <div key={chained.id || idx} className="space-y-1 relative">
-                <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
-                  THREAD PART {idx + 2}
-                </span>
-                <p className="text-sm font-sans text-neutral-300 font-light leading-relaxed whitespace-pre-wrap">
-                  {chained.content}
-                </p>
-                {chained.mediaUrls && chained.mediaUrls.length > 0 && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {chained.mediaUrls.map((u, ui) => (
-                      <div key={ui} className="rounded-lg overflow-hidden border border-white/10 aspect-video">
-                        <img src={u} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+            {thread.chainedThoughts.map((chained, idx) => {
+              const parentSet = new Set((thread.mediaUrls || []).map((u) => u.trim()));
+              const uniqueChainMedia = Array.from(
+                new Set(
+                  (chained.mediaUrls || [])
+                    .map((u) => (typeof u === 'string' ? u.trim() : ''))
+                    .filter((u) => Boolean(u) && !parentSet.has(u) && !failedImages[`cmedia:${u}`])
+                )
+              );
+              return (
+                <div key={chained.id || idx} className="space-y-1 relative">
+                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                    THREAD PART {idx + 2}
+                  </span>
+                  <p className="text-sm font-sans text-neutral-300 font-light leading-relaxed whitespace-pre-wrap">
+                    {chained.content}
+                  </p>
+                  {uniqueChainMedia.length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {uniqueChainMedia.map((u) => (
+                        <div key={u} className="rounded-lg overflow-hidden border border-white/10 aspect-video">
+                          <img
+                            src={u}
+                            alt=""
+                            onError={() =>
+                              setFailedImages((prev) => ({ ...prev, [`cmedia:${u}`]: true }))
+                            }
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -347,8 +385,15 @@ export const ForumThreadCard: React.FC<ForumThreadCardProps> = ({
                 replies.map((reply) => (
                   <div key={reply.id} className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-white/[0.02]">
                     <div className="w-7 h-7 rounded-full overflow-hidden border border-white/15 flex-shrink-0 flex items-center justify-center bg-neutral-900 font-mono text-[9px] text-white/70">
-                      {reply.authorAvatar ? (
-                        <img src={reply.authorAvatar} alt="" className="w-full h-full object-cover filter grayscale" />
+                      {reply.authorAvatar && !failedImages[`reply:${reply.id}`] ? (
+                        <img
+                          src={reply.authorAvatar}
+                          alt=""
+                          onError={() =>
+                            setFailedImages((prev) => ({ ...prev, [`reply:${reply.id}`]: true }))
+                          }
+                          className="w-full h-full object-cover filter grayscale"
+                        />
                       ) : (
                         <span>{reply.authorUsername.slice(0, 2).toUpperCase()}</span>
                       )}

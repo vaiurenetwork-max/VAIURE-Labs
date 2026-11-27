@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-export type SlideIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type SlideIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 interface UseSlideNavigationOptions {
   initialSlide?: SlideIndex;

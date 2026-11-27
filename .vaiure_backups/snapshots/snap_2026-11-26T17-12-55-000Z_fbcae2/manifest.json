@@ -1,6 +1,6 @@
 {
-  "id": "snap_2026-11-20T09-49-29-732Z_df2ff2",
-  "createdAt": "2026-11-20T09:49:29.733Z",
+  "id": "snap_2026-11-26T17-12-55-000Z_fbcae2",
+  "createdAt": "2026-11-26T17:12:55.002Z",
   "reason": "SERVER_STARTUP",
   "actorUid": "system",
   "files": [
@@ -8,15 +8,15 @@
       "logicalKey": "seedance_platform_db",
       "relativeTarget": "uploads/seedance_platform_db.json",
       "snapshotFilename": "seedance_platform_db.json",
-      "byteSize": 9958,
-      "sha256": "1e03417f3cad4aadb1108bc66aed7b34f1653f0e1bf08bc87d3ed793ddd49af0"
+      "byteSize": 12724,
+      "sha256": "ac144de6e5c5b77af4eea50c2fefae5e31cdf770b98f3aa162f730e93bad9ca1"
     },
     {
       "logicalKey": "seedance_community_db",
       "relativeTarget": "uploads/seedance_community_db.json",
       "snapshotFilename": "seedance_community_db.json",
-      "byteSize": 4320,
-      "sha256": "ffa98d3e23b4106a80a5bf1f39d92652ca820c20f6e4cadc8b806e59be2c284b"
+      "byteSize": 4912,
+      "sha256": "9f14a679aaf6534e1565826462263171e5ba85cba7cb8bcb9fcfd2f31af64de3"
     },
     {
       "logicalKey": "seedance_curated_db",
@@ -29,8 +29,8 @@
       "logicalKey": "vxa_ledger_db",
       "relativeTarget": ".vaiure_backups/vxa_ledger_db.json",
       "snapshotFilename": "vxa_ledger_db.json",
-      "byteSize": 63329,
-      "sha256": "dcb73447d7c09049cb6296d07a86b70ae01151e303adcc286afd48e2c7faf29b"
+      "byteSize": 132888,
+      "sha256": "4986119b2b9f426b7ddc015bf8d97e69c5023639fd719492fac343b7a5c32802"
     }
   ]
 }
